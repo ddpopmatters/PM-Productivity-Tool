@@ -4131,7 +4131,7 @@
                 <div className="w-64 bg-white flex flex-col h-screen fixed left-0 top-0 z-10 border-r border-ocean-100 shadow-sm">
                     {/* Logo/Header */}
                     <div className="p-6 border-b border-ocean-100">
-                        <h1 className="text-2xl text-ocean-900">{currentUser.split(' ')[0]}'s Project Hub</h1>
+                        <h1 className="text-2xl text-ocean-900">{(currentUser || 'User').split(' ')[0]}'s Project Hub</h1>
                         <p className="text-xs text-ocean-600 mt-1">Workflow Management</p>
                     </div>
 
@@ -4205,7 +4205,7 @@
                     <div className="p-4 border-t border-ocean-100">
                         <div className="flex items-center gap-3 p-3 rounded-xl bg-ocean-50">
                             <div className="w-10 h-10 rounded-full bg-ocean-500 flex items-center justify-center text-white font-bold">
-                                {currentUser.split(' ').map(n => n[0]).join('')}
+                                {(currentUser || 'U').split(' ').map(n => n[0]).join('')}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="font-medium text-sm text-ocean-900 truncate">{currentUser}</div>
@@ -4315,7 +4315,7 @@
                     <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-8 text-white shadow-xl">
                         <div className="flex items-start justify-between">
                             <div>
-                                <h1 className="text-3xl font-bold mb-2">Welcome back, {currentUser.split(' ')[0]}!</h1>
+                                <h1 className="text-3xl font-bold mb-2">Welcome back, {(currentUser || 'User').split(' ')[0]}!</h1>
                                 <p className="text-ocean-100">Here's what's happening with your projects</p>
                             </div>
                             <button
@@ -4811,17 +4811,43 @@
                 }
             };
 
+            const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
+
             const handleFileUpload = async (e) => {
                 const files = Array.from(e.target.files || []);
                 if (!files.length) return;
 
+                // Validate file sizes
+                const oversizedFiles = files.filter(f => f.size > MAX_FILE_SIZE);
+                const validFiles = files.filter(f => f.size <= MAX_FILE_SIZE);
+
+                if (oversizedFiles.length > 0) {
+                    alert(`${oversizedFiles.length} file(s) exceed the 10MB limit and will be skipped:\n${oversizedFiles.map(f => f.name).join('\n')}`);
+                }
+
+                if (!validFiles.length) {
+                    if (attachmentInputRef.current) {
+                        attachmentInputRef.current.value = '';
+                    }
+                    return;
+                }
+
                 setUploadingFile(true);
+                const uploadedFiles = [];
+                const failedFiles = [];
+
                 try {
-                    const uploadedFiles = [];
-                    for (const file of files) {
-                        const result = await SUPABASE_API.uploadFile(file, entry.id);
-                        if (result) {
-                            uploadedFiles.push(result);
+                    for (const file of validFiles) {
+                        try {
+                            const result = await SUPABASE_API.uploadFile(file, entry.id);
+                            if (result) {
+                                uploadedFiles.push(result);
+                            } else {
+                                failedFiles.push(file.name);
+                            }
+                        } catch (fileErr) {
+                            console.error(`Failed to upload ${file.name}:`, fileErr);
+                            failedFiles.push(file.name);
                         }
                     }
 
@@ -4829,8 +4855,14 @@
                         const existingAttachments = entry.attachments || [];
                         onUpdateEntry(entry.id, { attachments: [...existingAttachments, ...uploadedFiles] });
                     }
+
+                    // Notify user of any failures
+                    if (failedFiles.length > 0) {
+                        alert(`Failed to upload ${failedFiles.length} file(s):\n${failedFiles.join('\n')}`);
+                    }
                 } catch (err) {
                     console.error('Upload error:', err);
+                    alert('An error occurred while uploading files. Please try again.');
                 } finally {
                     setUploadingFile(false);
                     if (attachmentInputRef.current) {
@@ -5066,10 +5098,10 @@
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 rounded-full bg-ocean-100 flex items-center justify-center text-xs font-bold text-ocean-600 border border-ocean-200" title={subtask.assignedTo}>
-                                                            {subtask.assignedTo.charAt(0)}
+                                                        <div className="w-6 h-6 rounded-full bg-ocean-100 flex items-center justify-center text-xs font-bold text-ocean-600 border border-ocean-200" title={subtask.assignedTo || 'Unassigned'}>
+                                                            {(subtask.assignedTo || '?').charAt(0)}
                                                         </div>
-                                                        <span className="text-xs text-graystone-500">{subtask.assignedTo.split(' ')[0]}</span>
+                                                        <span className="text-xs text-graystone-500">{(subtask.assignedTo || 'Unassigned').split(' ')[0]}</span>
                                                         <button
                                                             type="button"
                                                             onClick={(e) => { e.stopPropagation(); setActiveSubtask(subtask); }}
@@ -7452,7 +7484,7 @@
                         case 'b':
                             if (!e.metaKey && !e.ctrlKey) {
                                 e.preventDefault();
-                                setShowNotificationsPanel(!showNotificationsPanel);
+                                setShowNotificationsPanel(prev => !prev);
                             }
                             break;
                     }
@@ -7460,7 +7492,7 @@
 
                 document.addEventListener('keydown', handleKeyDown);
                 return () => document.removeEventListener('keydown', handleKeyDown);
-            }, [showNotificationsPanel]);
+            }, []); // No dependencies needed - all setters are stable, toggle uses functional update
 
             // Authentication State
             const [authUser, setAuthUser] = useState(null);
@@ -8103,23 +8135,25 @@
 
             // Bulk status change handler
             const handleBulkStatusChange = async (ids, newStatus) => {
+                // Capture entries before state update to avoid stale references
+                const entriesToUpdate = entries.filter(e => ids.includes(e.id));
+
                 // Update all items optimistically
                 setEntries(prev => prev.map(e =>
                     ids.includes(e.id) ? { ...e, workflowStatus: newStatus } : e
                 ));
 
                 // Persist each to database
-                for (const id of ids) {
-                    const entry = entries.find(e => e.id === id);
-                    if (!entry) continue;
+                for (const entry of entriesToUpdate) {
+                    const oldStatus = entry.workflowStatus;
 
                     if (SUPABASE_CONFIG.ENABLED && supabase) {
-                        await SUPABASE_API.updateItem(id, { ...entry, workflowStatus: newStatus });
+                        await SUPABASE_API.updateItem(entry.id, { workflowStatus: newStatus });
                     }
 
-                    // Log activity
-                    logActivity('status_changed', 'workflow_item', id, entry.title, {
-                        from_status: entry.workflowStatus,
+                    // Log activity with correct old status
+                    logActivity('status_changed', 'workflow_item', entry.id, entry.title, {
+                        from_status: oldStatus,
                         to_status: newStatus,
                         bulk_operation: true
                     }, entry.collaborators || []);
@@ -8128,23 +8162,40 @@
 
             // Bulk delete handler
             const handleBulkDelete = async (ids) => {
-                // Remove from state optimistically
+                // Capture entries before deletion for potential rollback
                 const deletedEntries = entries.filter(e => ids.includes(e.id));
+
+                // Remove from state optimistically
                 setEntries(prev => prev.filter(e => !ids.includes(e.id)));
 
-                // Delete from database
-                for (const id of ids) {
-                    const entry = deletedEntries.find(e => e.id === id);
-                    if (SUPABASE_CONFIG.ENABLED && supabase) {
-                        await SUPABASE_API.deleteItem(id);
-                    }
+                const failedDeletes = [];
 
-                    // Log activity
-                    if (entry) {
-                        logActivity('deleted', 'workflow_item', id, entry.title, {
+                // Delete from database with error handling
+                for (const entry of deletedEntries) {
+                    try {
+                        if (SUPABASE_CONFIG.ENABLED && supabase) {
+                            const result = await SUPABASE_API.deleteItem(entry.id);
+                            if (!result) {
+                                failedDeletes.push(entry);
+                                continue;
+                            }
+                        }
+
+                        // Log activity only on success
+                        logActivity('deleted', 'workflow_item', entry.id, entry.title, {
                             team: entry.team
                         });
+                    } catch (error) {
+                        console.error(`Failed to delete item ${entry.id}:`, error);
+                        failedDeletes.push(entry);
                     }
+                }
+
+                // Rollback failed deletions by adding them back to state
+                if (failedDeletes.length > 0) {
+                    setEntries(prev => [...prev, ...failedDeletes]);
+                    setSaveError(`Failed to delete ${failedDeletes.length} item(s). They have been restored.`);
+                    setTimeout(() => setSaveError(""), 5000);
                 }
             };
 
