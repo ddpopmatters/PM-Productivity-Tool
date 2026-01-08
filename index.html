@@ -712,7 +712,7 @@
         // LOGIN SCREEN COMPONENT
         // ============================================
         function LoginScreen({ onAuthChange }) {
-            const [mode, setMode] = useState('signin'); // 'signin', 'signup', 'verify', 'link-sent'
+            const [mode, setMode] = useState('signin'); // 'signin', 'signup', 'verify', 'verify-2fa'
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
             const [confirmPassword, setConfirmPassword] = useState('');
@@ -722,25 +722,11 @@
             const [loading, setLoading] = useState(false);
             const [clerk, setClerk] = useState(null);
             const [pendingSignUp, setPendingSignUp] = useState(null);
+            const [pendingSignIn, setPendingSignIn] = useState(null);
 
             useEffect(() => {
                 initClerk().then(setClerk);
             }, []);
-
-            // Check for magic link callback on mount
-            useEffect(() => {
-                if (!clerk) return;
-
-                const handleMagicLinkCallback = async () => {
-                    // Check if this is a magic link callback
-                    if (clerk.client?.signIn?.status === 'complete') {
-                        await clerk.setActive({ session: clerk.client.signIn.createdSessionId });
-                        onAuthChange(clerk.user);
-                    }
-                };
-
-                handleMagicLinkCallback();
-            }, [clerk]);
 
             const handleSignIn = async (e) => {
                 e.preventDefault();
@@ -749,22 +735,72 @@
                 setError('');
 
                 try {
-                    // Create sign-in with email link strategy
+                    // Create sign-in with email identifier
                     const signIn = await clerk.client.signIn.create({
                         identifier: email,
                     });
 
-                    // Send magic link email
-                    await signIn.prepareFirstFactor({
-                        strategy: 'email_link',
-                        redirectUrl: window.location.href,
+                    // Attempt first factor with password
+                    const result = await signIn.attemptFirstFactor({
+                        strategy: 'password',
+                        password: password,
                     });
 
-                    setMode('link-sent');
-                    setSuccess('Check your email! We sent you a sign-in link.');
+                    if (result.status === 'complete') {
+                        // No 2FA required, sign in complete
+                        await clerk.setActive({ session: result.createdSessionId });
+                        onAuthChange(clerk.user);
+                    } else if (result.status === 'needs_second_factor') {
+                        // 2FA required - prepare email code
+                        await result.prepareSecondFactor({
+                            strategy: 'email_code',
+                        });
+                        setPendingSignIn(result);
+                        setMode('verify-2fa');
+                        setSuccess('Enter the verification code sent to your email.');
+                    }
                 } catch (err) {
                     console.error('Sign in error:', err);
                     setError(err.errors?.[0]?.message || err.message || 'Sign in failed. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleVerify2FA = async (e) => {
+                e.preventDefault();
+                if (!clerk || !pendingSignIn) return;
+                setLoading(true);
+                setError('');
+
+                try {
+                    const result = await pendingSignIn.attemptSecondFactor({
+                        strategy: 'email_code',
+                        code: verificationCode,
+                    });
+
+                    if (result.status === 'complete') {
+                        await clerk.setActive({ session: result.createdSessionId });
+                        onAuthChange(clerk.user);
+                    } else {
+                        setError('Verification incomplete. Please try again.');
+                    }
+                } catch (err) {
+                    setError(err.errors?.[0]?.message || 'Invalid verification code. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const resendCode2FA = async () => {
+                if (!pendingSignIn) return;
+                setLoading(true);
+                setError('');
+                try {
+                    await pendingSignIn.prepareSecondFactor({ strategy: 'email_code' });
+                    setSuccess('New verification code sent!');
+                } catch (err) {
+                    setError('Failed to resend code. Please try again.');
                 } finally {
                     setLoading(false);
                 }
@@ -853,9 +889,9 @@
                         <div className="text-center mb-8">
                             <h1 className="text-3xl font-bold text-ocean-900 mb-2">Workflow Manager</h1>
                             <p className="text-graystone-600">
-                                {mode === 'signin' ? 'Sign in with email link' :
+                                {mode === 'signin' ? 'Sign in to your account' :
                                  mode === 'signup' ? 'Create your account' :
-                                 mode === 'link-sent' ? 'Check your email' :
+                                 mode === 'verify-2fa' ? 'Two-factor authentication' :
                                  'Enter verification code'}
                             </p>
                         </div>
@@ -920,31 +956,55 @@
                             </form>
                         )}
 
-                        {/* Link Sent Confirmation */}
-                        {mode === 'link-sent' && (
-                            <div className="text-center space-y-4">
-                                <div className="w-16 h-16 bg-ocean-100 rounded-full flex items-center justify-center mx-auto">
-                                    <svg className="w-8 h-8 text-ocean-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
+                        {/* 2FA Verification Form */}
+                        {mode === 'verify-2fa' && (
+                            <form onSubmit={handleVerify2FA} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-graystone-700 mb-1">
+                                        Verification Code
+                                    </label>
+                                    <p className="text-xs text-graystone-500 mb-2">
+                                        We sent a code to {email}
+                                    </p>
+                                    <input
+                                        type="text"
+                                        value={verificationCode}
+                                        onChange={(e) => setVerificationCode(e.target.value)}
+                                        className="w-full px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition text-center text-2xl tracking-widest"
+                                        placeholder="000000"
+                                        required
+                                        maxLength={6}
+                                    />
                                 </div>
-                                <p className="text-graystone-600">
-                                    We sent a sign-in link to <strong>{email}</strong>
-                                </p>
-                                <p className="text-sm text-graystone-500">
-                                    Click the link in your email to sign in. The link will expire in 10 minutes.
-                                </p>
                                 <button
-                                    type="button"
-                                    onClick={() => { setMode('signin'); setError(''); setSuccess(''); }}
-                                    className="text-sm text-ocean-600 hover:underline"
+                                    type="submit"
+                                    disabled={loading || !clerk || verificationCode.length < 6}
+                                    className="w-full bg-ocean-500 text-white py-3 rounded-xl font-semibold hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                                 >
-                                    Use a different email
+                                    {loading ? 'Verifying...' : 'Verify & Sign In'}
                                 </button>
-                            </div>
+                                <div className="text-center">
+                                    <button
+                                        type="button"
+                                        onClick={resendCode2FA}
+                                        disabled={loading}
+                                        className="text-sm text-ocean-600 hover:underline"
+                                    >
+                                        Resend code
+                                    </button>
+                                    <span className="mx-2 text-graystone-300">|</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setMode('signin'); setError(''); setSuccess(''); setPendingSignIn(null); setVerificationCode(''); }}
+                                        className="text-sm text-graystone-600 hover:underline"
+                                    >
+                                        Start over
+                                    </button>
+                                </div>
+                            </form>
                         )}
 
-                        {/* Sign In Form - Email only */}
+                        {/* Sign In Form - Email + Password */}
                         {mode === 'signin' && (
                             <form onSubmit={handleSignIn} className="space-y-4">
                                 <div>
@@ -958,12 +1018,23 @@
                                         required
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-graystone-700 mb-1">Password</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                        placeholder="••••••••"
+                                        required
+                                    />
+                                </div>
                                 <button
                                     type="submit"
                                     disabled={loading || !clerk}
                                     className="w-full bg-ocean-500 text-white py-3 rounded-xl font-semibold hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                                 >
-                                    {loading ? 'Sending link...' : 'Send Sign-In Link'}
+                                    {loading ? 'Signing in...' : 'Sign In'}
                                 </button>
                             </form>
                         )}
