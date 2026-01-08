@@ -1535,12 +1535,12 @@
             const myManagerRecord = managers.find(m => m.email?.toLowerCase() === userEmail?.toLowerCase());
             const isAdminUser = isAdmin(userEmail);
 
-            // If admin, can see all managers; otherwise only see own team
-            const availableManagers = isAdminUser ? managers : (myManagerRecord ? [myManagerRecord] : []);
+            // Manager Hub always shows only your own team - use Admin Console for cross-team admin views
+            const availableManagers = myManagerRecord ? [myManagerRecord] : [];
 
-            const [selectedManager, setSelectedManager] = useState(myManagerRecord || managers[0] || null);
+            const [selectedManager, setSelectedManager] = useState(myManagerRecord || null);
             const [selectedReport, setSelectedReport] = useState("all");
-            const [selectedMembers, setSelectedMembers] = useState((myManagerRecord || managers[0])?.reports || []);
+            const [selectedMembers, setSelectedMembers] = useState(myManagerRecord?.reports || []);
             const [includeCollaborations, setIncludeCollaborations] = useState(false);
             const [managerViewMode, setManagerViewMode] = useState('kanban');
 
