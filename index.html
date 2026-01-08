@@ -284,6 +284,18 @@
             return USERS_CONFIG.profiles.find(p => p.email.toLowerCase() === email.toLowerCase());
         };
 
+        // Check if user can edit an item (owner or collaborator)
+        const canEditItem = (item, userEmail, userName) => {
+            if (!item || !userEmail) return false;
+            // Owner by email (most secure)
+            if (item.ownerEmail && item.ownerEmail.toLowerCase() === userEmail.toLowerCase()) return true;
+            // Fallback: owner by name (for legacy items without ownerEmail)
+            if (item.owner === userName) return true;
+            // Collaborators can also edit
+            if (item.collaborators && item.collaborators.includes(userName)) return true;
+            return false;
+        };
+
         // Functions to modify roles (called from AdminConsole)
         const addAdmin = (email) => {
             const normalized = email.toLowerCase().trim();
@@ -523,7 +535,7 @@
             },
 
             // 2. Save new workflow item
-            saveItem: async (item) => {
+            saveItem: async (item, userEmail) => {
                 if (!supabase) return null;
                 const { data, error } = await supabase
                     .from('workflow_items')
@@ -534,6 +546,7 @@
                         team: item.team || '',
                         timeline_value: item.timelineValue || '',
                         owner: item.owner || '',
+                        owner_email: userEmail || '', // For RLS enforcement
                         collaborators: item.collaborators || [],
                         tags: item.tags || [],
                         subtasks: item.subtasks || [],
@@ -631,6 +644,7 @@
                 team: row.team,
                 timelineValue: row.timeline_value,
                 owner: row.owner,
+                ownerEmail: row.owner_email, // For ownership checks
                 collaborators: row.collaborators || [],
                 tags: row.tags || [],
                 subtasks: row.subtasks || [],
@@ -3370,9 +3384,12 @@
             );
         }
 
-        function ItemDashboard({ entry, onBack, onToggleSubtask, onUpdateEntry, openSubtaskModal, currentUser }) {
+        function ItemDashboard({ entry, onBack, onToggleSubtask, onUpdateEntry, openSubtaskModal, currentUser, userEmail }) {
             const getCaption = () => (entry && typeof entry.caption === 'string' ? entry.caption : "");
             const getDocuments = () => (entry && Array.isArray(entry.documents) ? entry.documents : []);
+
+            // Check if current user can edit this item
+            const canEdit = canEditItem(entry, userEmail, currentUser);
 
             const [descriptionModalOpen, setDescriptionModalOpen] = useState(false);
             const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
@@ -3528,15 +3545,21 @@
                             <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
                                 <div className="flex items-center justify-between mb-3">
                                     <h3 className="text-lg font-bold text-ocean-900">Description</h3>
-                                    <button
-                                        onClick={() => {
-                                            setDescriptionDraft(getCaption());
-                                            setDescriptionModalOpen(true);
-                                        }}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
-                                    >
-                                        <i data-lucide="edit" className="w-5 h-5 text-ocean-600"></i>
-                                    </button>
+                                    {canEdit ? (
+                                        <button
+                                            onClick={() => {
+                                                setDescriptionDraft(getCaption());
+                                                setDescriptionModalOpen(true);
+                                            }}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
+                                        >
+                                            <i data-lucide="edit" className="w-5 h-5 text-ocean-600"></i>
+                                        </button>
+                                    ) : (
+                                        <span className="text-xs text-graystone-400 flex items-center gap-1">
+                                            <i data-lucide="eye" className="w-3 h-3"></i> View only
+                                        </span>
+                                    )}
                                 </div>
                                 <p className="text-graystone-700 leading-relaxed">
                                     {entry.caption || "No description provided."}
@@ -3547,16 +3570,18 @@
                             <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-lg font-bold text-ocean-900">Documents</h3>
-                                    <button
-                                        onClick={() => {
-                                            setDocumentsDraft(getDocuments());
-                                            setNewDocInput("");
-                                            setDocumentsModalOpen(true);
-                                        }}
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
-                                    >
-                                        <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
-                                    </button>
+                                    {canEdit && (
+                                        <button
+                                            onClick={() => {
+                                                setDocumentsDraft(getDocuments());
+                                                setNewDocInput("");
+                                                setDocumentsModalOpen(true);
+                                            }}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
+                                        >
+                                            <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
+                                        </button>
+                                    )}
                                 </div>
                                 {entry.documents && entry.documents.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -5561,6 +5586,15 @@
             };
 
             const handleUpdateEntry = (entryId, updates) => {
+                // Check permission before allowing any updates
+                const existingEntry = entries.find(e => e.id === entryId);
+                if (existingEntry && !canEditItem(existingEntry, userEmail, currentUser)) {
+                    console.warn("Permission denied: Cannot update items you don't own");
+                    setSaveError("You can only edit your own items or items you collaborate on.");
+                    setTimeout(() => setSaveError(""), 3000);
+                    return;
+                }
+
                 let updatedEntry = null;
                 setEntries((prev) =>
                     prev.map((entry) => {
@@ -5658,7 +5692,7 @@
                         const saved = await SUPABASE_API.saveItem({
                             ...newItem,
                             workflowStatus: newItem.workflowStatus || "Idea"
-                        });
+                        }, userEmail); // Pass userEmail for ownership
                         if (saved) {
                             // Add to local state
                             setEntries(prev => [SUPABASE_API.mapToAppFormat(saved), ...prev]);
@@ -5690,15 +5724,23 @@
             };
 
             const handleUpdateStatus = async (id, newStatus) => {
+                // Check permission before allowing status update
+                const entry = entries.find(e => e.id === id);
+                if (!entry) return;
+
+                if (!canEditItem(entry, userEmail, currentUser)) {
+                    console.warn("Permission denied: Cannot update status of items you don't own");
+                    setSaveError("You can only update your own items or items you collaborate on.");
+                    setTimeout(() => setSaveError(""), 3000);
+                    return;
+                }
+
                 // 1. Optimistic Update (Instant UI change)
                 setEntries(entries.map(e => e.id === id ? { ...e, workflowStatus: newStatus } : e));
 
                 // 2. Persist to database
                 if (SUPABASE_CONFIG.ENABLED && supabase) {
-                    const entry = entries.find(e => e.id === id);
-                    if (entry) {
-                        await SUPABASE_API.updateItem(id, { ...entry, workflowStatus: newStatus });
-                    }
+                    await SUPABASE_API.updateItem(id, { ...entry, workflowStatus: newStatus });
                 } else {
                     await SP_API.updateItem('WorkflowItems', id, {
                         __metadata: { "type": "SP.Data.WorkflowItemsListItem" },
@@ -6170,6 +6212,7 @@
                                 onUpdateEntry={handleUpdateEntry}
                                 openSubtaskModal={openSubtaskModal}
                                 currentUser={currentUser}
+                                userEmail={userEmail}
                             />
                         );
 
