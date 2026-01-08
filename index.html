@@ -5646,7 +5646,7 @@
                     }
                 }, 50);
                 return () => clearTimeout(timer);
-            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal, entries, loading, authChecked]);
+            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal, entries, loading, authChecked, authUser]);
 
             const openSubtaskModal = (entryId) => {
                 setModalEntryId(entryId);
