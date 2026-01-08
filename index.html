@@ -698,7 +698,7 @@
         // LOGIN SCREEN COMPONENT
         // ============================================
         function LoginScreen({ onAuthChange }) {
-            const [mode, setMode] = useState('signin'); // 'signin', 'signup', 'verify'
+            const [mode, setMode] = useState('signin'); // 'signin', 'signup', 'verify', 'link-sent'
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
             const [confirmPassword, setConfirmPassword] = useState('');
@@ -713,6 +713,21 @@
                 initClerk().then(setClerk);
             }, []);
 
+            // Check for magic link callback on mount
+            useEffect(() => {
+                if (!clerk) return;
+
+                const handleMagicLinkCallback = async () => {
+                    // Check if this is a magic link callback
+                    if (clerk.client?.signIn?.status === 'complete') {
+                        await clerk.setActive({ session: clerk.client.signIn.createdSessionId });
+                        onAuthChange(clerk.user);
+                    }
+                };
+
+                handleMagicLinkCallback();
+            }, [clerk]);
+
             const handleSignIn = async (e) => {
                 e.preventDefault();
                 if (!clerk) return;
@@ -720,27 +735,22 @@
                 setError('');
 
                 try {
-                    // First, create the sign-in attempt
+                    // Create sign-in with email link strategy
                     const signIn = await clerk.client.signIn.create({
                         identifier: email,
                     });
 
-                    // Then attempt password verification
-                    const result = await signIn.attemptFirstFactor({
-                        strategy: 'password',
-                        password: password,
+                    // Send magic link email
+                    await signIn.prepareFirstFactor({
+                        strategy: 'email_link',
+                        redirectUrl: window.location.href,
                     });
 
-                    if (result.status === 'complete') {
-                        await clerk.setActive({ session: result.createdSessionId });
-                        onAuthChange(clerk.user);
-                    } else {
-                        console.log('Sign in status:', result.status);
-                        setError(`Sign in incomplete (${result.status}). Please try again.`);
-                    }
+                    setMode('link-sent');
+                    setSuccess('Check your email! We sent you a sign-in link.');
                 } catch (err) {
                     console.error('Sign in error:', err);
-                    setError(err.errors?.[0]?.message || err.message || 'Sign in failed. Please check your credentials.');
+                    setError(err.errors?.[0]?.message || err.message || 'Sign in failed. Please try again.');
                 } finally {
                     setLoading(false);
                 }
@@ -829,8 +839,9 @@
                         <div className="text-center mb-8">
                             <h1 className="text-3xl font-bold text-ocean-900 mb-2">Workflow Manager</h1>
                             <p className="text-graystone-600">
-                                {mode === 'signin' ? 'Sign in to your account' :
+                                {mode === 'signin' ? 'Sign in with email link' :
                                  mode === 'signup' ? 'Create your account' :
+                                 mode === 'link-sent' ? 'Check your email' :
                                  'Enter verification code'}
                             </p>
                         </div>
@@ -895,9 +906,57 @@
                             </form>
                         )}
 
-                        {/* Sign In / Sign Up Form */}
-                        {mode !== 'verify' && (
-                            <form onSubmit={mode === 'signin' ? handleSignIn : handleSignUp} className="space-y-4">
+                        {/* Link Sent Confirmation */}
+                        {mode === 'link-sent' && (
+                            <div className="text-center space-y-4">
+                                <div className="w-16 h-16 bg-ocean-100 rounded-full flex items-center justify-center mx-auto">
+                                    <svg className="w-8 h-8 text-ocean-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <p className="text-graystone-600">
+                                    We sent a sign-in link to <strong>{email}</strong>
+                                </p>
+                                <p className="text-sm text-graystone-500">
+                                    Click the link in your email to sign in. The link will expire in 10 minutes.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => { setMode('signin'); setError(''); setSuccess(''); }}
+                                    className="text-sm text-ocean-600 hover:underline"
+                                >
+                                    Use a different email
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Sign In Form - Email only */}
+                        {mode === 'signin' && (
+                            <form onSubmit={handleSignIn} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-graystone-700 mb-1">Email</label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="w-full px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                        placeholder="you@example.com"
+                                        required
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading || !clerk}
+                                    className="w-full bg-ocean-500 text-white py-3 rounded-xl font-semibold hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                >
+                                    {loading ? 'Sending link...' : 'Send Sign-In Link'}
+                                </button>
+                            </form>
+                        )}
+
+                        {/* Sign Up Form - Email + Password */}
+                        {mode === 'signup' && (
+                            <form onSubmit={handleSignUp} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-graystone-700 mb-1">Email</label>
                                     <input
@@ -921,32 +980,29 @@
                                         minLength={8}
                                     />
                                 </div>
-                                {/* Confirm Password - Sign Up only */}
-                                {mode === 'signup' && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Confirm Password</label>
-                                        <input
-                                            type="password"
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="w-full px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
-                                            placeholder="••••••••"
-                                            required
-                                            minLength={8}
-                                        />
-                                    </div>
-                                )}
+                                <div>
+                                    <label className="block text-sm font-medium text-graystone-700 mb-1">Confirm Password</label>
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                        placeholder="••••••••"
+                                        required
+                                        minLength={8}
+                                    />
+                                </div>
                                 <button
                                     type="submit"
                                     disabled={loading || !clerk}
                                     className="w-full bg-ocean-500 text-white py-3 rounded-xl font-semibold hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                                 >
-                                    {loading ? 'Please wait...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
+                                    {loading ? 'Please wait...' : 'Create Account'}
                                 </button>
                             </form>
                         )}
 
-                        {mode !== 'verify' && (
+                        {(mode === 'signin' || mode === 'signup') && (
                             <div className="mt-6 text-center">
                                 {mode === 'signin' ? (
                                     <p className="text-sm text-graystone-600">
