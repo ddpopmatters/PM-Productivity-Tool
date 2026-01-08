@@ -183,11 +183,24 @@
 
         // Initialize Supabase client
         let supabase = null;
-        if (SUPABASE_CONFIG.ENABLED && SUPABASE_CONFIG.SUPABASE_URL !== "YOUR_SUPABASE_URL") {
-            supabase = window.supabase.createClient(
-                SUPABASE_CONFIG.SUPABASE_URL,
-                SUPABASE_CONFIG.SUPABASE_ANON_KEY
-            );
+        const initSupabase = () => {
+            if (SUPABASE_CONFIG.ENABLED && SUPABASE_CONFIG.SUPABASE_URL !== "YOUR_SUPABASE_URL") {
+                if (window.supabase && window.supabase.createClient) {
+                    supabase = window.supabase.createClient(
+                        SUPABASE_CONFIG.SUPABASE_URL,
+                        SUPABASE_CONFIG.SUPABASE_ANON_KEY
+                    );
+                    console.log("Supabase initialized successfully");
+                } else {
+                    console.warn("Supabase SDK not loaded yet");
+                }
+            }
+        };
+        // Try to init immediately, or wait for load
+        if (window.supabase) {
+            initSupabase();
+        } else {
+            window.addEventListener('load', initSupabase);
         }
 
         // ============================================
@@ -5260,6 +5273,16 @@
                     }
 
                     // ===== SUPABASE MODE =====
+                    // Wait for Supabase to initialize if needed
+                    if (SUPABASE_CONFIG.ENABLED && !supabase) {
+                        let attempts = 0;
+                        while (!supabase && attempts < 20) {
+                            await new Promise(r => setTimeout(r, 100));
+                            initSupabase();
+                            attempts++;
+                        }
+                    }
+
                     if (SUPABASE_CONFIG.ENABLED && supabase) {
                         console.log("Loading data from Supabase...");
 
