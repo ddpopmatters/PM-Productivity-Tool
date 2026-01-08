@@ -719,19 +719,29 @@
                 setError('');
 
                 try {
-                    const result = await clerk.client.signIn.create({
+                    // First, create the sign-in attempt
+                    const signIn = await clerk.client.signIn.create({
                         identifier: email,
+                    });
+
+                    // Then attempt password verification
+                    const result = await signIn.attemptFirstFactor({
+                        strategy: 'password',
                         password: password,
                     });
 
                     if (result.status === 'complete') {
                         await clerk.setActive({ session: result.createdSessionId });
                         onAuthChange(clerk.user);
+                    } else if (result.status === 'needs_second_factor') {
+                        setError('Two-factor authentication required. Please contact admin.');
                     } else {
-                        setError('Sign in incomplete. Please try again.');
+                        console.log('Sign in status:', result.status);
+                        setError(`Sign in incomplete (${result.status}). Please try again.`);
                     }
                 } catch (err) {
-                    setError(err.errors?.[0]?.message || 'Sign in failed. Please check your credentials.');
+                    console.error('Sign in error:', err);
+                    setError(err.errors?.[0]?.message || err.message || 'Sign in failed. Please check your credentials.');
                 } finally {
                     setLoading(false);
                 }
