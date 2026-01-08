@@ -1156,6 +1156,32 @@
                 setMessage({ type: '', text: '' });
 
                 try {
+                    // Call Supabase Edge Function to send Clerk invite
+                    const response = await fetch(
+                        `${SUPABASE_CONFIG.SUPABASE_URL}/functions/v1/send-clerk-invite`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${SUPABASE_CONFIG.SUPABASE_ANON_KEY}`,
+                            },
+                            body: JSON.stringify({
+                                email: inviteEmail.toLowerCase().trim(),
+                                redirectUrl: window.location.origin + window.location.pathname,
+                                publicMetadata: {
+                                    invitedBy: currentUserEmail,
+                                    invitedAt: new Date().toISOString()
+                                }
+                            }),
+                        }
+                    );
+
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(result.error || 'Failed to send invitation');
+                    }
+
                     // Add to pre-seeded profiles if not exists
                     if (!getPreseededProfile(inviteEmail)) {
                         addProfile({
@@ -1169,12 +1195,15 @@
                     setInvites(prev => [...prev, {
                         email: inviteEmail,
                         sentAt: new Date().toISOString(),
-                        status: 'pending'
+                        status: 'sent'
                     }]);
 
-                    setMessage({ type: 'success', text: `Invitation recorded for ${inviteEmail}. Add user in Clerk Dashboard to complete.` });
+                    setMessage({ type: 'success', text: `Invitation email sent to ${inviteEmail}!` });
                     setInviteEmail('');
                     forceUpdate(n => n + 1);
+                } catch (error) {
+                    console.error('Invite error:', error);
+                    setMessage({ type: 'error', text: error.message || 'Failed to send invitation' });
                 } finally {
                     setSending(false);
                 }
