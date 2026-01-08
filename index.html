@@ -5293,8 +5293,17 @@
 
                     if (clerk.user) {
                         setAuthUser(clerk.user);
-                        setUserEmail(clerk.user.primaryEmailAddress?.emailAddress || "");
-                        setCurrentUser(clerk.user.fullName || clerk.user.firstName || "User");
+                        const email = clerk.user.primaryEmailAddress?.emailAddress || "";
+                        setUserEmail(email);
+
+                        // Try to match to a pre-seeded profile (same logic as handleAuthChange)
+                        const preseededProfile = getPreseededProfile(email);
+                        if (preseededProfile) {
+                            setCurrentUser(preseededProfile.name);
+                            console.log(`Restored session for ${email} → ${preseededProfile.name}`);
+                        } else {
+                            setCurrentUser(clerk.user.fullName || clerk.user.firstName || "User");
+                        }
                     }
                     setAuthChecked(true);
                 }
