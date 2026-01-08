@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -63,6 +64,71 @@
             overflow-wrap: break-word;
             hyphens: auto;
             overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Dark mode styles */
+        .dark body,
+        html.dark body {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .dark .bg-white {
+            background-color: #1e293b !important;
+        }
+
+        .dark .bg-graystone-50 {
+            background-color: #334155 !important;
+        }
+
+        .dark .bg-graystone-100 {
+            background-color: #475569 !important;
+        }
+
+        .dark .border-graystone-200,
+        .dark .border-graystone-100,
+        .dark .border-ocean-100 {
+            border-color: #475569 !important;
+        }
+
+        .dark .text-ocean-900,
+        .dark .text-graystone-900,
+        .dark .text-graystone-800,
+        .dark .text-graystone-700 {
+            color: #e2e8f0 !important;
+        }
+
+        .dark .text-graystone-600,
+        .dark .text-graystone-500 {
+            color: #94a3b8 !important;
+        }
+
+        .dark .hover\:bg-graystone-100:hover {
+            background-color: #475569 !important;
+        }
+
+        .dark .hover\:bg-ocean-50:hover {
+            background-color: #1e3a5f !important;
+        }
+
+        .dark input,
+        .dark textarea,
+        .dark select {
+            background-color: #1e293b !important;
+            border-color: #475569 !important;
+            color: #e2e8f0 !important;
+        }
+
+        .dark input::placeholder,
+        .dark textarea::placeholder {
+            color: #64748b !important;
+        }
+
+        .dark .shadow-sm,
+        .dark .shadow-md,
+        .dark .shadow-lg {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
         }
 
         h1,
@@ -2430,6 +2496,86 @@
             );
         }
 
+        // ============================================
+        // KEYBOARD SHORTCUTS HELP MODAL
+        // ============================================
+        function KeyboardShortcutsHelp({ isOpen, onClose }) {
+            useEffect(() => {
+                if (isOpen && typeof lucide !== 'undefined') {
+                    setTimeout(() => lucide.createIcons(), 50);
+                }
+            }, [isOpen]);
+
+            if (!isOpen) return null;
+
+            const shortcuts = [
+                { category: 'Navigation', items: [
+                    { key: 'D', description: 'Go to Dashboard' },
+                    { key: 'P', description: 'Go to Your Projects' },
+                    { key: 'E', description: 'Go to Project Explorer' },
+                    { key: 'T', description: 'Go to To-Do List' },
+                ]},
+                { category: 'Actions', items: [
+                    { key: 'N', description: 'Create new item' },
+                    { key: '/', description: 'Focus search' },
+                    { key: 'B', description: 'Toggle notifications' },
+                ]},
+                { category: 'General', items: [
+                    { key: '?', description: 'Show this help' },
+                    { key: 'Esc', description: 'Close modals / Clear focus' },
+                ]},
+            ];
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                    <div
+                        className="fixed inset-0"
+                        onClick={onClose}
+                    />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 px-6 py-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-white">
+                                <i data-lucide="keyboard" className="w-6 h-6"></i>
+                                <h2 className="text-xl font-bold">Keyboard Shortcuts</h2>
+                            </div>
+                            <button
+                                onClick={onClose}
+                                className="p-2 hover:bg-white/20 rounded-full transition text-white"
+                            >
+                                <i data-lucide="x" className="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                            {shortcuts.map(category => (
+                                <div key={category.category}>
+                                    <h3 className="text-sm font-bold text-ocean-600 uppercase tracking-wider mb-3">
+                                        {category.category}
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {category.items.map(shortcut => (
+                                            <div key={shortcut.key} className="flex items-center justify-between py-2 px-3 bg-graystone-50 rounded-lg">
+                                                <span className="text-graystone-700">{shortcut.description}</span>
+                                                <kbd className="px-3 py-1 bg-white border border-graystone-300 rounded-md text-sm font-mono text-ocean-700 shadow-sm">
+                                                    {shortcut.key}
+                                                </kbd>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="px-6 py-4 bg-graystone-50 border-t border-graystone-200">
+                            <p className="text-xs text-graystone-500 text-center">
+                                Press <kbd className="px-1.5 py-0.5 bg-white border border-graystone-300 rounded text-xs font-mono">?</kbd> anytime to show this help
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         // Constants
         const KANBAN_STATUSES = [
             "Idea",
@@ -3904,7 +4050,7 @@
         }
 
         // Sidebar Navigation Component
-        function Sidebar({ currentView, onNavigate, currentUser, userEmail, onSignOut }) {
+        function Sidebar({ currentView, onNavigate, currentUser, userEmail, onSignOut, darkMode, setDarkMode }) {
             const userIsAdmin = isAdmin(userEmail);
             const userIsManager = isManager(userEmail);
 
@@ -4002,6 +4148,26 @@
                                 <div className="text-xs text-ocean-600">{userIsAdmin ? 'Administrator' : userIsManager ? 'Manager' : 'Team Member'}</div>
                             </div>
                         </div>
+
+                        {/* Dark Mode Toggle */}
+                        <button
+                            onClick={() => setDarkMode(!darkMode)}
+                            className="w-full mt-2 flex items-center justify-between px-4 py-2 text-sm text-graystone-600 hover:bg-graystone-100 rounded-lg transition"
+                        >
+                            <div className="flex items-center gap-2">
+                                <i data-lucide={darkMode ? "sun" : "moon"} className="w-4 h-4"></i>
+                                <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                            </div>
+                            <div className={cx(
+                                "w-10 h-5 rounded-full transition-colors relative",
+                                darkMode ? "bg-ocean-500" : "bg-graystone-300"
+                            )}>
+                                <div className={cx(
+                                    "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                    darkMode ? "translate-x-5" : "translate-x-0.5"
+                                )}></div>
+                            </div>
+                        </button>
 
                         {/* Sign Out Button - Only when auth is enabled */}
                         {AUTH_CONFIG.AUTH_ENABLED && onSignOut && (
@@ -4537,6 +4703,27 @@
                 const existingComments = entry.comments || [];
                 onUpdateEntry(entry.id, { comments: [...existingComments, newComment] });
 
+                // Extract mentioned users and send them notifications
+                const mentionMatches = commentText.match(/@([A-Za-z\s]+?)(?=\s|$|@)/g);
+                if (mentionMatches) {
+                    const mentionedNames = mentionMatches.map(m => m.slice(1).trim());
+                    mentionedNames.forEach(name => {
+                        const profile = userProfilesCache.find(p =>
+                            p.name.toLowerCase() === name.toLowerCase()
+                        );
+                        if (profile && profile.email) {
+                            sendNotificationEmail(
+                                profile.email,
+                                profile.name,
+                                'mention',
+                                entry.title,
+                                entry.id,
+                                { comment: commentText.substring(0, 200) }
+                            );
+                        }
+                    });
+                }
+
                 setCommentText("");
                 setMentionQuery("");
                 setMentionOptions([]);
@@ -4794,18 +4981,24 @@
                                                 rows="3"
                                             ></textarea>
                                             {mentionOptions.length > 0 && (
-                                                <div className="absolute left-0 right-0 mt-1 rounded-xl border border-ocean-100 bg-white shadow-lg z-10">
-                                                    {mentionOptions.map((name) => (
+                                                <div className="absolute left-0 right-0 mt-1 rounded-xl border border-ocean-200 bg-white shadow-xl z-10 overflow-hidden">
+                                                    <div className="px-3 py-2 bg-ocean-50 border-b border-ocean-100">
+                                                        <span className="text-xs font-medium text-ocean-700">Mention someone</span>
+                                                    </div>
+                                                    {mentionOptions.map((name, idx) => (
                                                         <button
                                                             type="button"
                                                             key={name}
                                                             onClick={() => handleMentionPick(name)}
-                                                            className="w-full text-left px-3 py-2 text-sm text-graystone-800 hover:bg-ocean-50 flex items-center gap-2"
+                                                            className={cx(
+                                                                "w-full text-left px-3 py-2.5 text-sm text-graystone-800 hover:bg-ocean-50 flex items-center gap-3 transition-colors",
+                                                                idx === 0 && "bg-ocean-50/50"
+                                                            )}
                                                         >
-                                                            <span className="w-6 h-6 rounded-full bg-ocean-100 text-ocean-700 flex items-center justify-center text-xs font-bold">
-                                                                {name.charAt(0)}
+                                                            <span className="w-8 h-8 rounded-full bg-ocean-100 text-ocean-700 flex items-center justify-center text-sm font-bold">
+                                                                {name.split(' ').map(n => n[0]).join('').substring(0, 2)}
                                                             </span>
-                                                            <span>{name}</span>
+                                                            <span className="font-medium">{name}</span>
                                                         </button>
                                                     ))}
                                                 </div>
@@ -6569,6 +6762,101 @@
             const [notifications, setNotifications] = useState([]);
             const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
 
+            // Dark mode state
+            const [darkMode, setDarkMode] = useState(() => {
+                const saved = localStorage.getItem('darkMode');
+                return saved ? JSON.parse(saved) : false;
+            });
+
+            // Keyboard shortcuts help modal
+            const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+
+            // Apply dark mode class to document
+            useEffect(() => {
+                if (darkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+                localStorage.setItem('darkMode', JSON.stringify(darkMode));
+            }, [darkMode]);
+
+            // Keyboard shortcuts
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    // Don't trigger shortcuts when typing in inputs
+                    const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+                    const isEditing = document.activeElement.contentEditable === 'true';
+
+                    if (isTyping || isEditing) {
+                        // Only handle Escape while typing
+                        if (e.key === 'Escape') {
+                            document.activeElement.blur();
+                        }
+                        return;
+                    }
+
+                    // Global shortcuts
+                    switch (e.key) {
+                        case '?':
+                            e.preventDefault();
+                            setShowKeyboardHelp(true);
+                            break;
+                        case 'Escape':
+                            setShowKeyboardHelp(false);
+                            setShowNotificationsPanel(false);
+                            setShowStatsModal(false);
+                            setShowSubtaskModal(false);
+                            setShowAddItemModal(false);
+                            break;
+                        case 'n':
+                            if (!e.metaKey && !e.ctrlKey) {
+                                e.preventDefault();
+                                setCurrentView('add-item');
+                            }
+                            break;
+                        case '/':
+                            e.preventDefault();
+                            const searchInput = document.querySelector('input[placeholder*="Search"]');
+                            if (searchInput) searchInput.focus();
+                            break;
+                        case 'd':
+                            if (!e.metaKey && !e.ctrlKey) {
+                                e.preventDefault();
+                                setCurrentView('dashboard');
+                            }
+                            break;
+                        case 'p':
+                            if (!e.metaKey && !e.ctrlKey) {
+                                e.preventDefault();
+                                setCurrentView('personal');
+                            }
+                            break;
+                        case 'e':
+                            if (!e.metaKey && !e.ctrlKey) {
+                                e.preventDefault();
+                                setCurrentView('project-explorer');
+                            }
+                            break;
+                        case 't':
+                            if (!e.metaKey && !e.ctrlKey) {
+                                e.preventDefault();
+                                setCurrentView('todo');
+                            }
+                            break;
+                        case 'b':
+                            if (!e.metaKey && !e.ctrlKey) {
+                                e.preventDefault();
+                                setShowNotificationsPanel(!showNotificationsPanel);
+                            }
+                            break;
+                    }
+                };
+
+                document.addEventListener('keydown', handleKeyDown);
+                return () => document.removeEventListener('keydown', handleKeyDown);
+            }, [showNotificationsPanel]);
+
             // Authentication State
             const [authUser, setAuthUser] = useState(null);
             const [userEmail, setUserEmail] = useState("");
@@ -6926,7 +7214,7 @@
                     }
                 }, 50);
                 return () => clearTimeout(timer);
-            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal, showNotificationsPanel, notifications, entries, loading, authChecked, authUser]);
+            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal, showNotificationsPanel, notifications, entries, loading, authChecked, authUser, darkMode]);
 
             const openSubtaskModal = (entryId) => {
                 setModalEntryId(entryId);
@@ -7784,7 +8072,7 @@
             }
 
             return (
-                <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#cfebf8' }}>
+                <div className="flex h-screen overflow-hidden transition-colors duration-300" style={{ backgroundColor: darkMode ? '#0f172a' : '#cfebf8' }}>
                     {/* Sidebar */}
                     <Sidebar
                         currentView={currentView}
@@ -7792,12 +8080,14 @@
                         currentUser={currentUser}
                         userEmail={userEmail}
                         onSignOut={handleSignOut}
+                        darkMode={darkMode}
+                        setDarkMode={setDarkMode}
                     />
 
                     {/* Main Content Area */}
-                    <div className="flex-1 overflow-y-auto ml-64" style={{ backgroundColor: '#cfebf8' }}>
+                    <div className="flex-1 overflow-y-auto ml-64 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#0f172a' : '#cfebf8' }}>
                         {/* Top Bar with Notifications */}
-                        <div className="sticky top-0 z-20 flex justify-end px-8 py-3" style={{ backgroundColor: '#cfebf8' }}>
+                        <div className="sticky top-0 z-20 flex justify-end px-8 py-3 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#0f172a' : '#cfebf8' }}>
                             <button
                                 onClick={() => setShowNotificationsPanel(!showNotificationsPanel)}
                                 className="relative p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow border border-ocean-100"
@@ -7822,6 +8112,12 @@
                         onClose={() => setShowNotificationsPanel(false)}
                         notifications={notifications}
                         onNotificationClick={handleNotificationClick}
+                    />
+
+                    {/* Keyboard Shortcuts Help */}
+                    <KeyboardShortcutsHelp
+                        isOpen={showKeyboardHelp}
+                        onClose={() => setShowKeyboardHelp(false)}
                     />
 
                     {/* Stats Modal - Global */}
