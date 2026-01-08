@@ -651,7 +651,68 @@
                 documents: row.documents || [],
                 date: row.date,
                 comments: row.comments || []
-            })
+            }),
+
+            // 7. Fetch all claimed user profiles
+            fetchUserProfiles: async () => {
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('user_profiles')
+                    .select('*')
+                    .order('claimed_at', { ascending: false });
+                if (error) {
+                    console.error('Supabase user profiles fetch error:', error);
+                    return [];
+                }
+                return data || [];
+            },
+
+            // 8. Claim a user profile (called on first login)
+            claimUserProfile: async (email, name, team, role, clerkUserId) => {
+                if (!supabase) return null;
+
+                // Check if already claimed
+                const { data: existing } = await supabase
+                    .from('user_profiles')
+                    .select('*')
+                    .eq('email', email.toLowerCase())
+                    .single();
+
+                if (existing) {
+                    // Already claimed, update last login info
+                    return existing;
+                }
+
+                // Insert new claimed profile
+                const { data, error } = await supabase
+                    .from('user_profiles')
+                    .insert([{
+                        email: email.toLowerCase(),
+                        name: name,
+                        team: team || '',
+                        role: role || 'member',
+                        clerk_user_id: clerkUserId || ''
+                    }])
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('Supabase claim profile error:', error);
+                    return null;
+                }
+                return data;
+            },
+
+            // 9. Check if a user has claimed their profile
+            isProfileClaimed: async (email) => {
+                if (!supabase) return false;
+                const { data } = await supabase
+                    .from('user_profiles')
+                    .select('id')
+                    .eq('email', email.toLowerCase())
+                    .single();
+                return !!data;
+            }
         };
 
         // ============================================
@@ -1142,12 +1203,35 @@
             // For adding new profiles
             const [newProfile, setNewProfile] = useState({ email: '', name: '', team: TEAMS[0], role: 'member' });
 
+            // Claimed user profiles from Supabase
+            const [claimedProfiles, setClaimedProfiles] = useState([]);
+            const [loadingProfiles, setLoadingProfiles] = useState(true);
+
             // Force re-render when config changes
             const [, forceUpdate] = useState(0);
 
             useEffect(() => {
                 initClerk().then(setClerk);
             }, []);
+
+            // Load claimed profiles from Supabase
+            useEffect(() => {
+                async function loadClaimedProfiles() {
+                    setLoadingProfiles(true);
+                    const profiles = await SUPABASE_API.fetchUserProfiles();
+                    setClaimedProfiles(profiles);
+                    setLoadingProfiles(false);
+                }
+                loadClaimedProfiles();
+            }, []);
+
+            // Get list of claimed emails for quick lookup
+            const claimedEmails = claimedProfiles.map(p => p.email.toLowerCase());
+
+            // Filter pre-seeded profiles into pending (not claimed)
+            const pendingProfiles = USERS_CONFIG.profiles.filter(
+                p => !claimedEmails.includes(p.email.toLowerCase())
+            );
 
             const handleSendInvite = async (e) => {
                 e.preventDefault();
@@ -1556,116 +1640,185 @@
                             {/* Profiles Tab */}
                             {activeTab === 'profiles' && (
                                 <div className="space-y-6">
+                                    {/* Active Users Section */}
                                     <div>
-                                        <h2 className="text-lg font-bold text-ocean-900 mb-2">Pre-seeded User Profiles</h2>
+                                        <h2 className="text-lg font-bold text-ocean-900 mb-2 flex items-center gap-2">
+                                            <i data-lucide="users" className="w-5 h-5"></i>
+                                            Active Users
+                                            <span className="text-sm font-normal text-graystone-500">({claimedProfiles.length})</span>
+                                        </h2>
                                         <p className="text-sm text-graystone-600 mb-4">
-                                            When users sign up with these emails, they'll automatically be matched to these profiles.
+                                            Users who have signed up and claimed their accounts.
                                         </p>
 
-                                        <form onSubmit={handleAddProfile} className="bg-graystone-50 rounded-xl p-4 border border-graystone-200 mb-4">
-                                            <div className="grid grid-cols-2 gap-4 mb-4">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-graystone-700 mb-1">Email</label>
-                                                    <input
-                                                        type="email"
-                                                        value={newProfile.email}
-                                                        onChange={(e) => setNewProfile({ ...newProfile, email: e.target.value })}
-                                                        placeholder="user@populationmatters.org"
-                                                        className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
-                                                        required
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-graystone-700 mb-1">Display Name</label>
-                                                    <input
-                                                        type="text"
-                                                        value={newProfile.name}
-                                                        onChange={(e) => setNewProfile({ ...newProfile, name: e.target.value })}
-                                                        placeholder="Jane Smith"
-                                                        className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
-                                                        required
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-graystone-700 mb-1">Team</label>
-                                                    <select
-                                                        value={newProfile.team}
-                                                        onChange={(e) => setNewProfile({ ...newProfile, team: e.target.value })}
-                                                        className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
-                                                    >
-                                                        {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-graystone-700 mb-1">Role</label>
-                                                    <select
-                                                        value={newProfile.role}
-                                                        onChange={(e) => setNewProfile({ ...newProfile, role: e.target.value })}
-                                                        className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
-                                                    >
-                                                        <option value="member">Member</option>
-                                                        <option value="manager">Manager</option>
-                                                        <option value="admin">Admin</option>
-                                                    </select>
-                                                </div>
+                                        {loadingProfiles ? (
+                                            <div className="text-center py-8 text-graystone-500">Loading users...</div>
+                                        ) : claimedProfiles.length === 0 ? (
+                                            <div className="text-center py-8 text-graystone-500 bg-graystone-50 rounded-xl border border-graystone-200">
+                                                No users have signed up yet. Send invites to get started.
                                             </div>
-                                            <button
-                                                type="submit"
-                                                className="px-4 py-2 bg-ocean-500 text-white rounded-lg font-medium hover:bg-ocean-600 transition flex items-center gap-2"
-                                            >
-                                                <i data-lucide="user-plus" className="w-4 h-4"></i>
-                                                Add Profile
-                                            </button>
-                                        </form>
-
-                                        <div className="space-y-2">
-                                            {USERS_CONFIG.profiles.map((profile, idx) => (
-                                                <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-xl border border-graystone-200">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-ocean-100 text-ocean-700 flex items-center justify-center font-bold text-sm">
-                                                            {profile.name.split(' ').map(n => n[0]).join('')}
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {claimedProfiles.map((profile) => (
+                                                    <div key={profile.id} className="flex items-center justify-between p-4 bg-white rounded-xl border border-green-200">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-sm">
+                                                                {profile.name.split(' ').map(n => n[0]).join('')}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-medium text-ocean-900">{profile.name}</div>
+                                                                <div className="text-xs text-graystone-500">{profile.email}</div>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <div className="font-medium text-ocean-900">{profile.name}</div>
-                                                            <div className="text-xs text-graystone-500">{profile.email}</div>
+                                                        <div className="flex items-center gap-3">
+                                                            {profile.team && (
+                                                                <span className="px-2 py-1 bg-graystone-100 text-graystone-600 rounded text-xs">{profile.team}</span>
+                                                            )}
+                                                            <span className={cx(
+                                                                "px-2 py-1 rounded text-xs",
+                                                                profile.role === 'admin' ? "bg-amber-100 text-amber-700" :
+                                                                profile.role === 'manager' ? "bg-ocean-100 text-ocean-700" :
+                                                                "bg-graystone-100 text-graystone-600"
+                                                            )}>
+                                                                {profile.role}
+                                                            </span>
+                                                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs flex items-center gap-1">
+                                                                <i data-lucide="check-circle" className="w-3 h-3"></i>
+                                                                Active
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="px-2 py-1 bg-graystone-100 text-graystone-600 rounded text-xs">{profile.team}</span>
-                                                        <span className={cx(
-                                                            "px-2 py-1 rounded text-xs",
-                                                            profile.role === 'admin' ? "bg-amber-100 text-amber-700" :
-                                                            profile.role === 'manager' ? "bg-ocean-100 text-ocean-700" :
-                                                            "bg-graystone-100 text-graystone-600"
-                                                        )}>
-                                                            {profile.role}
-                                                        </span>
-                                                        {isInvited(profile.email) ? (
-                                                            <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium flex items-center gap-1">
-                                                                <i data-lucide="check" className="w-3 h-3"></i>
-                                                                Invited
-                                                            </span>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleSendProfileInvite(profile.email, profile.name)}
-                                                                disabled={sendingEmail === profile.email}
-                                                                className="px-3 py-1.5 bg-ocean-500 text-white rounded-lg text-xs font-medium hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition"
-                                                            >
-                                                                {sendingEmail === profile.email ? (
-                                                                    <>Sending...</>
-                                                                ) : (
-                                                                    <>
-                                                                        <i data-lucide="send" className="w-3 h-3"></i>
-                                                                        Invite
-                                                                    </>
-                                                                )}
-                                                            </button>
-                                                        )}
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Pending Profiles Section - Only show if there are pending profiles */}
+                                    {pendingProfiles.length > 0 && (
+                                        <div>
+                                            <h2 className="text-lg font-bold text-ocean-900 mb-2 flex items-center gap-2">
+                                                <i data-lucide="user-plus" className="w-5 h-5"></i>
+                                                Pending Invites
+                                                <span className="text-sm font-normal text-graystone-500">({pendingProfiles.length})</span>
+                                            </h2>
+                                            <p className="text-sm text-graystone-600 mb-4">
+                                                Pre-seeded profiles waiting for users to sign up.
+                                            </p>
+
+                                            <form onSubmit={handleAddProfile} className="bg-graystone-50 rounded-xl p-4 border border-graystone-200 mb-4">
+                                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Email</label>
+                                                        <input
+                                                            type="email"
+                                                            value={newProfile.email}
+                                                            onChange={(e) => setNewProfile({ ...newProfile, email: e.target.value })}
+                                                            placeholder="user@populationmatters.org"
+                                                            className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Display Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newProfile.name}
+                                                            onChange={(e) => setNewProfile({ ...newProfile, name: e.target.value })}
+                                                            placeholder="Jane Smith"
+                                                            className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Team</label>
+                                                        <select
+                                                            value={newProfile.team}
+                                                            onChange={(e) => setNewProfile({ ...newProfile, team: e.target.value })}
+                                                            className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                                        >
+                                                            {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Role</label>
+                                                        <select
+                                                            value={newProfile.role}
+                                                            onChange={(e) => setNewProfile({ ...newProfile, role: e.target.value })}
+                                                            className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                                        >
+                                                            <option value="member">Member</option>
+                                                            <option value="manager">Manager</option>
+                                                            <option value="admin">Admin</option>
+                                                        </select>
                                                     </div>
                                                 </div>
-                                            ))}
+                                                <button
+                                                    type="submit"
+                                                    className="px-4 py-2 bg-ocean-500 text-white rounded-lg font-medium hover:bg-ocean-600 transition flex items-center gap-2"
+                                                >
+                                                    <i data-lucide="user-plus" className="w-4 h-4"></i>
+                                                    Add Profile
+                                                </button>
+                                            </form>
+
+                                            <div className="space-y-2">
+                                                {pendingProfiles.map((profile, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-xl border border-amber-200">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm">
+                                                                {profile.name.split(' ').map(n => n[0]).join('')}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-medium text-ocean-900">{profile.name}</div>
+                                                                <div className="text-xs text-graystone-500">{profile.email}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="px-2 py-1 bg-graystone-100 text-graystone-600 rounded text-xs">{profile.team}</span>
+                                                            <span className={cx(
+                                                                "px-2 py-1 rounded text-xs",
+                                                                profile.role === 'admin' ? "bg-amber-100 text-amber-700" :
+                                                                profile.role === 'manager' ? "bg-ocean-100 text-ocean-700" :
+                                                                "bg-graystone-100 text-graystone-600"
+                                                            )}>
+                                                                {profile.role}
+                                                            </span>
+                                                            {isInvited(profile.email) ? (
+                                                                <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium flex items-center gap-1">
+                                                                    <i data-lucide="mail" className="w-3 h-3"></i>
+                                                                    Invite Sent
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleSendProfileInvite(profile.email, profile.name)}
+                                                                    disabled={sendingEmail === profile.email}
+                                                                    className="px-3 py-1.5 bg-ocean-500 text-white rounded-lg text-xs font-medium hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition"
+                                                                >
+                                                                    {sendingEmail === profile.email ? (
+                                                                        <>Sending...</>
+                                                                    ) : (
+                                                                        <>
+                                                                            <i data-lucide="send" className="w-3 h-3"></i>
+                                                                            Invite
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
+
+                                    {/* Show success message when all profiles are claimed */}
+                                    {pendingProfiles.length === 0 && claimedProfiles.length > 0 && (
+                                        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+                                            <i data-lucide="check-circle" className="w-12 h-12 text-green-500 mx-auto mb-3"></i>
+                                            <h3 className="text-lg font-bold text-green-800 mb-1">All Users Active!</h3>
+                                            <p className="text-sm text-green-600">All pre-seeded profiles have been claimed. Use the Invites tab to add new users.</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -5512,10 +5665,11 @@
             }, []);
 
             // Handle auth change (login/logout)
-            const handleAuthChange = (user) => {
+            const handleAuthChange = async (user) => {
                 if (user) {
                     setAuthUser(user);
                     const email = user.primaryEmailAddress?.emailAddress || "";
+                    const clerkUserId = user.id || "";
                     setUserEmail(email);
 
                     // Try to match to a pre-seeded profile
@@ -5524,9 +5678,29 @@
                         // Use the pre-seeded name and team
                         setCurrentUser(preseededProfile.name);
                         console.log(`Matched user ${email} to pre-seeded profile: ${preseededProfile.name}`);
+
+                        // Claim the profile in Supabase (marks them as active)
+                        await SUPABASE_API.claimUserProfile(
+                            email,
+                            preseededProfile.name,
+                            preseededProfile.team,
+                            preseededProfile.role,
+                            clerkUserId
+                        );
+                        console.log(`Profile claimed for ${email}`);
                     } else {
                         // Fall back to Clerk user info
-                        setCurrentUser(user.fullName || user.firstName || "User");
+                        const userName = user.fullName || user.firstName || "User";
+                        setCurrentUser(userName);
+
+                        // Also claim for non-preseeded users
+                        await SUPABASE_API.claimUserProfile(
+                            email,
+                            userName,
+                            '',
+                            'member',
+                            clerkUserId
+                        );
                     }
                 } else {
                     setAuthUser(null);
