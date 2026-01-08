@@ -5566,10 +5566,16 @@
                 }
             };
 
-            // Re-initialize Lucide icons whenever the view changes
+            // Re-initialize Lucide icons whenever content changes
             useEffect(() => {
-                lucide.createIcons();
-            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal]);
+                // Small delay to ensure DOM is fully rendered
+                const timer = setTimeout(() => {
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }, 50);
+                return () => clearTimeout(timer);
+            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal, entries, loading, authChecked]);
 
             const openSubtaskModal = (entryId) => {
                 setModalEntryId(entryId);
