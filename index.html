@@ -666,7 +666,11 @@
                         subtasks: item.subtasks || [],
                         documents: item.documents || [],
                         date: item.date || null,
-                        comments: item.comments || []
+                        comments: item.comments || [],
+                        archived: item.archived || false,
+                        dependencies: item.dependencies || [],
+                        custom_fields: item.customFields || [],
+                        attachments: item.attachments || []
                     }])
                     .select()
                     .single();
@@ -680,23 +684,30 @@
             // 3. Update existing workflow item
             updateItem: async (id, updates) => {
                 if (!supabase) return null;
+                // Build update object dynamically to handle partial updates
+                const updateObj = {
+                    updated_at: new Date().toISOString()
+                };
+                if (updates.title !== undefined) updateObj.title = updates.title;
+                if (updates.caption !== undefined) updateObj.caption = updates.caption;
+                if (updates.workflowStatus !== undefined) updateObj.workflow_status = updates.workflowStatus;
+                if (updates.team !== undefined) updateObj.team = updates.team;
+                if (updates.timelineValue !== undefined) updateObj.timeline_value = updates.timelineValue;
+                if (updates.owner !== undefined) updateObj.owner = updates.owner;
+                if (updates.collaborators !== undefined) updateObj.collaborators = updates.collaborators;
+                if (updates.tags !== undefined) updateObj.tags = updates.tags;
+                if (updates.subtasks !== undefined) updateObj.subtasks = updates.subtasks;
+                if (updates.documents !== undefined) updateObj.documents = updates.documents;
+                if (updates.date !== undefined) updateObj.date = updates.date;
+                if (updates.comments !== undefined) updateObj.comments = updates.comments;
+                if (updates.archived !== undefined) updateObj.archived = updates.archived;
+                if (updates.dependencies !== undefined) updateObj.dependencies = updates.dependencies;
+                if (updates.customFields !== undefined) updateObj.custom_fields = updates.customFields;
+                if (updates.attachments !== undefined) updateObj.attachments = updates.attachments;
+
                 const { data, error } = await supabase
                     .from('workflow_items')
-                    .update({
-                        title: updates.title,
-                        caption: updates.caption,
-                        workflow_status: updates.workflowStatus,
-                        team: updates.team,
-                        timeline_value: updates.timelineValue,
-                        owner: updates.owner,
-                        collaborators: updates.collaborators || [],
-                        tags: updates.tags || [],
-                        subtasks: updates.subtasks || [],
-                        documents: updates.documents || [],
-                        date: updates.date || null,
-                        comments: updates.comments || [],
-                        updated_at: new Date().toISOString()
-                    })
+                    .update(updateObj)
                     .eq('id', id)
                     .select()
                     .single();
@@ -764,7 +775,11 @@
                 subtasks: row.subtasks || [],
                 documents: row.documents || [],
                 date: row.date,
-                comments: row.comments || []
+                comments: row.comments || [],
+                archived: row.archived || false,
+                dependencies: row.dependencies || [],
+                customFields: row.custom_fields || [],
+                attachments: row.attachments || []
             }),
 
             // 7. Fetch all claimed user profiles
@@ -905,6 +920,55 @@
                     return [];
                 }
                 return data || [];
+            },
+
+            // 14. Upload file to Supabase Storage
+            uploadFile: async (file, itemId) => {
+                if (!supabase) return null;
+
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${itemId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+                const { data, error } = await supabase.storage
+                    .from('attachments')
+                    .upload(fileName, file, {
+                        cacheControl: '3600',
+                        upsert: false
+                    });
+
+                if (error) {
+                    console.error('File upload error:', error);
+                    return null;
+                }
+
+                // Get public URL
+                const { data: urlData } = supabase.storage
+                    .from('attachments')
+                    .getPublicUrl(fileName);
+
+                return {
+                    id: `file_${Date.now()}`,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    path: fileName,
+                    url: urlData?.publicUrl || ''
+                };
+            },
+
+            // 15. Delete file from Supabase Storage
+            deleteFile: async (filePath) => {
+                if (!supabase) return false;
+
+                const { error } = await supabase.storage
+                    .from('attachments')
+                    .remove([filePath]);
+
+                if (error) {
+                    console.error('File delete error:', error);
+                    return false;
+                }
+                return true;
             }
         };
 
@@ -4502,7 +4566,9 @@
             availableTags,
             filterEntries,
             viewMode,
-            setViewMode
+            setViewMode,
+            showArchived,
+            setShowArchived
         }) {
             // Pagination state
             const [currentPage, setCurrentPage] = useState(1);
@@ -4544,6 +4610,8 @@
                         availableTags={availableTags}
                         viewMode={viewMode}
                         setViewMode={setViewMode}
+                        showArchived={showArchived}
+                        setShowArchived={setShowArchived}
                     />
 
                     {viewMode === 'calendar' ? (
@@ -4588,7 +4656,7 @@
             );
         }
 
-        function ItemDashboard({ entry, onBack, onToggleSubtask, onUpdateEntry, openSubtaskModal, currentUser, userEmail }) {
+        function ItemDashboard({ entry, onBack, onToggleSubtask, onUpdateEntry, openSubtaskModal, currentUser, userEmail, allEntries = [] }) {
             const getCaption = () => (entry && typeof entry.caption === 'string' ? entry.caption : "");
             const getDocuments = () => (entry && Array.isArray(entry.documents) ? entry.documents : []);
 
@@ -4597,10 +4665,18 @@
 
             const [descriptionModalOpen, setDescriptionModalOpen] = useState(false);
             const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
+            const [dependenciesModalOpen, setDependenciesModalOpen] = useState(false);
+            const [customFieldsModalOpen, setCustomFieldsModalOpen] = useState(false);
             const [descriptionDraft, setDescriptionDraft] = useState(getCaption());
             const [documentsDraft, setDocumentsDraft] = useState(getDocuments());
             const [newDocInput, setNewDocInput] = useState("");
+            const [dependencySearch, setDependencySearch] = useState("");
+            const [newFieldName, setNewFieldName] = useState("");
+            const [newFieldValue, setNewFieldValue] = useState("");
+            const [newFieldType, setNewFieldType] = useState("text");
+            const [uploadingFile, setUploadingFile] = useState(false);
             const fileInputRef = useRef(null);
+            const attachmentInputRef = useRef(null);
             const [activeSubtask, setActiveSubtask] = useState(null);
             const [commentText, setCommentText] = useState("");
             const [mentionQuery, setMentionQuery] = useState("");
@@ -4735,6 +4811,59 @@
                 }
             };
 
+            const handleFileUpload = async (e) => {
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+
+                setUploadingFile(true);
+                try {
+                    const uploadedFiles = [];
+                    for (const file of files) {
+                        const result = await SUPABASE_API.uploadFile(file, entry.id);
+                        if (result) {
+                            uploadedFiles.push(result);
+                        }
+                    }
+
+                    if (uploadedFiles.length > 0) {
+                        const existingAttachments = entry.attachments || [];
+                        onUpdateEntry(entry.id, { attachments: [...existingAttachments, ...uploadedFiles] });
+                    }
+                } catch (err) {
+                    console.error('Upload error:', err);
+                } finally {
+                    setUploadingFile(false);
+                    if (attachmentInputRef.current) {
+                        attachmentInputRef.current.value = '';
+                    }
+                }
+            };
+
+            const handleDeleteAttachment = async (attachment) => {
+                if (attachment.path) {
+                    await SUPABASE_API.deleteFile(attachment.path);
+                }
+                const newAttachments = (entry.attachments || []).filter(a => a.id !== attachment.id);
+                onUpdateEntry(entry.id, { attachments: newAttachments });
+            };
+
+            const formatFileSize = (bytes) => {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            };
+
+            const getFileIcon = (type) => {
+                if (type?.startsWith('image/')) return 'image';
+                if (type?.startsWith('video/')) return 'video';
+                if (type?.includes('pdf')) return 'file-text';
+                if (type?.includes('spreadsheet') || type?.includes('excel')) return 'table';
+                if (type?.includes('document') || type?.includes('word')) return 'file-text';
+                return 'file';
+            };
+
             return (
                 <>
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -4745,22 +4874,47 @@
                                 <i data-lucide="arrow-left" className="w-6 h-6 text-ocean-600"></i>
                             </Button>
                             <div>
-                                <h1 className="text-3xl font-bold text-ocean-900">{entry.title}</h1>
+                                <div className="flex items-center gap-3">
+                                    <h1 className="text-3xl font-bold text-ocean-900">{entry.title}</h1>
+                                    {entry.archived && (
+                                        <span className="px-3 py-1 bg-amber-100 text-amber-800 text-sm font-medium rounded-full flex items-center gap-1.5">
+                                            <i data-lucide="archive" className="w-4 h-4"></i>
+                                            Archived
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-2 mt-1">
                                     <Badge variant="outline">{entry.workflowStatus}</Badge>
                                     <span className="text-sm text-graystone-500">Created on {new Date(entry.date).toLocaleDateString()}</span>
                                 </div>
                             </div>
                         </div>
-                        <select
-                            className="px-4 py-3 rounded-xl bg-white border-2 border-ocean-200 text-ocean-900 font-medium hover:border-ocean-400 focus:border-ocean-500 focus:outline-none transition-all cursor-pointer shadow-sm"
-                            value={entry.workflowStatus}
-                            onChange={(e) => onUpdateEntry(entry.id, { workflowStatus: e.target.value })}
-                        >
-                            {KANBAN_STATUSES.map(status => (
-                                <option key={status} value={status}>{status}</option>
-                            ))}
-                        </select>
+                        <div className="flex items-center gap-3">
+                            {/* Archive/Restore Button */}
+                            {canEdit && (
+                                <button
+                                    onClick={() => onUpdateEntry(entry.id, { archived: !entry.archived })}
+                                    className={cx(
+                                        "px-4 py-3 rounded-xl border-2 font-medium transition-all flex items-center gap-2",
+                                        entry.archived
+                                            ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300"
+                                            : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300"
+                                    )}
+                                >
+                                    <i data-lucide={entry.archived ? "archive-restore" : "archive"} className="w-5 h-5"></i>
+                                    {entry.archived ? "Restore" : "Archive"}
+                                </button>
+                            )}
+                            <select
+                                className="px-4 py-3 rounded-xl bg-white border-2 border-ocean-200 text-ocean-900 font-medium hover:border-ocean-400 focus:border-ocean-500 focus:outline-none transition-all cursor-pointer shadow-sm"
+                                value={entry.workflowStatus}
+                                onChange={(e) => onUpdateEntry(entry.id, { workflowStatus: e.target.value })}
+                            >
+                                {KANBAN_STATUSES.map(status => (
+                                    <option key={status} value={status}>{status}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -5069,6 +5223,88 @@
                                 </div>
                             </div>
 
+                            {/* Dependencies */}
+                            <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-lg font-bold text-ocean-900">Dependencies</h3>
+                                    {canEdit && (
+                                        <button
+                                            onClick={() => setDependenciesModalOpen(true)}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
+                                        >
+                                            <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
+                                        </button>
+                                    )}
+                                </div>
+                                {entry.dependencies && entry.dependencies.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {entry.dependencies.map(depId => {
+                                            const depEntry = allEntries.find(e => e.id === depId);
+                                            if (!depEntry) return null;
+                                            const isBlocked = depEntry.workflowStatus !== 'Done';
+                                            return (
+                                                <div key={depId} className={cx(
+                                                    "flex items-center justify-between p-3 rounded-xl border transition-colors",
+                                                    isBlocked
+                                                        ? "bg-red-50 border-red-200"
+                                                        : "bg-green-50 border-green-200"
+                                                )}>
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <i data-lucide={isBlocked ? "circle-alert" : "circle-check"} className={cx(
+                                                            "w-4 h-4 shrink-0",
+                                                            isBlocked ? "text-red-500" : "text-green-500"
+                                                        )}></i>
+                                                        <span className="text-sm font-medium text-graystone-900 truncate">{depEntry.title}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className={cx(
+                                                            "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                                                            isBlocked ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                                                        )}>
+                                                            {depEntry.workflowStatus}
+                                                        </span>
+                                                        {canEdit && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newDeps = (entry.dependencies || []).filter(d => d !== depId);
+                                                                    onUpdateEntry(entry.id, { dependencies: newDeps });
+                                                                }}
+                                                                className="p-1 hover:bg-red-100 rounded transition-colors"
+                                                            >
+                                                                <i data-lucide="x" className="w-3 h-3 text-graystone-500"></i>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-graystone-500 text-center py-4 bg-graystone-50 rounded-xl border border-dashed border-graystone-200">
+                                        No dependencies
+                                    </div>
+                                )}
+                                {entry.dependencies && entry.dependencies.length > 0 && (
+                                    <div className={cx(
+                                        "mt-3 text-xs font-medium px-3 py-2 rounded-lg text-center",
+                                        entry.dependencies.some(depId => {
+                                            const dep = allEntries.find(e => e.id === depId);
+                                            return dep && dep.workflowStatus !== 'Done';
+                                        })
+                                            ? "bg-red-100 text-red-700"
+                                            : "bg-green-100 text-green-700"
+                                    )}>
+                                        {entry.dependencies.some(depId => {
+                                            const dep = allEntries.find(e => e.id === depId);
+                                            return dep && dep.workflowStatus !== 'Done';
+                                        })
+                                            ? "Blocked by incomplete dependencies"
+                                            : "All dependencies complete"
+                                        }
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Tags */}
                             <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
                                 <h3 className="text-lg font-bold text-ocean-900 mb-3">Tags</h3>
@@ -5089,6 +5325,131 @@
                                         </span>
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* Custom Fields */}
+                            <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-lg font-bold text-ocean-900">Custom Fields</h3>
+                                    {canEdit && (
+                                        <button
+                                            onClick={() => setCustomFieldsModalOpen(true)}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
+                                        >
+                                            <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
+                                        </button>
+                                    )}
+                                </div>
+                                {entry.customFields && entry.customFields.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {entry.customFields.map((field, idx) => (
+                                            <div key={idx} className="flex items-start justify-between gap-2 p-3 bg-graystone-50 rounded-xl">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-0.5">{field.name}</div>
+                                                    <div className="text-sm text-graystone-900">
+                                                        {field.type === 'url' ? (
+                                                            <a href={field.value} target="_blank" rel="noopener noreferrer" className="text-ocean-600 hover:underline flex items-center gap-1">
+                                                                <span className="truncate">{field.value}</span>
+                                                                <i data-lucide="external-link" className="w-3 h-3 shrink-0"></i>
+                                                            </a>
+                                                        ) : field.type === 'date' ? (
+                                                            new Date(field.value).toLocaleDateString()
+                                                        ) : field.type === 'number' ? (
+                                                            Number(field.value).toLocaleString()
+                                                        ) : (
+                                                            field.value
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {canEdit && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const newFields = entry.customFields.filter((_, i) => i !== idx);
+                                                            onUpdateEntry(entry.id, { customFields: newFields });
+                                                        }}
+                                                        className="p-1 hover:bg-red-100 rounded transition-colors shrink-0"
+                                                    >
+                                                        <i data-lucide="x" className="w-3 h-3 text-graystone-500"></i>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-graystone-500 text-center py-4 bg-graystone-50 rounded-xl border border-dashed border-graystone-200">
+                                        No custom fields
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* File Attachments */}
+                            <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-lg font-bold text-ocean-900">Attachments</h3>
+                                    {canEdit && (
+                                        <button
+                                            onClick={() => attachmentInputRef.current?.click()}
+                                            disabled={uploadingFile}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors disabled:opacity-50"
+                                        >
+                                            {uploadingFile ? (
+                                                <div className="w-4 h-4 border-2 border-ocean-500 border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <i data-lucide="paperclip" className="w-5 h-5 text-ocean-600"></i>
+                                            )}
+                                        </button>
+                                    )}
+                                    <input
+                                        ref={attachmentInputRef}
+                                        type="file"
+                                        multiple
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                                    />
+                                </div>
+                                {entry.attachments && entry.attachments.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {entry.attachments.map((attachment) => (
+                                            <div key={attachment.id} className="flex items-center justify-between p-3 bg-graystone-50 rounded-xl group">
+                                                <a
+                                                    href={attachment.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-3 flex-1 min-w-0 hover:text-ocean-600 transition-colors"
+                                                >
+                                                    <div className="w-10 h-10 rounded-lg bg-ocean-100 flex items-center justify-center shrink-0">
+                                                        <i data-lucide={getFileIcon(attachment.type)} className="w-5 h-5 text-ocean-600"></i>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="text-sm font-medium text-graystone-900 truncate">{attachment.name}</div>
+                                                        <div className="text-xs text-graystone-500">{formatFileSize(attachment.size)}</div>
+                                                    </div>
+                                                </a>
+                                                {canEdit && (
+                                                    <button
+                                                        onClick={() => handleDeleteAttachment(attachment)}
+                                                        className="p-2 hover:bg-red-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        <i data-lucide="trash-2" className="w-4 h-4 text-red-500"></i>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div
+                                        className={cx(
+                                            "text-sm text-graystone-500 text-center py-6 bg-graystone-50 rounded-xl border-2 border-dashed border-graystone-200 transition-colors",
+                                            canEdit && "cursor-pointer hover:border-ocean-300 hover:bg-ocean-50/30"
+                                        )}
+                                        onClick={() => canEdit && attachmentInputRef.current?.click()}
+                                    >
+                                        <i data-lucide="upload-cloud" className="w-8 h-8 text-graystone-300 mx-auto mb-2"></i>
+                                        <div>No attachments</div>
+                                        {canEdit && <div className="text-xs text-ocean-500 mt-1">Click to upload</div>}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Custom Tags */}
@@ -5310,6 +5671,225 @@
                                     className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm"
                                 >
                                     Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Dependencies Modal */}
+                {dependenciesModalOpen && (
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
+                        <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-ocean-900">Add Dependencies</h3>
+                                <button
+                                    onClick={() => {
+                                        setDependenciesModalOpen(false);
+                                        setDependencySearch("");
+                                    }}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
+                                >
+                                    <i data-lucide="x" className="w-5 h-5 text-white"></i>
+                                </button>
+                            </div>
+                            <p className="text-sm text-graystone-600 mb-4">
+                                Select items that must be completed before this item can progress.
+                            </p>
+
+                            {/* Search */}
+                            <div className="relative mb-4">
+                                <i data-lucide="search" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-graystone-400"></i>
+                                <input
+                                    type="text"
+                                    placeholder="Search items..."
+                                    value={dependencySearch}
+                                    onChange={(e) => setDependencySearch(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
+                                />
+                            </div>
+
+                            {/* Available Items */}
+                            <div className="space-y-2 max-h-72 overflow-y-auto">
+                                {allEntries
+                                    .filter(e =>
+                                        e.id !== entry.id &&
+                                        !(entry.dependencies || []).includes(e.id) &&
+                                        (dependencySearch === "" ||
+                                            e.title.toLowerCase().includes(dependencySearch.toLowerCase()) ||
+                                            e.owner?.toLowerCase().includes(dependencySearch.toLowerCase()))
+                                    )
+                                    .slice(0, 20)
+                                    .map(item => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => {
+                                                const newDeps = [...(entry.dependencies || []), item.id];
+                                                onUpdateEntry(entry.id, { dependencies: newDeps });
+                                            }}
+                                            className="w-full text-left p-3 rounded-xl border border-graystone-200 hover:border-ocean-300 hover:bg-ocean-50 transition-all flex items-center justify-between group"
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-graystone-900 truncate">{item.title}</div>
+                                                <div className="text-xs text-graystone-500 flex items-center gap-2 mt-0.5">
+                                                    <span>{item.owner}</span>
+                                                    <span>•</span>
+                                                    <span className={cx(
+                                                        "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                                        item.workflowStatus === 'Done'
+                                                            ? "bg-green-100 text-green-700"
+                                                            : "bg-amber-100 text-amber-700"
+                                                    )}>
+                                                        {item.workflowStatus}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <i data-lucide="plus" className="w-4 h-4 text-ocean-500 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </button>
+                                    ))
+                                }
+                                {allEntries.filter(e =>
+                                    e.id !== entry.id &&
+                                    !(entry.dependencies || []).includes(e.id) &&
+                                    (dependencySearch === "" ||
+                                        e.title.toLowerCase().includes(dependencySearch.toLowerCase()) ||
+                                        e.owner?.toLowerCase().includes(dependencySearch.toLowerCase()))
+                                ).length === 0 && (
+                                    <div className="text-sm text-graystone-500 text-center py-6 bg-graystone-50 rounded-xl">
+                                        No matching items found
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex justify-end mt-4">
+                                <button
+                                    onClick={() => {
+                                        setDependenciesModalOpen(false);
+                                        setDependencySearch("");
+                                    }}
+                                    className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Custom Fields Modal */}
+                {customFieldsModalOpen && (
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
+                        <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-ocean-900">Add Custom Field</h3>
+                                <button
+                                    onClick={() => {
+                                        setCustomFieldsModalOpen(false);
+                                        setNewFieldName("");
+                                        setNewFieldValue("");
+                                        setNewFieldType("text");
+                                    }}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
+                                >
+                                    <i data-lucide="x" className="w-5 h-5 text-white"></i>
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Field Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g., Budget, Priority, External Link"
+                                        value={newFieldName}
+                                        onChange={(e) => setNewFieldName(e.target.value)}
+                                        className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Field Type</label>
+                                    <select
+                                        value={newFieldType}
+                                        onChange={(e) => setNewFieldType(e.target.value)}
+                                        className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
+                                    >
+                                        <option value="text">Text</option>
+                                        <option value="number">Number</option>
+                                        <option value="date">Date</option>
+                                        <option value="url">URL</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Value</label>
+                                    {newFieldType === 'date' ? (
+                                        <input
+                                            type="date"
+                                            value={newFieldValue}
+                                            onChange={(e) => setNewFieldValue(e.target.value)}
+                                            className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
+                                        />
+                                    ) : newFieldType === 'number' ? (
+                                        <input
+                                            type="number"
+                                            placeholder="Enter a number"
+                                            value={newFieldValue}
+                                            onChange={(e) => setNewFieldValue(e.target.value)}
+                                            className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
+                                        />
+                                    ) : newFieldType === 'url' ? (
+                                        <input
+                                            type="url"
+                                            placeholder="https://..."
+                                            value={newFieldValue}
+                                            onChange={(e) => setNewFieldValue(e.target.value)}
+                                            className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
+                                        />
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            placeholder="Enter value"
+                                            value={newFieldValue}
+                                            onChange={(e) => setNewFieldValue(e.target.value)}
+                                            className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
+                                        />
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    onClick={() => {
+                                        setCustomFieldsModalOpen(false);
+                                        setNewFieldName("");
+                                        setNewFieldValue("");
+                                        setNewFieldType("text");
+                                    }}
+                                    className="px-4 py-2 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (newFieldName.trim() && newFieldValue.trim()) {
+                                            const newField = {
+                                                name: newFieldName.trim(),
+                                                value: newFieldValue.trim(),
+                                                type: newFieldType
+                                            };
+                                            const existingFields = entry.customFields || [];
+                                            onUpdateEntry(entry.id, { customFields: [...existingFields, newField] });
+                                            setCustomFieldsModalOpen(false);
+                                            setNewFieldName("");
+                                            setNewFieldValue("");
+                                            setNewFieldType("text");
+                                        }
+                                    }}
+                                    disabled={!newFieldName.trim() || !newFieldValue.trim()}
+                                    className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Add Field
                                 </button>
                             </div>
                         </div>
@@ -6033,7 +6613,9 @@
             setFilterTeams,
             availableTags,
             viewMode,
-            setViewMode
+            setViewMode,
+            showArchived,
+            setShowArchived
         }) {
             const [showFilters, setShowFilters] = useState(false);
             const [showTags, setShowTags] = useState(false);
@@ -6126,6 +6708,29 @@
                                                     ))}
                                                 </div>
                                             </div>
+                                            {/* Show Archived Toggle */}
+                                            {setShowArchived && (
+                                                <div className="border-t border-ocean-50 pt-3">
+                                                    <label className="flex items-center justify-between p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                                                        <span className="text-sm text-ocean-900 flex items-center gap-2">
+                                                            <i data-lucide="archive" className="w-4 h-4 text-graystone-500"></i>
+                                                            Show Archived
+                                                        </span>
+                                                        <div
+                                                            className={cx(
+                                                                "w-10 h-5 rounded-full transition-colors relative cursor-pointer",
+                                                                showArchived ? "bg-ocean-500" : "bg-graystone-300"
+                                                            )}
+                                                            onClick={() => setShowArchived(!showArchived)}
+                                                        >
+                                                            <div className={cx(
+                                                                "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                                showArchived ? "translate-x-5" : "translate-x-0.5"
+                                                            )}></div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -7147,6 +7752,7 @@
             const [filterTags, setFilterTags] = useState([]);
             const [filterUsers, setFilterUsers] = useState([]);
             const [filterTeams, setFilterTeams] = useState([]);
+            const [showArchived, setShowArchived] = useState(false);
             const [viewMode, setViewMode] = useState('kanban'); // 'kanban', 'table', 'list', 'gantt', 'mindmap'
 
             // Subtask Modal State
@@ -7365,6 +7971,9 @@
             // Filter Logic
             const filterEntries = (items) => {
                 return items.filter(entry => {
+                    // Filter out archived items unless showArchived is true
+                    const matchesArchived = showArchived || !entry.archived;
+
                     const matchesSearch = searchQuery === "" ||
                         entry.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         entry.owner.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -7377,7 +7986,7 @@
 
                     const matchesTeams = filterTeams.length === 0 || filterTeams.includes(entry.team);
 
-                    return matchesSearch && matchesTags && matchesUsers && matchesTeams;
+                    return matchesArchived && matchesSearch && matchesTags && matchesUsers && matchesTeams;
                 });
             };
 
@@ -7618,6 +8227,8 @@
                                 filterEntries={filterEntries}
                                 viewMode={viewMode}
                                 setViewMode={setViewMode}
+                                showArchived={showArchived}
+                                setShowArchived={setShowArchived}
                             />
                         );
 
@@ -8018,6 +8629,7 @@
                                 openSubtaskModal={openSubtaskModal}
                                 currentUser={currentUser}
                                 userEmail={userEmail}
+                                allEntries={entries}
                             />
                         );
 
