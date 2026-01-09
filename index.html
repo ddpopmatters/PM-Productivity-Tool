@@ -3021,7 +3021,7 @@
         const inputBaseClasses =
             "w-full rounded-lg border border-graystone-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200";
 
-        function ManagerHub({ managers = [], teams = [], entries = [], currentUser, userEmail, openStatsModal, onOpen, onUpdateStatus, openSubtaskModal, onOpenPdfExport }) {
+        function ManagerHub({ managers = [], teams = [], entries = [], currentUser, userEmail, openStatsModal, onOpen, onUpdateStatus, openSubtaskModal, onOpenPdfExport, onExportStatusReport, managerHubTab, setManagerHubTab, reportPeriodType, setReportPeriodType, reportStartDate, setReportStartDate, reportEndDate, setReportEndDate, reportSections, setReportSections, reportNarratives, setReportNarratives }) {
             const normalizedTeams = teams.length ? teams : TEAMS;
 
             // Filter to only show the logged-in manager's own hub (or all if admin)
@@ -3308,7 +3308,30 @@
                             </div>
                         </div>
                     </div>
-                    {availableManagers.length > 1 && (
+
+                    {/* Tab Navigation */}
+                    <div className="flex gap-1 border-b border-graystone-200">
+                        {[
+                            { id: 'overview', label: 'Overview', icon: 'layout-dashboard' },
+                            { id: 'reports', label: 'Reports', icon: 'file-text' }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setManagerHubTab && setManagerHubTab(tab.id)}
+                                className={cx(
+                                    "flex items-center gap-2 px-4 py-3 text-sm font-medium transition border-b-2 -mb-px",
+                                    (managerHubTab || 'overview') === tab.id
+                                        ? "text-ocean-700 border-ocean-500"
+                                        : "text-graystone-500 border-transparent hover:text-graystone-700 hover:border-graystone-300"
+                                )}
+                            >
+                                <i data-lucide={tab.icon} className="w-4 h-4"></i>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {availableManagers.length > 1 && (managerHubTab || 'overview') === 'overview' && (
                         <div className="flex justify-end">
                             <select
                                 value={selectedManager?.email || availableManagers[0]?.email || ""}
@@ -3322,7 +3345,8 @@
                         </div>
                     )}
 
-                    {selectedManager && (() => {
+                    {/* OVERVIEW TAB CONTENT */}
+                    {(managerHubTab || 'overview') === 'overview' && selectedManager && (() => {
                         const items = getTeamEntries(selectedManager);
                         const bottleneck = computeBottleneck(items);
                         const imminent = computeImminent(items);
@@ -3785,6 +3809,517 @@
                             })()}
                         </div>
                     </div>
+
+                    {/* REPORTS TAB CONTENT */}
+                    {(managerHubTab || 'overview') === 'reports' && selectedManager && (() => {
+                        const teamEntries = getTeamEntries(selectedManager);
+
+                        // Filter entries by date range
+                        const filterEntriesByDateRange = (items, start, end) => {
+                            if (!start && !end) return items;
+                            return items.filter(entry => {
+                                const entryDate = entry.date ? new Date(entry.date) : null;
+                                if (!entryDate) return true; // Include items without dates
+                                const startDate = start ? new Date(start) : null;
+                                const endDate = end ? new Date(end) : null;
+                                if (startDate && entryDate < startDate) return false;
+                                if (endDate && entryDate > endDate) return false;
+                                return true;
+                            });
+                        };
+
+                        const periodEntries = filterEntriesByDateRange(teamEntries, reportStartDate, reportEndDate);
+
+                        // Calculate status distribution
+                        const statusCounts = KANBAN_STATUSES.reduce((acc, status) => {
+                            acc[status] = periodEntries.filter(e => e.workflowStatus === status).length;
+                            return acc;
+                        }, {});
+
+                        const completedCount = periodEntries.filter(e => e.workflowStatus === 'Done').length;
+                        const inProgressCount = periodEntries.filter(e => e.workflowStatus !== 'Done').length;
+                        const completionRate = periodEntries.length > 0 ? Math.round((completedCount / periodEntries.length) * 100) : 0;
+
+                        // Detect highlights (items completed in period)
+                        const autoHighlights = [];
+                        if (completedCount > 0) autoHighlights.push(`${completedCount} item(s) marked as Done`);
+                        const deliveredCount = periodEntries.filter(e => e.workflowStatus === 'Delivered').length;
+                        if (deliveredCount > 0) autoHighlights.push(`${deliveredCount} item(s) in Delivered status`);
+
+                        // Detect blockers
+                        const autoBlockers = [];
+                        const overdueItems = periodEntries.filter(e => {
+                            const d = e.date ? new Date(e.date) : null;
+                            return d && d < new Date() && e.workflowStatus !== 'Done';
+                        });
+                        if (overdueItems.length > 0) autoBlockers.push(`${overdueItems.length} item(s) are overdue`);
+
+                        // Check for bottlenecks
+                        Object.entries(statusCounts).forEach(([status, count]) => {
+                            if (count >= 5 && status !== 'Done') {
+                                autoBlockers.push(`Potential bottleneck: ${count} items in "${status}"`);
+                            }
+                        });
+
+                        // Period label
+                        const getPeriodLabel = () => {
+                            if (reportStartDate && reportEndDate) {
+                                const start = new Date(reportStartDate);
+                                const end = new Date(reportEndDate);
+                                return `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+                            }
+                            return 'All time';
+                        };
+
+                        // Quick select period
+                        const selectPeriod = (preset) => {
+                            const now = new Date();
+                            let start, end;
+
+                            switch (preset) {
+                                case 'thisWeek':
+                                    start = new Date(now);
+                                    start.setDate(now.getDate() - now.getDay());
+                                    end = now;
+                                    break;
+                                case 'lastWeek':
+                                    start = new Date(now);
+                                    start.setDate(now.getDate() - now.getDay() - 7);
+                                    end = new Date(start);
+                                    end.setDate(start.getDate() + 6);
+                                    break;
+                                case 'thisMonth':
+                                    start = new Date(now.getFullYear(), now.getMonth(), 1);
+                                    end = now;
+                                    break;
+                                case 'thisQuarter':
+                                    const quarter = Math.floor(now.getMonth() / 3);
+                                    start = new Date(now.getFullYear(), quarter * 3, 1);
+                                    end = now;
+                                    break;
+                                default:
+                                    return;
+                            }
+
+                            setReportStartDate(start.toISOString().slice(0, 10));
+                            setReportEndDate(end.toISOString().slice(0, 10));
+                        };
+
+                        // Member workload colors
+                        const memberColors = ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#14b8a6'];
+
+                        return (
+                            <div className="space-y-6" id="status-report-content">
+                                {/* Period Selector */}
+                                <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                                    <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2">
+                                        <i data-lucide="calendar-range" className="w-5 h-5"></i>
+                                        Report Period
+                                    </h3>
+
+                                    {/* Period Type Toggle */}
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className="flex bg-graystone-100 p-1 rounded-lg">
+                                            {['week', 'month', 'quarter'].map((type) => (
+                                                <button
+                                                    key={type}
+                                                    onClick={() => setReportPeriodType(type)}
+                                                    className={cx(
+                                                        "px-4 py-2 rounded-md text-sm font-medium transition-all capitalize",
+                                                        reportPeriodType === type
+                                                            ? "bg-white text-ocean-700 shadow-sm"
+                                                            : "text-graystone-600 hover:text-ocean-700"
+                                                    )}
+                                                >
+                                                    {type}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Date Pickers */}
+                                    <div className="flex gap-4 mb-4">
+                                        <div className="flex-1">
+                                            <label className="text-xs text-graystone-500 mb-1 block">Start Date</label>
+                                            <input
+                                                type="date"
+                                                value={reportStartDate || ''}
+                                                onChange={(e) => setReportStartDate(e.target.value)}
+                                                className={inputBaseClasses}
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-xs text-graystone-500 mb-1 block">End Date</label>
+                                            <input
+                                                type="date"
+                                                value={reportEndDate || ''}
+                                                onChange={(e) => setReportEndDate(e.target.value)}
+                                                className={inputBaseClasses}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Select Buttons */}
+                                    <div className="flex flex-wrap gap-2">
+                                        <button onClick={() => selectPeriod('thisWeek')} className="text-xs px-3 py-1.5 bg-ocean-50 text-ocean-700 rounded-full hover:bg-ocean-100 transition">
+                                            This Week
+                                        </button>
+                                        <button onClick={() => selectPeriod('lastWeek')} className="text-xs px-3 py-1.5 bg-ocean-50 text-ocean-700 rounded-full hover:bg-ocean-100 transition">
+                                            Last Week
+                                        </button>
+                                        <button onClick={() => selectPeriod('thisMonth')} className="text-xs px-3 py-1.5 bg-ocean-50 text-ocean-700 rounded-full hover:bg-ocean-100 transition">
+                                            This Month
+                                        </button>
+                                        <button onClick={() => selectPeriod('thisQuarter')} className="text-xs px-3 py-1.5 bg-ocean-50 text-ocean-700 rounded-full hover:bg-ocean-100 transition">
+                                            This Quarter
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Section Toggles */}
+                                <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                                    <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2">
+                                        <i data-lucide="layout-list" className="w-5 h-5"></i>
+                                        Report Sections
+                                    </h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {[
+                                            { id: 'executiveSummary', label: 'Executive Summary', desc: 'Overview with custom commentary' },
+                                            { id: 'progressMetrics', label: 'Progress Metrics', desc: 'Status distribution & completion rates' },
+                                            { id: 'teamWorkload', label: 'Team Workload', desc: 'Per-member breakdown' },
+                                            { id: 'keyHighlights', label: 'Key Highlights', desc: 'Achievements this period' },
+                                            { id: 'blockersRisks', label: 'Blockers & Risks', desc: 'Issues needing attention' }
+                                        ].map(section => (
+                                            <label key={section.id} className="flex items-start gap-3 p-3 hover:bg-ocean-50 rounded-xl cursor-pointer transition-colors border border-transparent hover:border-ocean-100">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={reportSections[section.id]}
+                                                    onChange={(e) => setReportSections(prev => ({
+                                                        ...prev,
+                                                        [section.id]: e.target.checked
+                                                    }))}
+                                                    className="mt-1 rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                                />
+                                                <div>
+                                                    <span className="text-sm font-medium text-ocean-900">{section.label}</span>
+                                                    <p className="text-xs text-graystone-500">{section.desc}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Report Preview Header */}
+                                <div className="bg-gradient-to-r from-ocean-600 to-ocean-700 rounded-xl p-6 text-white shadow-lg">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h2 className="text-xl font-bold heading-font">Weekly Status Update</h2>
+                                            <p className="text-ocean-100 text-sm mt-1">
+                                                {selectedManager?.name} | {selectedManager?.team} | {getPeriodLabel()}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                // Build report data for PDF export
+                                                const reports = selectedManager?.reports || [];
+                                                const memberData = reports.map((member, idx) => {
+                                                    const { allItems, inProgress, overdue } = collectMemberItems(member, periodEntries);
+                                                    const completed = allItems.filter(i => i.workflowStatus === 'Done').length;
+                                                    return { name: member, total: allItems.length, inProgress: inProgress.length, completed, overdue: overdue.length };
+                                                });
+
+                                                const reportData = {
+                                                    managerName: selectedManager?.name || 'Manager',
+                                                    teamName: selectedManager?.team || 'Team',
+                                                    periodLabel: getPeriodLabel(),
+                                                    sections: reportSections,
+                                                    narratives: reportNarratives,
+                                                    stats: {
+                                                        total: periodEntries.length,
+                                                        completed: completedCount,
+                                                        inProgress: inProgressCount,
+                                                        completionRate: completionRate
+                                                    },
+                                                    statusCounts: statusCounts,
+                                                    memberData: memberData,
+                                                    autoHighlights: autoHighlights,
+                                                    autoBlockers: autoBlockers
+                                                };
+
+                                                if (onExportStatusReport) onExportStatusReport(reportData);
+                                            }}
+                                            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition text-sm font-medium border border-white/20"
+                                        >
+                                            <i data-lucide="download" className="w-4 h-4"></i>
+                                            Export PDF
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Executive Summary Section */}
+                                {reportSections.executiveSummary && (
+                                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 bg-ocean-500 rounded-xl flex items-center justify-center">
+                                                <i data-lucide="file-text" className="w-5 h-5 text-white"></i>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-heading text-lg text-ocean-900">Executive Summary</h3>
+                                                <p className="text-xs text-graystone-500">High-level overview for leadership</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Auto-generated stats */}
+                                        <div className="bg-graystone-50 rounded-lg p-4 mb-4">
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                                                <div>
+                                                    <div className="text-2xl font-bold text-ocean-700">{periodEntries.length}</div>
+                                                    <div className="text-xs text-graystone-500">Total Items</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-2xl font-bold text-green-600">{completedCount}</div>
+                                                    <div className="text-xs text-graystone-500">Completed</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-2xl font-bold text-blue-600">{inProgressCount}</div>
+                                                    <div className="text-xs text-graystone-500">In Progress</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-2xl font-bold text-purple-600">{completionRate}%</div>
+                                                    <div className="text-xs text-graystone-500">Completion Rate</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Editable narrative */}
+                                        <div>
+                                            <label className="text-sm font-medium text-graystone-700 mb-2 block">
+                                                Manager Commentary
+                                            </label>
+                                            <textarea
+                                                value={reportNarratives.executiveSummary}
+                                                onChange={(e) => setReportNarratives(prev => ({
+                                                    ...prev,
+                                                    executiveSummary: e.target.value
+                                                }))}
+                                                placeholder="Add your summary and key points for leadership..."
+                                                className={cx(inputBaseClasses, "min-h-[100px]")}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Progress Metrics Section */}
+                                {reportSections.progressMetrics && (
+                                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                                        <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2">
+                                            <i data-lucide="trending-up" className="w-5 h-5"></i>
+                                            Progress Metrics
+                                        </h3>
+
+                                        {/* Status Distribution */}
+                                        <div className="mb-6">
+                                            <h4 className="text-sm font-semibold text-graystone-700 mb-3">Status Distribution</h4>
+                                            <div className="space-y-2">
+                                                {KANBAN_STATUSES.map(status => {
+                                                    const count = statusCounts[status] || 0;
+                                                    const percent = periodEntries.length > 0 ? (count / periodEntries.length) * 100 : 0;
+
+                                                    return (
+                                                        <div key={status} className="flex items-center gap-3">
+                                                            <div className="w-28 text-sm text-graystone-600 truncate">{status}</div>
+                                                            <div className="flex-1 h-6 bg-graystone-100 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className="h-full rounded-full transition-all bg-ocean-500"
+                                                                    style={{ width: `${percent}%` }}
+                                                                />
+                                                            </div>
+                                                            <div className="w-10 text-sm font-medium text-graystone-700 text-right">{count}</div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Team Workload Section */}
+                                {reportSections.teamWorkload && (
+                                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                                        <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2">
+                                            <i data-lucide="users" className="w-5 h-5"></i>
+                                            Team Workload
+                                        </h3>
+
+                                        {/* Visual Workload Distribution */}
+                                        <div className="mb-6">
+                                            <h4 className="text-sm font-semibold text-graystone-700 mb-3">Workload Distribution</h4>
+                                            {(() => {
+                                                const reports = selectedManager?.reports || [];
+                                                const memberData = reports.map((member, idx) => {
+                                                    const { allItems, inProgress, overdue } = collectMemberItems(member, periodEntries);
+                                                    const completed = allItems.filter(i => i.workflowStatus === 'Done').length;
+                                                    return { name: member, total: allItems.length, inProgress: inProgress.length, completed, overdue: overdue.length, color: memberColors[idx % memberColors.length] };
+                                                });
+                                                const totalItems = memberData.reduce((sum, m) => sum + m.total, 0);
+
+                                                return (
+                                                    <>
+                                                        <div className="h-8 bg-graystone-100 rounded-full overflow-hidden flex">
+                                                            {memberData.map((member, idx) => {
+                                                                const percent = totalItems > 0 ? (member.total / totalItems) * 100 : 0;
+                                                                return (
+                                                                    <div
+                                                                        key={member.name}
+                                                                        className="h-full transition-all hover:opacity-80"
+                                                                        style={{ width: `${percent}%`, backgroundColor: member.color }}
+                                                                        title={`${member.name}: ${member.total} items`}
+                                                                    />
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-3 mt-3">
+                                                            {memberData.map(member => (
+                                                                <div key={member.name} className="flex items-center gap-2 text-xs">
+                                                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: member.color }} />
+                                                                    <span className="text-graystone-600">{member.name.split(' ')[0]}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        {/* Per-Member Table */}
+                                                        <div className="overflow-x-auto mt-6">
+                                                            <table className="w-full text-sm">
+                                                                <thead>
+                                                                    <tr className="border-b border-graystone-200">
+                                                                        <th className="text-left py-2 text-graystone-600 font-semibold">Team Member</th>
+                                                                        <th className="text-center py-2 text-graystone-600 font-semibold">Owned</th>
+                                                                        <th className="text-center py-2 text-graystone-600 font-semibold">In Progress</th>
+                                                                        <th className="text-center py-2 text-graystone-600 font-semibold">Completed</th>
+                                                                        <th className="text-center py-2 text-graystone-600 font-semibold">Overdue</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {memberData.map(member => (
+                                                                        <tr key={member.name} className="border-b border-graystone-100 hover:bg-ocean-50">
+                                                                            <td className="py-3">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <div className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs" style={{ backgroundColor: member.color }}>
+                                                                                        {member.name.split(' ').map(n => n[0]).join('')}
+                                                                                    </div>
+                                                                                    <span className="font-medium text-ocean-900">{member.name}</span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="text-center font-semibold text-ocean-700">{member.total}</td>
+                                                                            <td className="text-center text-blue-600">{member.inProgress}</td>
+                                                                            <td className="text-center text-green-600">{member.completed}</td>
+                                                                            <td className="text-center text-red-600">{member.overdue}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Key Highlights Section */}
+                                {reportSections.keyHighlights && (
+                                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center">
+                                                <i data-lucide="award" className="w-5 h-5 text-white"></i>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-heading text-lg text-ocean-900">Key Highlights</h3>
+                                                <p className="text-xs text-graystone-500">Achievements and wins this period</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Auto-detected highlights */}
+                                        {autoHighlights.length > 0 && (
+                                            <div className="bg-green-50 rounded-lg p-4 mb-4">
+                                                <h4 className="text-sm font-semibold text-green-800 mb-2">Auto-Detected:</h4>
+                                                <ul className="space-y-1">
+                                                    {autoHighlights.map((highlight, idx) => (
+                                                        <li key={idx} className="text-sm text-green-700 flex items-start gap-2">
+                                                            <i data-lucide="check-circle" className="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+                                                            {highlight}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {/* Editable narrative */}
+                                        <div>
+                                            <label className="text-sm font-medium text-graystone-700 mb-2 block">
+                                                Additional Highlights
+                                            </label>
+                                            <textarea
+                                                value={reportNarratives.keyHighlights}
+                                                onChange={(e) => setReportNarratives(prev => ({
+                                                    ...prev,
+                                                    keyHighlights: e.target.value
+                                                }))}
+                                                placeholder="• Team completed major milestone X&#10;• Successful launch of Y&#10;• Positive feedback from stakeholders on Z"
+                                                className={cx(inputBaseClasses, "min-h-[80px]")}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Blockers & Risks Section */}
+                                {reportSections.blockersRisks && (
+                                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+                                                <i data-lucide="alert-triangle" className="w-5 h-5 text-white"></i>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-heading text-lg text-ocean-900">Blockers & Risks</h3>
+                                                <p className="text-xs text-graystone-500">Issues needing attention</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Auto-detected blockers */}
+                                        {autoBlockers.length > 0 && (
+                                            <div className="bg-amber-50 rounded-lg p-4 mb-4">
+                                                <h4 className="text-sm font-semibold text-amber-800 mb-2">Auto-Detected Concerns:</h4>
+                                                <ul className="space-y-1">
+                                                    {autoBlockers.map((blocker, idx) => (
+                                                        <li key={idx} className="text-sm text-amber-700 flex items-start gap-2">
+                                                            <i data-lucide="alert-circle" className="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+                                                            {blocker}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {/* Editable narrative */}
+                                        <div>
+                                            <label className="text-sm font-medium text-graystone-700 mb-2 block">
+                                                Additional Concerns
+                                            </label>
+                                            <textarea
+                                                value={reportNarratives.blockersRisks}
+                                                onChange={(e) => setReportNarratives(prev => ({
+                                                    ...prev,
+                                                    blockersRisks: e.target.value
+                                                }))}
+                                                placeholder="• Dependency on external team&#10;• Resource constraints&#10;• Technical debt requiring attention"
+                                                className={cx(inputBaseClasses, "min-h-[80px]")}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
 
                 </div>
             );
@@ -7909,12 +8444,42 @@
                 return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
             });
 
+            // Weekly Status Report state
+            const [managerHubTab, setManagerHubTab] = useState('overview'); // 'overview' | 'reports'
+            const [reportPeriodType, setReportPeriodType] = useState('week'); // 'week' | 'month' | 'quarter'
+            const [reportStartDate, setReportStartDate] = useState(() => {
+                const now = new Date();
+                const start = new Date(now);
+                start.setDate(now.getDate() - now.getDay()); // Start of current week
+                return start.toISOString().slice(0, 10);
+            });
+            const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+            const [reportSections, setReportSections] = useState({
+                executiveSummary: true,
+                progressMetrics: true,
+                teamWorkload: true,
+                keyHighlights: true,
+                blockersRisks: true
+            });
+            const [reportNarratives, setReportNarratives] = useState({
+                executiveSummary: '',
+                keyHighlights: '',
+                blockersRisks: ''
+            });
+
             // Re-initialize Lucide icons when PDF export modal opens
             useEffect(() => {
                 if (showPdfExportModal) {
                     setTimeout(() => lucide.createIcons(), 50);
                 }
             }, [showPdfExportModal, pdfExportTab]);
+
+            // Re-initialize Lucide icons when Manager Hub tab changes
+            useEffect(() => {
+                if (managerHubTab === 'reports') {
+                    setTimeout(() => lucide.createIcons(), 50);
+                }
+            }, [managerHubTab]);
 
             // Apply dark mode class to document
             useEffect(() => {
@@ -9061,6 +9626,291 @@
                 setShowPdfExportModal(true);
             };
 
+            // Handler for Status Report PDF Export
+            const handleStatusReportPdfExport = async (reportData) => {
+                const { jsPDF } = window.jspdf;
+
+                // Create loading overlay
+                const loadingOverlay = document.createElement('div');
+                loadingOverlay.id = 'pdf-export-loading';
+                loadingOverlay.innerHTML = `
+                    <div style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+                        <div style="background: white; padding: 2rem; border-radius: 1rem; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+                            <div style="width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top-color: #0ea5e9; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                            <p style="color: #374151; font-weight: 500;">Generating Status Report PDF...</p>
+                        </div>
+                    </div>
+                    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+                `;
+                document.body.appendChild(loadingOverlay);
+
+                try {
+                    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    const pageWidth = 210;
+                    const pageHeight = 297;
+                    const margin = 15;
+                    const contentWidth = pageWidth - (margin * 2);
+                    let yPos = margin;
+
+                    // Colors
+                    const oceanDark = [12, 74, 110];
+                    const oceanMid = [17, 96, 125];
+                    const grayText = [100, 116, 139];
+                    const lightBg = [241, 245, 249];
+                    const greenColor = [34, 197, 94];
+                    const blueColor = [59, 130, 246];
+                    const amberColor = [245, 158, 11];
+
+                    // Helper: Draw rounded rectangle
+                    const drawRoundedRect = (x, y, w, h, r, fill, stroke) => {
+                        pdf.setFillColor(...fill);
+                        if (stroke) pdf.setDrawColor(...stroke);
+                        pdf.roundedRect(x, y, w, h, r, r, stroke ? 'FD' : 'F');
+                    };
+
+                    // Helper: Check page break
+                    const checkPageBreak = (neededHeight) => {
+                        if (yPos + neededHeight > pageHeight - margin) {
+                            pdf.addPage();
+                            yPos = margin;
+                            return true;
+                        }
+                        return false;
+                    };
+
+                    // === HEADER ===
+                    drawRoundedRect(margin, yPos, contentWidth, 28, 3, oceanMid);
+                    pdf.setFontSize(20);
+                    pdf.setTextColor(255, 255, 255);
+                    pdf.text('Weekly Status Update', margin + 8, yPos + 12);
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(207, 250, 254);
+                    pdf.text(`${reportData.managerName} | ${reportData.teamName}`, margin + 8, yPos + 19);
+                    pdf.text(`Period: ${reportData.periodLabel}`, margin + 8, yPos + 25);
+                    yPos += 35;
+
+                    // === EXECUTIVE SUMMARY ===
+                    if (reportData.sections.executiveSummary) {
+                        checkPageBreak(50);
+                        pdf.setFontSize(14);
+                        pdf.setTextColor(...oceanDark);
+                        pdf.text('Executive Summary', margin, yPos + 5);
+                        yPos += 10;
+
+                        // Stats boxes
+                        const statBoxWidth = (contentWidth - 9) / 4;
+                        const stats = [
+                            { label: 'Total Items', value: reportData.stats.total, color: oceanMid },
+                            { label: 'Completed', value: reportData.stats.completed, color: greenColor },
+                            { label: 'In Progress', value: reportData.stats.inProgress, color: blueColor },
+                            { label: 'Completion Rate', value: `${reportData.stats.completionRate}%`, color: [147, 51, 234] }
+                        ];
+
+                        stats.forEach((stat, i) => {
+                            const x = margin + (i * (statBoxWidth + 3));
+                            drawRoundedRect(x, yPos, statBoxWidth, 18, 2, [255, 255, 255], lightBg);
+                            pdf.setFontSize(16);
+                            pdf.setTextColor(...stat.color);
+                            pdf.text(String(stat.value), x + 5, yPos + 10);
+                            pdf.setFontSize(7);
+                            pdf.setTextColor(...grayText);
+                            pdf.text(stat.label, x + 5, yPos + 15);
+                        });
+                        yPos += 24;
+
+                        // Narrative
+                        if (reportData.narratives.executiveSummary) {
+                            pdf.setFontSize(9);
+                            pdf.setTextColor(...grayText);
+                            const lines = pdf.splitTextToSize(reportData.narratives.executiveSummary, contentWidth);
+                            lines.forEach(line => {
+                                checkPageBreak(5);
+                                pdf.text(line, margin, yPos);
+                                yPos += 4;
+                            });
+                        }
+                        yPos += 8;
+                    }
+
+                    // === PROGRESS METRICS ===
+                    if (reportData.sections.progressMetrics) {
+                        checkPageBreak(60);
+                        pdf.setFontSize(14);
+                        pdf.setTextColor(...oceanDark);
+                        pdf.text('Progress Metrics', margin, yPos + 5);
+                        yPos += 12;
+
+                        pdf.setFontSize(10);
+                        pdf.setTextColor(...grayText);
+                        pdf.text('Status Distribution', margin, yPos);
+                        yPos += 6;
+
+                        // Status bars
+                        const KANBAN_STATUSES = ['Idea', 'Discovery', 'Preparation', 'In Delivery', 'Delivered', 'Impact Assessment', 'Done'];
+                        KANBAN_STATUSES.forEach(status => {
+                            checkPageBreak(8);
+                            const count = reportData.statusCounts[status] || 0;
+                            const percent = reportData.stats.total > 0 ? (count / reportData.stats.total) * 100 : 0;
+
+                            pdf.setFontSize(8);
+                            pdf.setTextColor(...grayText);
+                            pdf.text(status, margin, yPos + 3);
+
+                            // Bar background
+                            pdf.setFillColor(...lightBg);
+                            pdf.roundedRect(margin + 35, yPos, contentWidth - 50, 5, 1, 1, 'F');
+
+                            // Bar fill
+                            if (percent > 0) {
+                                pdf.setFillColor(...oceanMid);
+                                pdf.roundedRect(margin + 35, yPos, Math.max(2, (contentWidth - 50) * (percent / 100)), 5, 1, 1, 'F');
+                            }
+
+                            // Count
+                            pdf.text(String(count), margin + contentWidth - 10, yPos + 3);
+                            yPos += 7;
+                        });
+                        yPos += 8;
+                    }
+
+                    // === TEAM WORKLOAD ===
+                    if (reportData.sections.teamWorkload && reportData.memberData && reportData.memberData.length > 0) {
+                        checkPageBreak(40);
+                        pdf.setFontSize(14);
+                        pdf.setTextColor(...oceanDark);
+                        pdf.text('Team Workload', margin, yPos + 5);
+                        yPos += 12;
+
+                        // Table header
+                        const cols = [50, 25, 30, 30, 25];
+                        const headers = ['Team Member', 'Owned', 'In Progress', 'Completed', 'Overdue'];
+                        drawRoundedRect(margin, yPos, contentWidth, 8, 1, oceanMid);
+                        pdf.setFontSize(8);
+                        pdf.setTextColor(255, 255, 255);
+                        let colX = margin + 3;
+                        headers.forEach((h, i) => {
+                            pdf.text(h, colX, yPos + 5.5);
+                            colX += cols[i];
+                        });
+                        yPos += 10;
+
+                        // Table rows
+                        reportData.memberData.forEach((member, idx) => {
+                            checkPageBreak(8);
+                            const bgColor = idx % 2 === 0 ? [255, 255, 255] : lightBg;
+                            drawRoundedRect(margin, yPos, contentWidth, 8, 0, bgColor);
+
+                            pdf.setFontSize(8);
+                            colX = margin + 3;
+
+                            pdf.setTextColor(...oceanDark);
+                            pdf.text(member.name.length > 20 ? member.name.substring(0, 20) + '...' : member.name, colX, yPos + 5.5);
+                            colX += cols[0];
+
+                            pdf.setTextColor(...oceanMid);
+                            pdf.text(String(member.total), colX, yPos + 5.5);
+                            colX += cols[1];
+
+                            pdf.setTextColor(...blueColor);
+                            pdf.text(String(member.inProgress), colX, yPos + 5.5);
+                            colX += cols[2];
+
+                            pdf.setTextColor(...greenColor);
+                            pdf.text(String(member.completed), colX, yPos + 5.5);
+                            colX += cols[3];
+
+                            pdf.setTextColor(member.overdue > 0 ? [239, 68, 68] : grayText);
+                            pdf.text(String(member.overdue), colX, yPos + 5.5);
+
+                            yPos += 8;
+                        });
+                        yPos += 8;
+                    }
+
+                    // === KEY HIGHLIGHTS ===
+                    if (reportData.sections.keyHighlights) {
+                        checkPageBreak(30);
+                        pdf.setFontSize(14);
+                        pdf.setTextColor(...greenColor);
+                        pdf.text('Key Highlights', margin, yPos + 5);
+                        yPos += 10;
+
+                        // Auto-detected
+                        if (reportData.autoHighlights && reportData.autoHighlights.length > 0) {
+                            reportData.autoHighlights.forEach(h => {
+                                checkPageBreak(6);
+                                pdf.setFontSize(9);
+                                pdf.setTextColor(...greenColor);
+                                pdf.text(`✓ ${h}`, margin + 3, yPos);
+                                yPos += 5;
+                            });
+                        }
+
+                        // Narrative
+                        if (reportData.narratives.keyHighlights) {
+                            yPos += 2;
+                            pdf.setFontSize(9);
+                            pdf.setTextColor(...grayText);
+                            const lines = pdf.splitTextToSize(reportData.narratives.keyHighlights, contentWidth);
+                            lines.forEach(line => {
+                                checkPageBreak(5);
+                                pdf.text(line, margin, yPos);
+                                yPos += 4;
+                            });
+                        }
+                        yPos += 8;
+                    }
+
+                    // === BLOCKERS & RISKS ===
+                    if (reportData.sections.blockersRisks) {
+                        checkPageBreak(30);
+                        pdf.setFontSize(14);
+                        pdf.setTextColor(...amberColor);
+                        pdf.text('Blockers & Risks', margin, yPos + 5);
+                        yPos += 10;
+
+                        // Auto-detected
+                        if (reportData.autoBlockers && reportData.autoBlockers.length > 0) {
+                            reportData.autoBlockers.forEach(b => {
+                                checkPageBreak(6);
+                                pdf.setFontSize(9);
+                                pdf.setTextColor(...amberColor);
+                                pdf.text(`⚠ ${b}`, margin + 3, yPos);
+                                yPos += 5;
+                            });
+                        }
+
+                        // Narrative
+                        if (reportData.narratives.blockersRisks) {
+                            yPos += 2;
+                            pdf.setFontSize(9);
+                            pdf.setTextColor(...grayText);
+                            const lines = pdf.splitTextToSize(reportData.narratives.blockersRisks, contentWidth);
+                            lines.forEach(line => {
+                                checkPageBreak(5);
+                                pdf.text(line, margin, yPos);
+                                yPos += 4;
+                            });
+                        }
+                    }
+
+                    // Footer
+                    pdf.setFontSize(7);
+                    pdf.setTextColor(...grayText);
+                    pdf.text(`Generated on ${new Date().toLocaleDateString('en-GB')}`, margin, pageHeight - 10);
+
+                    // Save
+                    const filename = `Status_Report_${reportData.managerName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
+                    pdf.save(filename);
+
+                } catch (error) {
+                    console.error('Status report PDF export error:', error);
+                    setSaveError('Failed to generate PDF. Please try again.');
+                } finally {
+                    document.body.removeChild(loadingOverlay);
+                }
+            };
+
             // Derived State: Available Tags
             const availableTags = Array.from(new Set(entries.flatMap(e => e.tags || []))).sort();
 
@@ -9366,7 +10216,7 @@
                                 </div>
                             );
                         }
-                        return <ManagerHub managers={managers} teams={TEAMS} entries={entries} currentUser={currentUser} userEmail={userEmail} openStatsModal={openStatsModal} onOpen={handleOpenEntry} onUpdateStatus={handleUpdateStatus} openSubtaskModal={openSubtaskModal} onOpenPdfExport={handleOpenPdfExport} />;
+                        return <ManagerHub managers={managers} teams={TEAMS} entries={entries} currentUser={currentUser} userEmail={userEmail} openStatsModal={openStatsModal} onOpen={handleOpenEntry} onUpdateStatus={handleUpdateStatus} openSubtaskModal={openSubtaskModal} onOpenPdfExport={handleOpenPdfExport} onExportStatusReport={handleStatusReportPdfExport} managerHubTab={managerHubTab} setManagerHubTab={setManagerHubTab} reportPeriodType={reportPeriodType} setReportPeriodType={setReportPeriodType} reportStartDate={reportStartDate} setReportStartDate={setReportStartDate} reportEndDate={reportEndDate} setReportEndDate={setReportEndDate} reportSections={reportSections} setReportSections={setReportSections} reportNarratives={reportNarratives} setReportNarratives={setReportNarratives} />;
 
                     case 'personal': {
                         const myOwnedEntries = entries.filter(e => e.owner === currentUser);
