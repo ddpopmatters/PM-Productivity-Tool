@@ -9836,11 +9836,25 @@
                     // Colors (matching app's Tailwind palette)
                     const oceanDark = [26, 26, 26];       // graystone-900 for text
                     const oceanMid = [17, 96, 125];       // ocean-500
+                    const oceanLight = [14, 116, 144];    // ocean-600
+                    const oceanBg = [8, 145, 178];        // ocean-400 for background
                     const grayText = [109, 109, 109];     // graystone-600
                     const lightBg = [247, 247, 247];      // graystone-50
                     const greenColor = [34, 197, 94];     // green-500
                     const blueColor = [17, 96, 125];      // ocean-500 (matching app)
                     const amberColor = [245, 158, 11];    // amber-500
+                    const cardWhite = [255, 255, 255];
+                    const shadowColor = [0, 0, 0];
+
+                    // Colors (app styling)
+                    const pageBgColor = [14, 116, 144];   // ocean-600 background
+                    const cardPadding = 8;
+
+                    // Helper: Draw page background with blue color
+                    const drawPageBackground = () => {
+                        pdf.setFillColor(...pageBgColor);
+                        pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+                    };
 
                     // Helper: Draw rounded rectangle
                     const drawRoundedRect = (x, y, w, h, r, fill, stroke) => {
@@ -9849,15 +9863,29 @@
                         pdf.roundedRect(x, y, w, h, r, r, stroke ? 'FD' : 'F');
                     };
 
-                    // Helper: Check page break
+                    // Helper: Draw white card with shadow
+                    const drawCard = (x, y, w, h, r = 4) => {
+                        // Shadow
+                        pdf.setFillColor(0, 70, 90);
+                        pdf.roundedRect(x + 1.5, y + 2, w, h, r, r, 'F');
+                        // White card
+                        pdf.setFillColor(255, 255, 255);
+                        pdf.roundedRect(x, y, w, h, r, r, 'F');
+                    };
+
+                    // Helper: Check page break and redraw background
                     const checkPageBreak = (neededHeight) => {
                         if (yPos + neededHeight > pageHeight - margin) {
                             pdf.addPage();
+                            drawPageBackground();
                             yPos = margin;
                             return true;
                         }
                         return false;
                     };
+
+                    // Draw initial page background
+                    drawPageBackground();
 
                     // === HEADER ===
                     drawRoundedRect(margin, yPos, contentWidth, 28, 3, oceanMid);
@@ -9880,22 +9908,31 @@
 
                     // === EXECUTIVE SUMMARY ===
                     if (reportData.sections.executiveSummary) {
-                        checkPageBreak(50);
-
                         const summaryProjects = reportData.projects ? reportData.projects.slice(0, 10) : [];
                         const tableRowHeight = 6;
                         const tableHeaderHeight = 8;
+                        const cardPadding = 6;
 
-                        // Section header
+                        // Calculate card height
+                        const projectRowsHeight = summaryProjects.length * tableRowHeight;
+                        const narrativeHeight = reportData.narratives.executiveSummary ? 25 : 0;
+                        const cardHeight = 22 + tableHeaderHeight + projectRowsHeight + narrativeHeight + cardPadding;
+
+                        checkPageBreak(cardHeight + 5);
+
+                        // Draw white card with shadow
+                        drawCard(margin, yPos, contentWidth, cardHeight);
+
+                        // Section header inside card
                         pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Executive Summary', margin, yPos + 5);
+                        pdf.text('Executive Summary', margin + cardPadding, yPos + 10);
                         pdf.setFont('helvetica', 'normal');
                         pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Team projects overview', margin, yPos + 11);
-                        yPos += 16;
+                        pdf.text('Team projects overview', margin + cardPadding, yPos + 16);
+                        yPos += 22;
 
                         // Project list table
                         if (summaryProjects.length > 0) {
@@ -9904,10 +9941,10 @@
 
                             // Table header row
                             pdf.setFillColor(...lightBg);
-                            pdf.rect(margin + 3, yPos, contentWidth - 6, tableHeaderHeight, 'F');
+                            pdf.rect(margin + cardPadding, yPos, contentWidth - (cardPadding * 2), tableHeaderHeight, 'F');
                             pdf.setFontSize(8);
                             pdf.setTextColor(...grayText);
-                            let colX = margin + 6;
+                            let colX = margin + cardPadding + 3;
                             headers.forEach((h, i) => {
                                 pdf.text(h, colX, yPos + 5.5);
                                 colX += cols[i];
@@ -9964,27 +10001,33 @@
 
                     // === TEAM WORKLOAD ===
                     if (reportData.sections.teamWorkload && reportData.memberData && reportData.memberData.length > 0) {
-                        checkPageBreak(40);
+                        const memberRowHeight = 8;
+                        const workloadCardHeight = 28 + (reportData.memberData.length * memberRowHeight) + 10;
+                        checkPageBreak(workloadCardHeight + 5);
 
-                        // Section header
+                        // Draw card
+                        drawCard(margin, yPos, contentWidth, workloadCardHeight);
+                        const cardStartY = yPos;
+
+                        // Section header inside card
                         pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Team Workload', margin, yPos + 5);
+                        pdf.text('Team Workload', margin + cardPadding, yPos + 10);
                         pdf.setFont('helvetica', 'normal');
                         pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Per-member breakdown', margin, yPos + 11);
-                        yPos += 16;
+                        pdf.text('Per-member breakdown', margin + cardPadding, yPos + 16);
+                        yPos += 22;
 
                         // Table header
                         const cols = [50, 25, 30, 30, 25];
                         const headers = ['Team Member', 'Owned', 'In Progress', 'Completed', 'Overdue'];
                         pdf.setFillColor(...lightBg);
-                        pdf.rect(margin, yPos, contentWidth, 8, 'F');
+                        pdf.rect(margin + cardPadding, yPos, contentWidth - (cardPadding * 2), 8, 'F');
                         pdf.setFontSize(8);
                         pdf.setTextColor(...grayText);
-                        let colX = margin + 5;
+                        let colX = margin + cardPadding + 3;
                         headers.forEach((h, i) => {
                             pdf.text(h, colX, yPos + 5.5);
                             colX += cols[i];
