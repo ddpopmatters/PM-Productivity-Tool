@@ -9288,6 +9288,27 @@
                 closeSubtaskModal();
             };
 
+            // Logo URL for PDF exports
+            const PM_LOGO_URL = 'https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png';
+
+            // Helper to load image for PDF
+            const loadImageForPdf = (url) => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous';
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/png'));
+                    };
+                    img.onerror = () => resolve(null); // Don't fail if logo can't load
+                    img.src = url;
+                });
+            };
+
             // Status badge colors for PDF
             const STATUS_COLORS = {
                 'Idea': { bg: [243, 232, 255], text: [124, 58, 237] },
@@ -9326,6 +9347,9 @@
                 document.body.appendChild(loadingOverlay);
 
                 try {
+                    // Load logo for PDF
+                    const logoData = await loadImageForPdf(PM_LOGO_URL);
+
                     // Filter entries based on options
                     let filteredEntries = entries.filter(entry => {
                         if (entry.archived) return false;
@@ -9411,6 +9435,13 @@
                     // ===== HEADER SECTION =====
                     const headerHeight = 22;
                     drawRoundedRect(margin, yPos, contentWidth, headerHeight, 3, oceanMid);
+
+                    // Logo on right
+                    if (logoData) {
+                        try {
+                            pdf.addImage(logoData, 'PNG', margin + contentWidth - 35, yPos + 3, 30, 16);
+                        } catch (e) { /* ignore logo errors */ }
+                    }
 
                     // Title
                     const title = pdfExportContext === 'manager-hub'
@@ -9792,6 +9823,9 @@
                 document.body.appendChild(loadingOverlay);
 
                 try {
+                    // Load logo for PDF
+                    const logoData = await loadImageForPdf(PM_LOGO_URL);
+
                     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                     const pageWidth = 210;
                     const pageHeight = 297;
@@ -9827,6 +9861,14 @@
 
                     // === HEADER ===
                     drawRoundedRect(margin, yPos, contentWidth, 28, 3, oceanMid);
+
+                    // Logo on right
+                    if (logoData) {
+                        try {
+                            pdf.addImage(logoData, 'PNG', margin + contentWidth - 40, yPos + 4, 35, 20);
+                        } catch (e) { /* ignore logo errors */ }
+                    }
+
                     pdf.setFontSize(20);
                     pdf.setTextColor(255, 255, 255);
                     pdf.text('Weekly Status Update', margin + 8, yPos + 12);
