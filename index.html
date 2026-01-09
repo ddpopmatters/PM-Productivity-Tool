@@ -3021,7 +3021,7 @@
         const inputBaseClasses =
             "w-full rounded-lg border border-graystone-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200";
 
-        function ManagerHub({ managers = [], teams = [], entries = [], currentUser, userEmail, openStatsModal, onOpen, onUpdateStatus, openSubtaskModal }) {
+        function ManagerHub({ managers = [], teams = [], entries = [], currentUser, userEmail, openStatsModal, onOpen, onUpdateStatus, openSubtaskModal, onOpenPdfExport }) {
             const normalizedTeams = teams.length ? teams : TEAMS;
 
             // Filter to only show the logged-in manager's own hub (or all if admin)
@@ -3299,11 +3299,7 @@
                                     <div className="text-lg font-semibold">{selectedManager?.team || teams[0] || "Team"}</div>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        setPdfExportContext('manager-hub');
-                                        setPdfExportTab('content');
-                                        setShowPdfExportModal(true);
-                                    }}
+                                    onClick={() => onOpenPdfExport && onOpenPdfExport('manager-hub')}
                                     className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition text-sm font-medium border border-white/20"
                                 >
                                     <i data-lucide="download" className="w-4 h-4"></i>
@@ -4659,7 +4655,7 @@
         }
 
         // Dashboard Component
-        function Dashboard({ entries, currentUser, onOpenEntry }) {
+        function Dashboard({ entries, currentUser, onOpenEntry, onOpenPdfExport }) {
             const now = new Date();
             const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -4729,11 +4725,7 @@
                                 <p className="text-ocean-100">Here's what's happening with your projects</p>
                             </div>
                             <button
-                                onClick={() => {
-                                    setPdfExportContext('dashboard');
-                                    setPdfExportTab('content');
-                                    setShowPdfExportModal(true);
-                                }}
+                                onClick={() => onOpenPdfExport && onOpenPdfExport('dashboard')}
                                 className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition text-sm font-medium border border-white/20"
                             >
                                 <i data-lucide="download" className="w-4 h-4"></i>
@@ -8801,6 +8793,13 @@
                 }
             };
 
+            // Handler to open PDF export modal from child components
+            const handleOpenPdfExport = (context) => {
+                setPdfExportContext(context);
+                setPdfExportTab('content');
+                setShowPdfExportModal(true);
+            };
+
             // Derived State: Available Tags
             const availableTags = Array.from(new Set(entries.flatMap(e => e.tags || []))).sort();
 
@@ -9055,7 +9054,7 @@
             const renderContent = () => {
                 switch (currentView) {
                     case 'dashboard':
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} />;
 
                     case "add-item":
                         return <AddItemForm onSubmit={handleAddItem} onBack={() => handleNavigate('dashboard')} availableTags={availableTags} />;
@@ -9106,7 +9105,7 @@
                                 </div>
                             );
                         }
-                        return <ManagerHub managers={managers} teams={TEAMS} entries={entries} currentUser={currentUser} userEmail={userEmail} openStatsModal={openStatsModal} onOpen={handleOpenEntry} onUpdateStatus={handleUpdateStatus} openSubtaskModal={openSubtaskModal} />;
+                        return <ManagerHub managers={managers} teams={TEAMS} entries={entries} currentUser={currentUser} userEmail={userEmail} openStatsModal={openStatsModal} onOpen={handleOpenEntry} onUpdateStatus={handleUpdateStatus} openSubtaskModal={openSubtaskModal} onOpenPdfExport={handleOpenPdfExport} />;
 
                     case 'personal': {
                         const myOwnedEntries = entries.filter(e => e.owner === currentUser);
@@ -9516,7 +9515,7 @@
 
                     default:
                         // Default to dashboard instead of menu
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} />;
                 }
             };
 
