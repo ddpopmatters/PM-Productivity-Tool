@@ -9976,7 +9976,7 @@
                             pdf.text(String(member.completed), colX, yPos + 5.5);
                             colX += cols[3];
 
-                            pdf.setTextColor(member.overdue > 0 ? [239, 68, 68] : grayText);
+                            pdf.setTextColor(...(member.overdue > 0 ? [239, 68, 68] : grayText));
                             pdf.text(String(member.overdue), colX, yPos + 5.5);
 
                             yPos += 8;
