@@ -480,26 +480,24 @@
         const initSupabase = () => {
             if (supabase) return true; // Already initialized
             if (SUPABASE_CONFIG.ENABLED && SUPABASE_CONFIG.SUPABASE_URL !== "YOUR_SUPABASE_URL") {
-                if (window.supabase && window.supabase.createClient) {
-                    supabase = window.supabase.createClient(
+                // Check for Supabase SDK - it may be at window.supabase or need to be accessed differently
+                const supabaseLib = window.supabase;
+                if (supabaseLib && typeof supabaseLib.createClient === 'function') {
+                    supabase = supabaseLib.createClient(
                         SUPABASE_CONFIG.SUPABASE_URL,
                         SUPABASE_CONFIG.SUPABASE_ANON_KEY
                     );
                     console.log("Supabase initialized successfully");
                     return true;
-                } else if (!supabaseInitAttempted) {
-                    console.warn("Supabase SDK not loaded - will use demo data");
-                    supabaseInitAttempted = true;
                 }
             }
             return false;
         };
-        // Try to init immediately, or wait for load
-        if (window.supabase) {
-            initSupabase();
-        } else {
-            window.addEventListener('load', initSupabase);
-        }
+        // Try to init on DOMContentLoaded and load events
+        document.addEventListener('DOMContentLoaded', initSupabase);
+        window.addEventListener('load', initSupabase);
+        // Also try immediately in case scripts already loaded
+        setTimeout(initSupabase, 0);
 
         // ============================================
         // USER ROLES & PRE-SEEDED PROFILES
@@ -8056,11 +8054,14 @@
                     }
 
                     // ===== SUPABASE MODE =====
-                    // Wait for Supabase to initialize (max 1 second, no console spam)
+                    // Wait for Supabase SDK to load and initialize (max 3 seconds)
                     if (SUPABASE_CONFIG.ENABLED && !supabase) {
-                        for (let i = 0; i < 10 && !supabase; i++) {
+                        for (let i = 0; i < 30 && !supabase; i++) {
                             await new Promise(r => setTimeout(r, 100));
                             initSupabase();
+                        }
+                        if (!supabase) {
+                            console.warn("Supabase SDK failed to load - using demo data");
                         }
                     }
 
