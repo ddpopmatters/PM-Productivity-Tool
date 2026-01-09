@@ -1093,11 +1093,12 @@
                     .single();
 
                 if (existing) {
-                    // Already claimed, update auth user id if needed
+                    // Already claimed, update Supabase Auth user id if needed
+                    // Note: DB column is named 'clerk_user_id' for legacy compatibility, but stores Supabase Auth UUID
                     if (authUserId && existing.clerk_user_id !== authUserId) {
                         await supabase
                             .from('user_profiles')
-                            .update({ clerk_user_id: authUserId })
+                            .update({ clerk_user_id: authUserId }) // Legacy column name, stores Supabase Auth UUID
                             .eq('email', email.toLowerCase());
                     }
                     return existing;
@@ -1111,7 +1112,7 @@
                         name: name,
                         team: team || '',
                         role: role || 'member',
-                        clerk_user_id: authUserId || ''  // Column name kept for DB compatibility
+                        clerk_user_id: authUserId || ''  // Legacy column name, now stores Supabase Auth UUID
                     }])
                     .select()
                     .single();
@@ -1288,7 +1289,7 @@
 
         // Helper function to send notification emails
         const sendNotificationEmail = async (recipientEmail, recipientName, notificationType, itemTitle, itemId, details = {}) => {
-            if (!SUPABASE_CONFIG.ENABLED) return;
+            if (!SUPABASE_CONFIG.ENABLED || !supabase) return;
 
             const actorName = window.__currentUserName || 'Someone';
 
@@ -1296,13 +1297,20 @@
             if (recipientEmail === window.__currentUserEmail) return;
 
             try {
+                // Get the user's session token for authentication
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.access_token) {
+                    Logger.warn('No session token available for email notification');
+                    return;
+                }
+
                 await fetch(
                     `${SUPABASE_CONFIG.SUPABASE_URL}/functions/v1/send-notification-email`,
                     {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${SUPABASE_CONFIG.SUPABASE_ANON_KEY}`,
+                            'Authorization': `Bearer ${session.access_token}`, // Use user's JWT, not anon key
                         },
                         body: JSON.stringify({
                             recipientEmail,
@@ -1330,6 +1338,10 @@
             const [confirmNewPassword, setConfirmNewPassword] = useState('');
             const [loading, setLoading] = useState(false);
 
+            // Store onAuthChange in a ref to avoid stale closures and dependency issues
+            const onAuthChangeRef = React.useRef(onAuthChange);
+            onAuthChangeRef.current = onAuthChange;
+
             useEffect(() => {
                 async function handleCallback() {
                     try {
@@ -1353,8 +1365,8 @@
                         } else if (session) {
                             // Email confirmed or magic link - user is now signed in
                             setStatus('success');
-                            if (onAuthChange) {
-                                onAuthChange(session.user);
+                            if (onAuthChangeRef.current) {
+                                onAuthChangeRef.current(session.user);
                             }
                         } else {
                             // No session but also no error - might be already confirmed
@@ -8950,6 +8962,8 @@
 
             // Load Data on Startup
             useEffect(() => {
+                let realtimeSubscription = null; // Store subscription for cleanup
+
                 async function init() {
                     // Local testing mode - use mock data
                     if (window.location.protocol === 'file:') {
@@ -9010,7 +9024,7 @@
                         await loadUserProfilesCache();
 
                         // 4. Subscribe to real-time updates
-                        const subscription = SUPABASE_API.subscribeToChanges((payload) => {
+                        realtimeSubscription = SUPABASE_API.subscribeToChanges((payload) => {
                             // Refresh data on any change
                             SUPABASE_API.fetchWorkflowItems().then(items => {
                                 setEntries(items.map(SUPABASE_API.mapToAppFormat));
@@ -9086,6 +9100,13 @@
                     setLoading(false);
                 }
                 init();
+
+                // Cleanup: unsubscribe from real-time updates
+                return () => {
+                    if (realtimeSubscription) {
+                        realtimeSubscription.unsubscribe();
+                    }
+                };
             }, []);
 
             // Fetch notifications when user is logged in
