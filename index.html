@@ -448,8 +448,22 @@
     <!-- PDF Export Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- Supabase SDK (UMD build for browser) -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <!-- Supabase SDK loaded dynamically to ensure proper initialization -->
+    <script>
+        window.supabaseReady = new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+            script.onload = () => {
+                console.log('Supabase SDK loaded, createClient available:', typeof window.supabase?.createClient);
+                resolve(window.supabase);
+            };
+            script.onerror = () => {
+                console.error('Failed to load Supabase SDK');
+                resolve(null);
+            };
+            document.head.appendChild(script);
+        });
+    </script>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
@@ -476,33 +490,30 @@
 
         // Initialize Supabase client
         let supabase = null;
-        let supabaseDebugLogged = false;
-        const initSupabase = () => {
+        const initSupabase = async () => {
             if (supabase) return true; // Already initialized
-            if (SUPABASE_CONFIG.ENABLED && SUPABASE_CONFIG.SUPABASE_URL !== "YOUR_SUPABASE_URL") {
-                // Debug: Log what's available (only once)
-                if (!supabaseDebugLogged) {
-                    console.log("Supabase SDK check:", {
-                        windowSupabase: typeof window.supabase,
-                        hasCreateClient: window.supabase ? typeof window.supabase.createClient : 'N/A',
-                        keys: window.supabase ? Object.keys(window.supabase).join(', ') : 'none'
-                    });
-                    supabaseDebugLogged = true;
-                }
+            if (!SUPABASE_CONFIG.ENABLED || SUPABASE_CONFIG.SUPABASE_URL === "YOUR_SUPABASE_URL") {
+                return false;
+            }
 
-                // Check for Supabase SDK
-                const supabaseLib = window.supabase;
-                if (supabaseLib && typeof supabaseLib.createClient === 'function') {
-                    try {
-                        supabase = supabaseLib.createClient(
-                            SUPABASE_CONFIG.SUPABASE_URL,
-                            SUPABASE_CONFIG.SUPABASE_ANON_KEY
-                        );
-                        console.log("Supabase initialized successfully:", supabase);
-                        return true;
-                    } catch (e) {
-                        console.error("Supabase createClient error:", e);
-                    }
+            // Wait for the SDK to load via our dynamic loader
+            const supabaseLib = await window.supabaseReady;
+
+            console.log("Supabase SDK ready check:", {
+                supabaseLib: typeof supabaseLib,
+                hasCreateClient: supabaseLib ? typeof supabaseLib.createClient : 'N/A'
+            });
+
+            if (supabaseLib && typeof supabaseLib.createClient === 'function') {
+                try {
+                    supabase = supabaseLib.createClient(
+                        SUPABASE_CONFIG.SUPABASE_URL,
+                        SUPABASE_CONFIG.SUPABASE_ANON_KEY
+                    );
+                    console.log("Supabase initialized successfully");
+                    return true;
+                } catch (e) {
+                    console.error("Supabase createClient error:", e);
                 }
             }
             return false;
@@ -8068,12 +8079,9 @@
                     }
 
                     // ===== SUPABASE MODE =====
-                    // Wait for Supabase SDK to load and initialize (max 3 seconds)
+                    // Wait for Supabase SDK to load and initialize
                     if (SUPABASE_CONFIG.ENABLED && !supabase) {
-                        for (let i = 0; i < 30 && !supabase; i++) {
-                            await new Promise(r => setTimeout(r, 100));
-                            initSupabase();
-                        }
+                        await initSupabase();
                         if (!supabase) {
                             console.warn("Supabase SDK failed to load - using demo data");
                         }
