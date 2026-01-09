@@ -2,7 +2,7 @@
 
 Copy these templates into your Supabase Dashboard under **Authentication > Email Templates**.
 
-These templates match the PM Productivity Tool's visual style with the ocean blue color scheme.
+These templates match the PM Productivity Tool's visual style exactly - white cards on light blue background.
 
 ---
 
@@ -18,25 +18,25 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
-  <div style="background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
-  </div>
+<body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
+  <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+    </div>
 
-  <div style="background: white; padding: 32px 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-    <h2 style="color: #11607d; margin: 0 0 16px 0; font-size: 20px;">Welcome! Confirm your email</h2>
+    <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Welcome! Confirm your email</h2>
 
-    <p style="color: #4f4f4f; margin: 0 0 24px 0;">
+    <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
       Thanks for signing up for PM Productivity Tool. Please confirm your email address by clicking the button below.
     </p>
 
     <div style="text-align: center; margin: 32px 0;">
-      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(0, 119, 182, 0.4);">
+      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #0077b6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">
         Confirm Email Address
       </a>
     </div>
 
-    <p style="color: #6d6d6d; font-size: 14px; margin: 24px 0 0 0;">
+    <p style="color: #6d6d6d; font-size: 13px; margin: 24px 0 0 0;">
       If you didn't create an account, you can safely ignore this email.
     </p>
 
@@ -52,7 +52,7 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
 
   <div style="text-align: center; padding: 24px;">
     <p style="font-size: 12px; color: #6d6d6d; margin: 0;">
-      Population Matters - PM Productivity Tool
+      Population Matters
     </p>
   </div>
 </body>
@@ -73,26 +73,26 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
-  <div style="background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
-  </div>
+<body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
+  <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+    </div>
 
-  <div style="background: white; padding: 32px 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-    <h2 style="color: #11607d; margin: 0 0 16px 0; font-size: 20px;">Reset your password</h2>
+    <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Reset your password</h2>
 
-    <p style="color: #4f4f4f; margin: 0 0 24px 0;">
+    <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
       We received a request to reset your password. Click the button below to choose a new password.
     </p>
 
     <div style="text-align: center; margin: 32px 0;">
-      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(0, 119, 182, 0.4);">
+      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #0077b6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">
         Reset Password
       </a>
     </div>
 
-    <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px 16px; margin: 24px 0;">
-      <p style="color: #c2410c; font-size: 14px; margin: 0;">
+    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; margin: 24px 0;">
+      <p style="color: #92400e; font-size: 13px; margin: 0;">
         <strong>Security notice:</strong> If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
       </p>
     </div>
@@ -109,7 +109,7 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
 
   <div style="text-align: center; padding: 24px;">
     <p style="font-size: 12px; color: #6d6d6d; margin: 0;">
-      Population Matters - PM Productivity Tool
+      Population Matters
     </p>
   </div>
 </body>
@@ -130,25 +130,25 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
-  <div style="background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
-  </div>
+<body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
+  <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+    </div>
 
-  <div style="background: white; padding: 32px 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-    <h2 style="color: #11607d; margin: 0 0 16px 0; font-size: 20px;">Sign in to your account</h2>
+    <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Sign in to your account</h2>
 
-    <p style="color: #4f4f4f; margin: 0 0 24px 0;">
+    <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
       Click the button below to securely sign in to PM Productivity Tool. No password needed!
     </p>
 
     <div style="text-align: center; margin: 32px 0;">
-      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(0, 119, 182, 0.4);">
+      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #0077b6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">
         Sign In Now
       </a>
     </div>
 
-    <p style="color: #6d6d6d; font-size: 14px; margin: 24px 0 0 0;">
+    <p style="color: #6d6d6d; font-size: 13px; margin: 24px 0 0 0;">
       If you didn't request this link, you can safely ignore this email.
     </p>
 
@@ -164,7 +164,7 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
 
   <div style="text-align: center; padding: 24px;">
     <p style="font-size: 12px; color: #6d6d6d; margin: 0;">
-      Population Matters - PM Productivity Tool
+      Population Matters
     </p>
   </div>
 </body>
@@ -185,23 +185,23 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
-  <div style="background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
-  </div>
+<body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
+  <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+    </div>
 
-  <div style="background: white; padding: 32px 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-    <h2 style="color: #11607d; margin: 0 0 16px 0; font-size: 20px;">You're invited!</h2>
+    <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">You're invited!</h2>
 
-    <p style="color: #4f4f4f; margin: 0 0 24px 0;">
+    <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
       You've been invited to join <strong>PM Productivity Tool</strong>, the project management platform for Population Matters.
     </p>
 
-    <div style="background: #e6f7fb; border-radius: 12px; padding: 20px; margin: 24px 0;">
-      <p style="color: #11607d; margin: 0; font-size: 14px;">
-        <strong>What you can do:</strong>
+    <div style="background: #f7f7f7; border-radius: 12px; padding: 16px 20px; margin: 24px 0; border: 1px solid #e5e7eb;">
+      <p style="color: #11607d; margin: 0 0 8px 0; font-size: 13px; font-weight: 600;">
+        What you can do:
       </p>
-      <ul style="color: #4f4f4f; margin: 12px 0 0 0; padding-left: 20px;">
+      <ul style="color: #4f4f4f; margin: 0; padding-left: 20px; font-size: 13px;">
         <li>Track projects and tasks across teams</li>
         <li>Collaborate with colleagues in real-time</li>
         <li>View team workloads and deadlines</li>
@@ -210,7 +210,7 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
     </div>
 
     <div style="text-align: center; margin: 32px 0;">
-      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(0, 119, 182, 0.4);">
+      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #0077b6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">
         Accept Invitation
       </a>
     </div>
@@ -227,7 +227,7 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
 
   <div style="text-align: center; padding: 24px;">
     <p style="font-size: 12px; color: #6d6d6d; margin: 0;">
-      Population Matters - PM Productivity Tool
+      Population Matters
     </p>
   </div>
 </body>
@@ -248,26 +248,26 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
-  <div style="background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
-  </div>
+<body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
+  <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+    </div>
 
-  <div style="background: white; padding: 32px 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-    <h2 style="color: #11607d; margin: 0 0 16px 0; font-size: 20px;">Confirm your new email</h2>
+    <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Confirm your new email</h2>
 
-    <p style="color: #4f4f4f; margin: 0 0 24px 0;">
+    <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
       You requested to change your email address. Please confirm your new email by clicking the button below.
     </p>
 
     <div style="text-align: center; margin: 32px 0;">
-      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(0, 119, 182, 0.4);">
+      <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #0077b6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">
         Confirm New Email
       </a>
     </div>
 
-    <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px 16px; margin: 24px 0;">
-      <p style="color: #c2410c; font-size: 14px; margin: 0;">
+    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; margin: 24px 0;">
+      <p style="color: #92400e; font-size: 13px; margin: 0;">
         <strong>Didn't request this?</strong> If you didn't request an email change, please contact your administrator immediately.
       </p>
     </div>
@@ -284,7 +284,7 @@ These templates match the PM Productivity Tool's visual style with the ocean blu
 
   <div style="text-align: center; padding: 24px;">
     <p style="font-size: 12px; color: #6d6d6d; margin: 0;">
-      Population Matters - PM Productivity Tool
+      Population Matters
     </p>
   </div>
 </body>
