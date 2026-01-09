@@ -9342,12 +9342,12 @@
                     const contentWidth = pageWidth - (margin * 2);
                     let yPos = margin;
 
-                    // Colors
-                    const oceanDark = [12, 74, 110];
-                    const oceanMid = [17, 96, 125];
-                    const grayText = [100, 116, 139];
-                    const lightBg = [248, 250, 252];
-                    const cardBorder = [226, 232, 240];
+                    // Colors (matching app's Tailwind palette)
+                    const oceanDark = [26, 26, 26];       // graystone-900 for text
+                    const oceanMid = [17, 96, 125];       // ocean-500
+                    const grayText = [109, 109, 109];     // graystone-600
+                    const lightBg = [247, 247, 247];      // graystone-50
+                    const cardBorder = [220, 220, 220];   // graystone-200
 
                     // Helper: Draw rounded rectangle
                     const drawRoundedRect = (x, y, w, h, r, fillColor, strokeColor = null) => {
@@ -9489,7 +9489,7 @@
                                 const statusColors = STATUS_COLORS[entry.workflowStatus] || STATUS_COLORS['Draft'];
 
                                 // === SHADOW ===
-                                pdf.setFillColor(230, 230, 230);
+                                pdf.setFillColor(220, 220, 220); // graystone-200
                                 pdf.roundedRect(x + 1, y + 1, cardWidth, cardHeight, 3, 3, 'F');
 
                                 // === CARD BACKGROUND ===
@@ -9775,14 +9775,14 @@
                     const contentWidth = pageWidth - (margin * 2);
                     let yPos = margin;
 
-                    // Colors
-                    const oceanDark = [12, 74, 110];
-                    const oceanMid = [17, 96, 125];
-                    const grayText = [100, 116, 139];
-                    const lightBg = [241, 245, 249];
-                    const greenColor = [34, 197, 94];
-                    const blueColor = [59, 130, 246];
-                    const amberColor = [245, 158, 11];
+                    // Colors (matching app's Tailwind palette)
+                    const oceanDark = [26, 26, 26];       // graystone-900 for text
+                    const oceanMid = [17, 96, 125];       // ocean-500
+                    const grayText = [109, 109, 109];     // graystone-600
+                    const lightBg = [247, 247, 247];      // graystone-50
+                    const greenColor = [34, 197, 94];     // green-500
+                    const blueColor = [17, 96, 125];      // ocean-500 (matching app)
+                    const amberColor = [245, 158, 11];    // amber-500
 
                     // Helper: Draw rounded rectangle
                     const drawRoundedRect = (x, y, w, h, r, fill, stroke) => {
