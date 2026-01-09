@@ -9839,19 +9839,16 @@
                         const tableRowHeight = 6;
                         const tableHeaderHeight = 8;
 
-                        // Section header card (matching app styling)
-                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
-
-                        // Blue icon placeholder
-                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, oceanMid);
-
+                        // Section header
+                        pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Executive Summary', margin + 22, yPos + 10);
-                        pdf.setFontSize(8);
+                        pdf.text('Executive Summary', margin, yPos + 5);
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Project overview with commentary', margin + 22, yPos + 16);
-                        yPos += 25;
+                        pdf.text('Team projects overview', margin, yPos + 11);
+                        yPos += 16;
 
                         // Project list table
                         if (summaryProjects.length > 0) {
@@ -9908,10 +9905,10 @@
                         if (reportData.narratives.executiveSummary) {
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.executiveSummary, contentWidth - 10);
+                            const lines = pdf.splitTextToSize(reportData.narratives.executiveSummary, contentWidth);
                             lines.forEach(line => {
                                 checkPageBreak(5);
-                                pdf.text(line, margin + 5, yPos);
+                                pdf.text(line, margin, yPos);
                                 yPos += 4;
                             });
                         }
@@ -9922,19 +9919,16 @@
                     if (reportData.sections.teamWorkload && reportData.memberData && reportData.memberData.length > 0) {
                         checkPageBreak(40);
 
-                        // Section header card (matching app styling)
-                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
-
-                        // Orange icon placeholder
-                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, [249, 115, 22]); // orange-500
-
+                        // Section header
+                        pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Team Workload', margin + 22, yPos + 10);
-                        pdf.setFontSize(8);
+                        pdf.text('Team Workload', margin, yPos + 5);
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Per-member breakdown', margin + 22, yPos + 16);
-                        yPos += 25;
+                        pdf.text('Per-member breakdown', margin, yPos + 11);
+                        yPos += 16;
 
                         // Table header
                         const cols = [50, 25, 30, 30, 25];
@@ -9988,19 +9982,16 @@
                     if (reportData.sections.projects && reportData.projects && reportData.projects.length > 0) {
                         checkPageBreak(40);
 
-                        // Section header card (matching app styling)
-                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
-
-                        // Purple icon placeholder
-                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, [147, 51, 234]);
-
+                        // Section header
+                        pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Projects', margin + 22, yPos + 10);
-                        pdf.setFontSize(8);
+                        pdf.text('Projects', margin, yPos + 5);
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text(`${reportData.projects.length} project(s) due within selected period`, margin + 22, yPos + 16);
-                        yPos += 25;
+                        pdf.text(`${reportData.projects.length} project(s) due within selected period`, margin, yPos + 11);
+                        yPos += 16;
 
                         const displayMode = reportData.projectsDisplayMode || 'cards';
 
@@ -10187,19 +10178,16 @@
                     if (reportData.sections.keyHighlights) {
                         checkPageBreak(30);
 
-                        // Section header card (matching app styling)
-                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
-
-                        // Green icon placeholder
-                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, greenColor);
-
+                        // Section header
+                        pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Key Highlights', margin + 22, yPos + 10);
-                        pdf.setFontSize(8);
+                        pdf.text('Key Highlights', margin, yPos + 5);
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Achievements and wins this period', margin + 22, yPos + 16);
-                        yPos += 25;
+                        pdf.text('Achievements and wins this period', margin, yPos + 11);
+                        yPos += 16;
 
                         // Auto-detected
                         if (reportData.autoHighlights && reportData.autoHighlights.length > 0) {
@@ -10207,7 +10195,7 @@
                                 checkPageBreak(6);
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(...greenColor);
-                                pdf.text(`+ ${h}`, margin + 5, yPos);
+                                pdf.text(`+ ${h}`, margin, yPos);
                                 yPos += 5;
                             });
                             yPos += 3;
@@ -10218,10 +10206,10 @@
                             yPos += 2;
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.keyHighlights, contentWidth - 10);
+                            const lines = pdf.splitTextToSize(reportData.narratives.keyHighlights, contentWidth);
                             lines.forEach(line => {
                                 checkPageBreak(5);
-                                pdf.text(line, margin + 5, yPos);
+                                pdf.text(line, margin, yPos);
                                 yPos += 4;
                             });
                         }
@@ -10232,19 +10220,16 @@
                     if (reportData.sections.blockersRisks) {
                         checkPageBreak(30);
 
-                        // Section header card (matching app styling)
-                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
-
-                        // Amber icon placeholder
-                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, amberColor);
-
+                        // Section header
+                        pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Blockers & Risks', margin + 22, yPos + 10);
-                        pdf.setFontSize(8);
+                        pdf.text('Blockers & Risks', margin, yPos + 5);
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Issues needing attention', margin + 22, yPos + 16);
-                        yPos += 25;
+                        pdf.text('Issues needing attention', margin, yPos + 11);
+                        yPos += 16;
 
                         // Auto-detected
                         if (reportData.autoBlockers && reportData.autoBlockers.length > 0) {
@@ -10252,7 +10237,7 @@
                                 checkPageBreak(6);
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(...amberColor);
-                                pdf.text(`! ${b}`, margin + 5, yPos);
+                                pdf.text(`! ${b}`, margin, yPos);
                                 yPos += 5;
                             });
                             yPos += 3;
@@ -10263,10 +10248,10 @@
                             yPos += 2;
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.blockersRisks, contentWidth - 10);
+                            const lines = pdf.splitTextToSize(reportData.narratives.blockersRisks, contentWidth);
                             lines.forEach(line => {
                                 checkPageBreak(5);
-                                pdf.text(line, margin + 5, yPos);
+                                pdf.text(line, margin, yPos);
                                 yPos += 4;
                             });
                         }
