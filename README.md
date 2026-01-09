@@ -24,8 +24,7 @@ Edit the `APP_CONFIG` block at the top of `index.html`:
 
 ```javascript
 const APP_CONFIG = {
-    // Authentication (Clerk)
-    CLERK_PUBLISHABLE_KEY: "pk_live_YOUR_PRODUCTION_KEY",
+    // Authentication (Supabase Auth)
     AUTH_ENABLED: true,
 
     // Database (Supabase)
@@ -48,8 +47,7 @@ const APP_CONFIG = {
 
 | Option | Description |
 |--------|-------------|
-| `CLERK_PUBLISHABLE_KEY` | Your Clerk publishable key from [dashboard.clerk.com](https://dashboard.clerk.com) |
-| `AUTH_ENABLED` | Set to `true` to enable authentication |
+| `AUTH_ENABLED` | Set to `true` to enable email/password authentication |
 | `SUPABASE_URL` | Your Supabase project URL from Settings > API |
 | `SUPABASE_ANON_KEY` | Your Supabase anonymous key from Settings > API |
 | `SUPABASE_ENABLED` | Set to `true` to enable database functionality |
@@ -78,15 +76,19 @@ const APP_CONFIG = {
    - `APP_NAME` - Application name for email templates
    - `APP_URL` - Your deployed application URL
 
-## Clerk Setup
+## Supabase Auth Setup
 
-1. Create a Clerk application at [dashboard.clerk.com](https://dashboard.clerk.com)
+1. In your Supabase project, go to **Authentication** > **Providers**
 
-2. Configure allowed domains for your deployment
+2. Ensure **Email** provider is enabled (it is by default)
 
-3. (Optional) Create a JWT template named `supabase` for authenticated database requests
+3. Go to **Authentication** > **URL Configuration**
+   - Set **Site URL** to your deployed app URL (e.g., `https://yourusername.github.io/repo-name`)
+   - Add your deployment URL to **Redirect URLs**
 
-4. Copy your publishable key to `APP_CONFIG.CLERK_PUBLISHABLE_KEY`
+4. (Optional) Customize email templates in **Authentication** > **Email Templates**
+
+5. Users can now sign up and sign in with email/password directly in the app
 
 ## Deployment
 
@@ -133,15 +135,15 @@ PM-Productivity-Tool/
     │   ├── 002_add_managers.sql
     │   └── ...
     └── functions/
-        └── send-notification-email/
-            └── index.ts    # Email notification Edge Function
+        └── send-notification-email/  # Email notification Edge Function
+            └── index.ts
 ```
 
 ## Technologies
 
 - **Frontend**: React 18, Tailwind CSS, Lucide Icons
 - **Backend**: Supabase (PostgreSQL, Edge Functions, Real-time)
-- **Authentication**: Clerk
+- **Authentication**: Supabase Auth (email/password)
 - **PDF Generation**: jsPDF
 - **Hosting**: GitHub Pages (or any static host)
 
