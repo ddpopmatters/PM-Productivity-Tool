@@ -3299,7 +3299,11 @@
                                     <div className="text-lg font-semibold">{selectedManager?.team || teams[0] || "Team"}</div>
                                 </div>
                                 <button
-                                    onClick={() => exportToPDF('manager-hub-export-content', `${managerName.replace(/\s+/g, '_')}_Team_Workstreams`, `${managerName}'s Team Workstreams`)}
+                                    onClick={() => {
+                                        setPdfExportContext('manager-hub');
+                                        setPdfExportTab('content');
+                                        setShowPdfExportModal(true);
+                                    }}
                                     className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition text-sm font-medium border border-white/20"
                                 >
                                     <i data-lucide="download" className="w-4 h-4"></i>
@@ -4725,7 +4729,11 @@
                                 <p className="text-ocean-100">Here's what's happening with your projects</p>
                             </div>
                             <button
-                                onClick={() => exportToPDF('dashboard-export-content', `${currentUser.replace(/\s+/g, '_')}_Dashboard`, `${currentUser}'s Dashboard`)}
+                                onClick={() => {
+                                    setPdfExportContext('dashboard');
+                                    setPdfExportTab('content');
+                                    setShowPdfExportModal(true);
+                                }}
                                 className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition text-sm font-medium border border-white/20"
                             >
                                 <i data-lucide="download" className="w-4 h-4"></i>
@@ -7884,6 +7892,37 @@
             // Keyboard shortcuts help modal
             const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
 
+            // PDF Export Modal state
+            const [showPdfExportModal, setShowPdfExportModal] = useState(false);
+            const [pdfExportContext, setPdfExportContext] = useState('dashboard'); // 'dashboard' | 'manager-hub'
+            const [pdfExportTab, setPdfExportTab] = useState('content'); // 'content' | 'filters' | 'layout'
+            const [pdfExportOptions, setPdfExportOptions] = useState(() => {
+                const saved = localStorage.getItem('pdfExportPreferences');
+                const defaults = {
+                    // Content Selection
+                    includeTaskDetails: true,
+                    includeSubtasks: true,
+                    includeComments: false,
+                    includeTeamStats: true,
+                    // Filters
+                    dateRange: { preset: 'all', start: null, end: null },
+                    statusFilter: [],
+                    memberFilter: [],
+                    teamFilter: [],
+                    // Layout
+                    orientation: 'landscape',
+                    viewMode: 'detailed'
+                };
+                return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+            });
+
+            // Re-initialize Lucide icons when PDF export modal opens
+            useEffect(() => {
+                if (showPdfExportModal) {
+                    setTimeout(() => lucide.createIcons(), 50);
+                }
+            }, [showPdfExportModal, pdfExportTab]);
+
             // Apply dark mode class to document
             useEffect(() => {
                 if (darkMode) {
@@ -7921,6 +7960,7 @@
                             setShowStatsModal(false);
                             setShowSubtaskModal(false);
                             setShowAddItemModal(false);
+                            setShowPdfExportModal(false);
                             break;
                         case 'n':
                             if (!e.metaKey && !e.ctrlKey) {
@@ -8488,6 +8528,277 @@
                 }
 
                 closeSubtaskModal();
+            };
+
+            // Custom PDF Export Handler
+            const handleCustomPdfExport = async () => {
+                const { jsPDF } = window.jspdf;
+                const options = pdfExportOptions;
+
+                // Save preferences to localStorage
+                localStorage.setItem('pdfExportPreferences', JSON.stringify(options));
+
+                // Close modal and show loading
+                setShowPdfExportModal(false);
+
+                const loadingOverlay = document.createElement('div');
+                loadingOverlay.id = 'pdf-export-loading';
+                loadingOverlay.innerHTML = `
+                    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999">
+                        <div style="background:white;padding:24px 48px;border-radius:12px;text-align:center">
+                            <div style="font-size:18px;font-weight:600;color:#0c4a6e;margin-bottom:8px">Generating PDF...</div>
+                            <div style="font-size:14px;color:#64748b">Please wait</div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(loadingOverlay);
+
+                try {
+                    // Filter entries based on options
+                    let filteredEntries = entries.filter(entry => {
+                        if (entry.archived) return false;
+
+                        // Date filter
+                        if (options.dateRange.preset !== 'all' && options.dateRange.start) {
+                            const entryDate = entry.date ? new Date(entry.date) : (entry.timelineValue ? parseTimelineValue(entry.timelineValue) : null);
+                            if (entryDate) {
+                                const start = new Date(options.dateRange.start);
+                                const end = options.dateRange.end ? new Date(options.dateRange.end) : new Date();
+                                if (entryDate < start || entryDate > end) return false;
+                            }
+                        }
+
+                        // Status filter
+                        if (options.statusFilter.length > 0 && !options.statusFilter.includes(entry.workflowStatus)) {
+                            return false;
+                        }
+
+                        // Member filter
+                        if (options.memberFilter.length > 0) {
+                            const isOwner = options.memberFilter.includes(entry.owner);
+                            const isCollaborator = entry.collaborators?.some(c => options.memberFilter.includes(c));
+                            if (!isOwner && !isCollaborator) return false;
+                        }
+
+                        // Team filter
+                        if (options.teamFilter.length > 0 && !options.teamFilter.includes(entry.team)) {
+                            return false;
+                        }
+
+                        return true;
+                    });
+
+                    // Helper to parse timeline values
+                    function parseTimelineValue(tv) {
+                        if (!tv) return null;
+                        if (tv.includes('Q')) {
+                            const [year, q] = tv.split('-Q');
+                            return new Date(parseInt(year), (parseInt(q) - 1) * 3, 1);
+                        }
+                        return new Date(tv);
+                    }
+
+                    // Create PDF
+                    const isLandscape = options.orientation === 'landscape';
+                    const pdf = new jsPDF({
+                        orientation: options.orientation,
+                        unit: 'mm',
+                        format: 'a4'
+                    });
+
+                    const pageWidth = isLandscape ? 297 : 210;
+                    const pageHeight = isLandscape ? 210 : 297;
+                    const margin = 15;
+                    const contentWidth = pageWidth - (margin * 2);
+                    let yPos = margin;
+
+                    // Colors
+                    const oceanColor = [12, 74, 110];
+                    const grayColor = [100, 116, 139];
+                    const lightGray = [200, 200, 200];
+
+                    // Title
+                    const title = pdfExportContext === 'manager-hub'
+                        ? `${currentUser}'s Team Workstreams`
+                        : `${currentUser}'s Dashboard`;
+
+                    pdf.setFontSize(20);
+                    pdf.setTextColor(...oceanColor);
+                    pdf.text(title, margin, yPos + 7);
+                    yPos += 12;
+
+                    // Date
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(...grayColor);
+                    pdf.text(`Generated: ${new Date().toLocaleDateString('en-GB', {
+                        day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}`, margin, yPos);
+                    yPos += 8;
+
+                    // Filter summary
+                    let filterSummary = [];
+                    if (options.dateRange.preset !== 'all') filterSummary.push(`Date: ${options.dateRange.preset}`);
+                    if (options.statusFilter.length > 0) filterSummary.push(`Status: ${options.statusFilter.join(', ')}`);
+                    if (options.memberFilter.length > 0) filterSummary.push(`Members: ${options.memberFilter.join(', ')}`);
+                    if (options.teamFilter.length > 0) filterSummary.push(`Teams: ${options.teamFilter.join(', ')}`);
+
+                    if (filterSummary.length > 0) {
+                        pdf.setFontSize(8);
+                        pdf.text(`Filters: ${filterSummary.join(' | ')}`, margin, yPos);
+                        yPos += 6;
+                    }
+
+                    // Divider line
+                    pdf.setDrawColor(...lightGray);
+                    pdf.line(margin, yPos, pageWidth - margin, yPos);
+                    yPos += 8;
+
+                    // Team Statistics
+                    if (options.includeTeamStats) {
+                        pdf.setFontSize(14);
+                        pdf.setTextColor(...oceanColor);
+                        pdf.text('Summary Statistics', margin, yPos);
+                        yPos += 8;
+
+                        const totalItems = filteredEntries.length;
+                        const inProgress = filteredEntries.filter(e => e.workflowStatus === 'In Delivery' || e.workflowStatus === 'In Progress').length;
+                        const completed = filteredEntries.filter(e => e.workflowStatus === 'Done' || e.workflowStatus === 'Delivered').length;
+                        const overdue = filteredEntries.filter(e => {
+                            if (!e.date) return false;
+                            return new Date(e.date) < new Date();
+                        }).length;
+
+                        pdf.setFontSize(10);
+                        pdf.setTextColor(...grayColor);
+                        const stats = options.viewMode === 'compact'
+                            ? `Total: ${totalItems} | In Progress: ${inProgress} | Completed: ${completed} | Overdue: ${overdue}`
+                            : [
+                                `Total Items: ${totalItems}`,
+                                `In Progress: ${inProgress}`,
+                                `Completed: ${completed}`,
+                                `Overdue: ${overdue}`
+                            ];
+
+                        if (Array.isArray(stats)) {
+                            stats.forEach(stat => {
+                                pdf.text(stat, margin, yPos);
+                                yPos += 5;
+                            });
+                        } else {
+                            pdf.text(stats, margin, yPos);
+                            yPos += 5;
+                        }
+                        yPos += 5;
+                    }
+
+                    // Task Details
+                    if (options.includeTaskDetails && filteredEntries.length > 0) {
+                        pdf.setFontSize(14);
+                        pdf.setTextColor(...oceanColor);
+                        pdf.text('Tasks', margin, yPos);
+                        yPos += 8;
+
+                        filteredEntries.forEach((entry, idx) => {
+                            // Check if we need a new page
+                            if (yPos > pageHeight - 40) {
+                                pdf.addPage();
+                                yPos = margin;
+                            }
+
+                            // Task title
+                            pdf.setFontSize(11);
+                            pdf.setTextColor(...oceanColor);
+                            const titleText = options.viewMode === 'compact'
+                                ? `${entry.title} [${entry.workflowStatus}]`
+                                : entry.title;
+                            pdf.text(titleText, margin, yPos);
+                            yPos += 5;
+
+                            if (options.viewMode === 'detailed') {
+                                pdf.setFontSize(9);
+                                pdf.setTextColor(...grayColor);
+
+                                // Status, Owner, Team
+                                pdf.text(`Status: ${entry.workflowStatus} | Owner: ${entry.owner} | Team: ${entry.team}`, margin + 2, yPos);
+                                yPos += 4;
+
+                                // Description (truncated)
+                                if (entry.caption) {
+                                    const desc = entry.caption.length > 150 ? entry.caption.substring(0, 150) + '...' : entry.caption;
+                                    const lines = pdf.splitTextToSize(desc, contentWidth - 4);
+                                    lines.slice(0, 2).forEach(line => {
+                                        pdf.text(line, margin + 2, yPos);
+                                        yPos += 4;
+                                    });
+                                }
+
+                                // Deadline
+                                if (entry.date) {
+                                    pdf.text(`Due: ${new Date(entry.date).toLocaleDateString('en-GB')}`, margin + 2, yPos);
+                                    yPos += 4;
+                                }
+                            }
+
+                            // Subtasks
+                            if (options.includeSubtasks && entry.subtasks && entry.subtasks.length > 0) {
+                                const completedSubtasks = entry.subtasks.filter(s => s.completed).length;
+                                pdf.setFontSize(8);
+                                pdf.setTextColor(...grayColor);
+
+                                if (options.viewMode === 'compact') {
+                                    pdf.text(`  Subtasks: ${completedSubtasks}/${entry.subtasks.length} complete`, margin + 2, yPos);
+                                    yPos += 4;
+                                } else {
+                                    pdf.text(`Subtasks (${completedSubtasks}/${entry.subtasks.length}):`, margin + 2, yPos);
+                                    yPos += 4;
+                                    entry.subtasks.slice(0, 5).forEach(st => {
+                                        const check = st.completed ? '[x]' : '[ ]';
+                                        pdf.text(`  ${check} ${st.title}${st.assignedTo ? ` - ${st.assignedTo}` : ''}`, margin + 4, yPos);
+                                        yPos += 3.5;
+                                    });
+                                    if (entry.subtasks.length > 5) {
+                                        pdf.text(`  ... and ${entry.subtasks.length - 5} more`, margin + 4, yPos);
+                                        yPos += 3.5;
+                                    }
+                                }
+                            }
+
+                            // Comments
+                            if (options.includeComments && entry.comments && entry.comments.length > 0) {
+                                pdf.setFontSize(8);
+                                pdf.setTextColor(...grayColor);
+
+                                if (options.viewMode === 'compact') {
+                                    pdf.text(`  Comments: ${entry.comments.length}`, margin + 2, yPos);
+                                    yPos += 4;
+                                } else {
+                                    pdf.text(`Comments (${entry.comments.length}):`, margin + 2, yPos);
+                                    yPos += 4;
+                                    entry.comments.slice(-3).forEach(comment => {
+                                        const commentText = `${comment.author}: ${comment.text?.substring(0, 80)}${comment.text?.length > 80 ? '...' : ''}`;
+                                        pdf.text(`  - ${commentText}`, margin + 4, yPos);
+                                        yPos += 3.5;
+                                    });
+                                }
+                            }
+
+                            yPos += 4; // Space between entries
+                        });
+                    }
+
+                    // Save PDF
+                    const filename = pdfExportContext === 'manager-hub'
+                        ? `${currentUser.replace(/\s+/g, '_')}_Team_Workstreams_${new Date().toISOString().slice(0,10)}.pdf`
+                        : `${currentUser.replace(/\s+/g, '_')}_Dashboard_${new Date().toISOString().slice(0,10)}.pdf`;
+
+                    pdf.save(filename);
+
+                } catch (error) {
+                    console.error('PDF export error:', error);
+                    setSaveError('Failed to generate PDF. Please try again.');
+                } finally {
+                    document.body.removeChild(loadingOverlay);
+                }
             };
 
             // Derived State: Available Tags
@@ -9530,6 +9841,356 @@
                                 >
                                     Cancel
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* PDF Export Modal */}
+                    {showPdfExportModal && (
+                        <div
+                            className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="pdf-export-modal-title"
+                        >
+                            <div className="fixed inset-0" onClick={() => setShowPdfExportModal(false)} aria-hidden="true" />
+                            <div className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                                {/* Header */}
+                                <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 p-6 text-white">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 id="pdf-export-modal-title" className="text-xl font-bold">Export to PDF</h3>
+                                            <p className="text-ocean-100 text-sm">Customize your export options</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowPdfExportModal(false)}
+                                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                                            aria-label="Close export dialog"
+                                        >
+                                            <i data-lucide="x" className="w-5 h-5 text-white"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Tabs */}
+                                <div className="border-b border-graystone-200">
+                                    <div className="flex gap-1 p-2">
+                                        {[
+                                            { id: 'content', label: 'Content', icon: 'file-text' },
+                                            { id: 'filters', label: 'Filters', icon: 'filter' },
+                                            { id: 'layout', label: 'Layout', icon: 'layout' }
+                                        ].map(tab => (
+                                            <button
+                                                key={tab.id}
+                                                onClick={() => setPdfExportTab(tab.id)}
+                                                className={cx(
+                                                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition",
+                                                    pdfExportTab === tab.id
+                                                        ? "bg-ocean-500 text-white"
+                                                        : "text-graystone-600 hover:bg-graystone-100"
+                                                )}
+                                            >
+                                                <i data-lucide={tab.icon} className="w-4 h-4"></i>
+                                                {tab.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Tab Content */}
+                                <div className="p-6 overflow-y-auto max-h-[50vh]">
+                                    {/* Content Tab */}
+                                    {pdfExportTab === 'content' && (
+                                        <div className="space-y-4">
+                                            <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">Include in Export</h4>
+                                            {[
+                                                { id: 'includeTaskDetails', label: 'Task Details & Status', description: 'Title, description, workflow status, owner, and deadline' },
+                                                { id: 'includeSubtasks', label: 'Subtasks & Progress', description: 'Subtask list with completion percentage and assignees' },
+                                                { id: 'includeComments', label: 'Activity & Comments', description: 'Comment threads and activity history' },
+                                                { id: 'includeTeamStats', label: 'Team Statistics', description: 'Completion rates, bottlenecks, and overdue counts' }
+                                            ].map(option => (
+                                                <label key={option.id} className="flex items-start gap-3 p-3 hover:bg-ocean-50 rounded-xl cursor-pointer transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={pdfExportOptions[option.id]}
+                                                        onChange={(e) => setPdfExportOptions(prev => ({
+                                                            ...prev,
+                                                            [option.id]: e.target.checked
+                                                        }))}
+                                                        className="mt-1 rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                                    />
+                                                    <div>
+                                                        <span className="text-sm font-medium text-ocean-900">{option.label}</span>
+                                                        <p className="text-xs text-graystone-500">{option.description}</p>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Filters Tab */}
+                                    {pdfExportTab === 'filters' && (
+                                        <div className="space-y-6">
+                                            {/* Date Range */}
+                                            <div>
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">Date Range</h4>
+                                                <select
+                                                    value={pdfExportOptions.dateRange.preset}
+                                                    onChange={(e) => {
+                                                        const preset = e.target.value;
+                                                        let start = null, end = null;
+                                                        const now = new Date();
+                                                        if (preset === 'thisWeek') {
+                                                            start = new Date(now.setDate(now.getDate() - now.getDay()));
+                                                            end = new Date();
+                                                        } else if (preset === 'thisMonth') {
+                                                            start = new Date(now.getFullYear(), now.getMonth(), 1);
+                                                            end = new Date();
+                                                        } else if (preset === 'thisQuarter') {
+                                                            const quarter = Math.floor(now.getMonth() / 3);
+                                                            start = new Date(now.getFullYear(), quarter * 3, 1);
+                                                            end = new Date();
+                                                        }
+                                                        setPdfExportOptions(prev => ({
+                                                            ...prev,
+                                                            dateRange: { preset, start: start?.toISOString().slice(0,10) || null, end: end?.toISOString().slice(0,10) || null }
+                                                        }));
+                                                    }}
+                                                    className={cx(inputBaseClasses, "mb-3")}
+                                                >
+                                                    <option value="all">All Time</option>
+                                                    <option value="thisWeek">This Week</option>
+                                                    <option value="thisMonth">This Month</option>
+                                                    <option value="thisQuarter">This Quarter</option>
+                                                    <option value="custom">Custom Range</option>
+                                                </select>
+                                                {pdfExportOptions.dateRange.preset === 'custom' && (
+                                                    <div className="flex gap-3">
+                                                        <div className="flex-1">
+                                                            <label className="text-xs text-graystone-500 mb-1 block">From</label>
+                                                            <input
+                                                                type="date"
+                                                                value={pdfExportOptions.dateRange.start || ''}
+                                                                onChange={(e) => setPdfExportOptions(prev => ({
+                                                                    ...prev,
+                                                                    dateRange: { ...prev.dateRange, start: e.target.value }
+                                                                }))}
+                                                                className={inputBaseClasses}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <label className="text-xs text-graystone-500 mb-1 block">To</label>
+                                                            <input
+                                                                type="date"
+                                                                value={pdfExportOptions.dateRange.end || ''}
+                                                                onChange={(e) => setPdfExportOptions(prev => ({
+                                                                    ...prev,
+                                                                    dateRange: { ...prev.dateRange, end: e.target.value }
+                                                                }))}
+                                                                className={inputBaseClasses}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Status Filter */}
+                                            <div>
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">Status {pdfExportOptions.statusFilter.length > 0 && `(${pdfExportOptions.statusFilter.length} selected)`}</h4>
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {KANBAN_STATUSES.map(status => (
+                                                        <label key={status} className="flex items-center gap-2 p-2 hover:bg-ocean-50 rounded cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={pdfExportOptions.statusFilter.includes(status)}
+                                                                onChange={(e) => {
+                                                                    setPdfExportOptions(prev => ({
+                                                                        ...prev,
+                                                                        statusFilter: e.target.checked
+                                                                            ? [...prev.statusFilter, status]
+                                                                            : prev.statusFilter.filter(s => s !== status)
+                                                                    }));
+                                                                }}
+                                                                className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                                            />
+                                                            <span className="text-sm text-ocean-900">{status}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                <p className="text-xs text-graystone-400 mt-1">Leave all unchecked to include all statuses</p>
+                                            </div>
+
+                                            {/* Team Member Filter */}
+                                            <div>
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">Team Members {pdfExportOptions.memberFilter.length > 0 && `(${pdfExportOptions.memberFilter.length} selected)`}</h4>
+                                                <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto">
+                                                    {USERS.map(user => (
+                                                        <label key={user} className="flex items-center gap-2 p-2 hover:bg-ocean-50 rounded cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={pdfExportOptions.memberFilter.includes(user)}
+                                                                onChange={(e) => {
+                                                                    setPdfExportOptions(prev => ({
+                                                                        ...prev,
+                                                                        memberFilter: e.target.checked
+                                                                            ? [...prev.memberFilter, user]
+                                                                            : prev.memberFilter.filter(u => u !== user)
+                                                                    }));
+                                                                }}
+                                                                className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                                            />
+                                                            <span className="text-sm text-ocean-900 truncate">{user}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                <p className="text-xs text-graystone-400 mt-1">Leave all unchecked to include all members</p>
+                                            </div>
+
+                                            {/* Team Filter */}
+                                            <div>
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">Teams {pdfExportOptions.teamFilter.length > 0 && `(${pdfExportOptions.teamFilter.length} selected)`}</h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {TEAMS.map(team => (
+                                                        <label key={team} className="flex items-center gap-2 p-2 hover:bg-ocean-50 rounded cursor-pointer border border-graystone-200">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={pdfExportOptions.teamFilter.includes(team)}
+                                                                onChange={(e) => {
+                                                                    setPdfExportOptions(prev => ({
+                                                                        ...prev,
+                                                                        teamFilter: e.target.checked
+                                                                            ? [...prev.teamFilter, team]
+                                                                            : prev.teamFilter.filter(t => t !== team)
+                                                                    }));
+                                                                }}
+                                                                className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                                            />
+                                                            <span className="text-sm text-ocean-900">{team}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Layout Tab */}
+                                    {pdfExportTab === 'layout' && (
+                                        <div className="space-y-6">
+                                            {/* Orientation */}
+                                            <div>
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">Page Orientation</h4>
+                                                <div className="flex gap-3">
+                                                    <button
+                                                        onClick={() => setPdfExportOptions(prev => ({ ...prev, orientation: 'portrait' }))}
+                                                        className={cx(
+                                                            "flex-1 p-4 rounded-xl border-2 transition flex flex-col items-center gap-2",
+                                                            pdfExportOptions.orientation === 'portrait'
+                                                                ? "border-ocean-500 bg-ocean-50"
+                                                                : "border-graystone-200 hover:border-ocean-300"
+                                                        )}
+                                                    >
+                                                        <div className="w-8 h-12 border-2 border-current rounded"></div>
+                                                        <span className="text-sm font-medium">Portrait</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setPdfExportOptions(prev => ({ ...prev, orientation: 'landscape' }))}
+                                                        className={cx(
+                                                            "flex-1 p-4 rounded-xl border-2 transition flex flex-col items-center gap-2",
+                                                            pdfExportOptions.orientation === 'landscape'
+                                                                ? "border-ocean-500 bg-ocean-50"
+                                                                : "border-graystone-200 hover:border-ocean-300"
+                                                        )}
+                                                    >
+                                                        <div className="w-12 h-8 border-2 border-current rounded"></div>
+                                                        <span className="text-sm font-medium">Landscape</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* View Mode */}
+                                            <div>
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">View Mode</h4>
+                                                <div className="flex gap-3">
+                                                    <button
+                                                        onClick={() => setPdfExportOptions(prev => ({ ...prev, viewMode: 'compact' }))}
+                                                        className={cx(
+                                                            "flex-1 p-4 rounded-xl border-2 transition",
+                                                            pdfExportOptions.viewMode === 'compact'
+                                                                ? "border-ocean-500 bg-ocean-50"
+                                                                : "border-graystone-200 hover:border-ocean-300"
+                                                        )}
+                                                    >
+                                                        <div className="flex flex-col gap-1 mb-2">
+                                                            <div className="h-1 bg-current rounded w-full opacity-60"></div>
+                                                            <div className="h-1 bg-current rounded w-3/4 opacity-40"></div>
+                                                            <div className="h-1 bg-current rounded w-full opacity-60"></div>
+                                                            <div className="h-1 bg-current rounded w-2/3 opacity-40"></div>
+                                                        </div>
+                                                        <span className="text-sm font-medium">Compact</span>
+                                                        <p className="text-xs text-graystone-500 mt-1">Summary view with key info</p>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setPdfExportOptions(prev => ({ ...prev, viewMode: 'detailed' }))}
+                                                        className={cx(
+                                                            "flex-1 p-4 rounded-xl border-2 transition",
+                                                            pdfExportOptions.viewMode === 'detailed'
+                                                                ? "border-ocean-500 bg-ocean-50"
+                                                                : "border-graystone-200 hover:border-ocean-300"
+                                                        )}
+                                                    >
+                                                        <div className="flex flex-col gap-1 mb-2">
+                                                            <div className="h-2 bg-current rounded w-full opacity-60"></div>
+                                                            <div className="h-1 bg-current rounded w-full opacity-30"></div>
+                                                            <div className="h-1 bg-current rounded w-full opacity-30"></div>
+                                                            <div className="h-2 bg-current rounded w-full opacity-60"></div>
+                                                            <div className="h-1 bg-current rounded w-full opacity-30"></div>
+                                                        </div>
+                                                        <span className="text-sm font-medium">Detailed</span>
+                                                        <p className="text-xs text-graystone-500 mt-1">Full details and descriptions</p>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Footer Actions */}
+                                <div className="border-t border-graystone-200 p-4 flex justify-between items-center bg-graystone-50">
+                                    <button
+                                        onClick={() => {
+                                            setPdfExportOptions({
+                                                includeTaskDetails: true,
+                                                includeSubtasks: true,
+                                                includeComments: false,
+                                                includeTeamStats: true,
+                                                dateRange: { preset: 'all', start: null, end: null },
+                                                statusFilter: [],
+                                                memberFilter: [],
+                                                teamFilter: [],
+                                                orientation: 'landscape',
+                                                viewMode: 'detailed'
+                                            });
+                                        }}
+                                        className="text-sm text-graystone-500 hover:text-graystone-700 transition-colors"
+                                    >
+                                        Reset to defaults
+                                    </button>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowPdfExportModal(false)}
+                                            className="px-4 py-2 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => handleCustomPdfExport()}
+                                            className="px-6 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm flex items-center gap-2"
+                                        >
+                                            <i data-lucide="download" className="w-4 h-4"></i>
+                                            Export PDF
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
