@@ -9462,20 +9462,17 @@
 
                         const layoutStyle = options.layoutStyle || 'cards';
 
-                        // CARDS LAYOUT (Enhanced)
+                        // CARDS LAYOUT (Clean Style)
                         if (layoutStyle === 'cards') {
                             const cardWidth = isLandscape ? (contentWidth - 6) / 2 : contentWidth;
-                            const cardPadding = 6;
-                            const headerHeight = 8;
-                            const accentWidth = 3;
+                            const cardPadding = 8;
                             let col = 0;
                             let rowStartY = yPos;
 
                             filteredEntries.forEach((entry, idx) => {
-                                // Calculate card height (increased for new elements)
-                                let cardHeight = 42; // Base height with header + icon row
-                                if (options.viewMode === 'detailed' && entry.caption) cardHeight += 12;
-                                if (options.includeSubtasks && entry.subtasks?.length > 0) cardHeight += 0; // Now in icon row
+                                // Calculate card height
+                                let cardHeight = 38; // Base height
+                                if (options.viewMode === 'detailed' && entry.caption) cardHeight += 14;
 
                                 // Check for new page
                                 if (rowStartY + cardHeight + 2 > pageHeight - margin) {
@@ -9492,138 +9489,88 @@
                                 const statusColors = STATUS_COLORS[entry.workflowStatus] || STATUS_COLORS['Draft'];
 
                                 // === SHADOW ===
-                                pdf.setFillColor(220, 220, 220);
-                                pdf.roundedRect(x + 1.5, y + 1.5, cardWidth, cardHeight, 3, 3, 'F');
+                                pdf.setFillColor(230, 230, 230);
+                                pdf.roundedRect(x + 1, y + 1, cardWidth, cardHeight, 3, 3, 'F');
 
                                 // === CARD BACKGROUND ===
                                 drawRoundedRect(x, y, cardWidth, cardHeight, 3, [255, 255, 255], cardBorder);
 
-                                // === STATUS HEADER BAR ===
-                                pdf.setFillColor(...statusColors.bg);
-                                pdf.roundedRect(x, y, cardWidth, headerHeight, 3, 3, 'F');
-                                // Square off bottom corners
-                                pdf.rect(x, y + 5, cardWidth, 3, 'F');
+                                // === TITLE ===
+                                pdf.setFontSize(12);
+                                pdf.setTextColor(...oceanDark);
+                                const maxTitleLen = isLandscape ? 40 : 60;
+                                const titleText = entry.title.length > maxTitleLen ? entry.title.substring(0, maxTitleLen) + '...' : entry.title;
+                                pdf.text(titleText, x + cardPadding, y + 10);
 
-                                // Status text in header
+                                // === STATUS BADGE ===
+                                const statusText = entry.workflowStatus;
+                                const statusWidth = pdf.getTextWidth(statusText) + 6;
+                                pdf.setFillColor(...statusColors.bg);
+                                pdf.roundedRect(x + cardWidth - cardPadding - statusWidth, y + 5, statusWidth, 7, 2, 2, 'F');
                                 pdf.setFontSize(7);
                                 pdf.setTextColor(...statusColors.text);
-                                pdf.text(entry.workflowStatus, x + cardPadding + accentWidth, y + 5.5);
-
-                                // === LEFT ACCENT BORDER ===
-                                pdf.setFillColor(...statusColors.text);
-                                pdf.roundedRect(x, y, accentWidth, cardHeight, 1.5, 1.5, 'F');
-
-                                // === COLLABORATOR CIRCLES ===
-                                if (entry.collaborators && entry.collaborators.length > 0) {
-                                    const maxShow = 3;
-                                    const circleRadius = 3;
-                                    let circleX = x + cardWidth - cardPadding - circleRadius;
-
-                                    entry.collaborators.slice(0, maxShow).forEach((collab, i) => {
-                                        const initials = collab.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-                                        const cx = circleX - (i * 7);
-                                        // Circle background
-                                        pdf.setFillColor(219, 234, 254);
-                                        pdf.circle(cx, y + 4, circleRadius, 'F');
-                                        // Initials
-                                        pdf.setFontSize(4.5);
-                                        pdf.setTextColor(37, 99, 235);
-                                        pdf.text(initials, cx - 1.5, y + 5);
-                                    });
-
-                                    if (entry.collaborators.length > maxShow) {
-                                        pdf.setFontSize(5);
-                                        pdf.setTextColor(...grayText);
-                                        pdf.text(`+${entry.collaborators.length - maxShow}`, circleX - (maxShow * 7) - 3, y + 5);
-                                    }
-                                }
-
-                                // === TITLE ===
-                                pdf.setFontSize(10);
-                                pdf.setTextColor(...oceanDark);
-                                const maxTitleLen = isLandscape ? 35 : 50;
-                                const titleText = entry.title.length > maxTitleLen ? entry.title.substring(0, maxTitleLen) + '...' : entry.title;
-                                pdf.text(titleText, x + cardPadding + accentWidth, y + headerHeight + 6);
+                                pdf.text(statusText, x + cardWidth - cardPadding - statusWidth + 3, y + 10);
 
                                 // === OWNER & TEAM ===
-                                pdf.setFontSize(7);
+                                pdf.setFontSize(9);
                                 pdf.setTextColor(...grayText);
-                                pdf.text(`${entry.owner} • ${entry.team}`, x + cardPadding + accentWidth, y + headerHeight + 12);
+                                pdf.text(`${entry.owner} • ${entry.team}`, x + cardPadding, y + 18);
 
-                                let innerY = headerHeight + 16;
+                                let innerY = 24;
 
                                 // === DESCRIPTION (detailed mode) ===
                                 if (options.viewMode === 'detailed' && entry.caption) {
-                                    pdf.setFontSize(7);
+                                    pdf.setFontSize(8);
                                     pdf.setTextColor(...grayText);
-                                    const descMaxLen = isLandscape ? 60 : 100;
+                                    const descMaxLen = isLandscape ? 70 : 120;
                                     const desc = entry.caption.length > descMaxLen ? entry.caption.substring(0, descMaxLen) + '...' : entry.caption;
-                                    const lines = pdf.splitTextToSize(desc, cardWidth - cardPadding * 2 - accentWidth);
+                                    const lines = pdf.splitTextToSize(desc, cardWidth - cardPadding * 2);
                                     lines.slice(0, 2).forEach(line => {
-                                        pdf.text(line, x + cardPadding + accentWidth, y + innerY);
-                                        innerY += 4;
+                                        pdf.text(line, x + cardPadding, y + innerY);
+                                        innerY += 5;
                                     });
-                                    innerY += 2;
                                 }
 
-                                // === ICON INDICATORS ROW ===
-                                const iconY = y + cardHeight - 6;
-                                let iconX = x + cardPadding + accentWidth;
+                                // === BOTTOM ROW INFO ===
+                                const bottomY = y + cardHeight - 6;
+                                let infoX = x + cardPadding;
 
-                                // Due date icon (calendar)
+                                // Due date
                                 if (entry.date) {
                                     const dueDate = new Date(entry.date);
-                                    const isOverdue = dueDate < new Date();
-                                    const dateColor = isOverdue ? [239, 68, 68] : grayText;
-
-                                    // Calendar icon
-                                    pdf.setDrawColor(...dateColor);
-                                    pdf.setLineWidth(0.3);
-                                    pdf.rect(iconX, iconY - 2.5, 3.5, 3, 'S');
-                                    pdf.line(iconX + 0.7, iconY - 3, iconX + 0.7, iconY - 2.5);
-                                    pdf.line(iconX + 2.8, iconY - 3, iconX + 2.8, iconY - 2.5);
-
-                                    pdf.setFontSize(5.5);
-                                    pdf.setTextColor(...dateColor);
-                                    pdf.text(dueDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), iconX + 5, iconY);
-                                    iconX += 22;
+                                    const isOverdue = dueDate < new Date() && entry.workflowStatus !== 'Done';
+                                    pdf.setFontSize(8);
+                                    pdf.setTextColor(isOverdue ? 239 : grayText[0], isOverdue ? 68 : grayText[1], isOverdue ? 68 : grayText[2]);
+                                    const dateStr = dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                                    pdf.text(`Due: ${dateStr}`, infoX, bottomY);
+                                    infoX += 30;
                                 }
 
-                                // Subtasks icon (checkbox)
+                                // Subtasks
                                 if (entry.subtasks && entry.subtasks.length > 0) {
                                     const completedSubtasks = entry.subtasks.filter(s => s.completed).length;
                                     const allComplete = completedSubtasks === entry.subtasks.length;
-                                    const checkColor = allComplete ? [34, 197, 94] : grayText;
-
-                                    // Checkbox
-                                    pdf.setDrawColor(...checkColor);
-                                    pdf.setLineWidth(0.3);
-                                    pdf.rect(iconX, iconY - 2.5, 3, 3, 'S');
-
-                                    // Checkmark if any complete
-                                    if (completedSubtasks > 0) {
-                                        pdf.setDrawColor(...checkColor);
-                                        pdf.line(iconX + 0.5, iconY - 0.8, iconX + 1.2, iconY);
-                                        pdf.line(iconX + 1.2, iconY, iconX + 2.5, iconY - 2);
-                                    }
-
-                                    pdf.setFontSize(5.5);
-                                    pdf.setTextColor(...checkColor);
-                                    pdf.text(`${completedSubtasks}/${entry.subtasks.length}`, iconX + 4.5, iconY);
-                                    iconX += 16;
+                                    pdf.setFontSize(8);
+                                    pdf.setTextColor(allComplete ? 34 : grayText[0], allComplete ? 197 : grayText[1], allComplete ? 94 : grayText[2]);
+                                    pdf.text(`Subtasks: ${completedSubtasks}/${entry.subtasks.length}`, infoX, bottomY);
+                                    infoX += 28;
                                 }
 
-                                // Comments icon (speech bubble)
+                                // Comments
                                 if (entry.comments && entry.comments.length > 0) {
-                                    pdf.setDrawColor(...grayText);
-                                    pdf.setLineWidth(0.3);
-                                    pdf.roundedRect(iconX, iconY - 2.5, 4, 2.5, 0.5, 0.5, 'S');
-                                    // Bubble tail
-                                    pdf.line(iconX + 1, iconY, iconX + 0.5, iconY + 1);
-
-                                    pdf.setFontSize(5.5);
+                                    pdf.setFontSize(8);
                                     pdf.setTextColor(...grayText);
-                                    pdf.text(`${entry.comments.length}`, iconX + 5.5, iconY);
+                                    pdf.text(`Comments: ${entry.comments.length}`, infoX, bottomY);
+                                }
+
+                                // === COLLABORATORS (right side) ===
+                                if (entry.collaborators && entry.collaborators.length > 0) {
+                                    const collabText = entry.collaborators.length <= 2
+                                        ? entry.collaborators.map(c => c.split(' ')[0]).join(', ')
+                                        : `${entry.collaborators[0].split(' ')[0]} +${entry.collaborators.length - 1}`;
+                                    pdf.setFontSize(7);
+                                    pdf.setTextColor(...grayText);
+                                    pdf.text(collabText, x + cardWidth - cardPadding - pdf.getTextWidth(collabText), bottomY);
                                 }
 
                                 // Move to next position
