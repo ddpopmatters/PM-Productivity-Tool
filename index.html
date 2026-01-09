@@ -3050,6 +3050,14 @@
             const [groupBy, setGroupBy] = useState('member');
             const [memberFilter, setMemberFilter] = useState('all');
 
+            // Report expanded subtasks state
+            const [expandedProjectSubtasks, setExpandedProjectSubtasks] = useState({});
+
+            // Reinitialize icons when subtasks expand/collapse
+            useEffect(() => {
+                setTimeout(() => lucide.createIcons(), 50);
+            }, [expandedProjectSubtasks]);
+
             // Helper: Get current period value based on timeline type
             const getCurrentPeriod = (type) => {
                 const now = new Date();
@@ -3983,10 +3991,9 @@
                                     </h3>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                         {[
-                                            { id: 'executiveSummary', label: 'Executive Summary', desc: 'Overview with custom commentary' },
-                                            { id: 'progressMetrics', label: 'Progress Metrics', desc: 'Status distribution & completion rates' },
+                                            { id: 'executiveSummary', label: 'Executive Summary', desc: 'Project list with commentary' },
                                             { id: 'teamWorkload', label: 'Team Workload', desc: 'Per-member breakdown' },
-                                            { id: 'projects', label: 'Projects', desc: 'Projects due within date range' },
+                                            { id: 'projects', label: 'Projects', desc: 'Project cards with details' },
                                             { id: 'keyHighlights', label: 'Key Highlights', desc: 'Achievements this period' },
                                             { id: 'blockersRisks', label: 'Blockers & Risks', desc: 'Issues needing attention' }
                                         ].map(section => (
@@ -4105,30 +4112,40 @@
                                             </div>
                                             <div>
                                                 <h3 className="font-heading text-lg text-ocean-900">Executive Summary</h3>
-                                                <p className="text-xs text-graystone-500">High-level overview for leadership</p>
+                                                <p className="text-xs text-graystone-500">Team projects overview</p>
                                             </div>
                                         </div>
 
-                                        {/* Auto-generated stats */}
-                                        <div className="bg-graystone-50 rounded-lg p-4 mb-4">
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                                                <div>
-                                                    <div className="text-2xl font-bold text-ocean-700">{periodEntries.length}</div>
-                                                    <div className="text-xs text-graystone-500">Total Items</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-2xl font-bold text-green-600">{completedCount}</div>
-                                                    <div className="text-xs text-graystone-500">Completed</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-2xl font-bold text-blue-600">{inProgressCount}</div>
-                                                    <div className="text-xs text-graystone-500">In Progress</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-2xl font-bold text-purple-600">{completionRate}%</div>
-                                                    <div className="text-xs text-graystone-500">Completion Rate</div>
-                                                </div>
-                                            </div>
+                                        {/* Project List */}
+                                        <div className="mb-4">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-graystone-200">
+                                                        <th className="text-left py-2 text-graystone-600 font-semibold">Project</th>
+                                                        <th className="text-left py-2 text-graystone-600 font-semibold">Owner</th>
+                                                        <th className="text-left py-2 text-graystone-600 font-semibold">Due Date</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {periodEntries.slice(0, 10).map(entry => (
+                                                        <tr key={entry.id} className="border-b border-graystone-100">
+                                                            <td className="py-2 text-ocean-900">{entry.title}</td>
+                                                            <td className="py-2 text-graystone-600">{entry.owner}</td>
+                                                            <td className={cx(
+                                                                "py-2",
+                                                                entry.date && new Date(entry.date) < new Date() && entry.workflowStatus !== 'Done'
+                                                                    ? "text-red-500"
+                                                                    : "text-graystone-600"
+                                                            )}>
+                                                                {entry.date ? new Date(entry.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                            {periodEntries.length > 10 && (
+                                                <p className="text-xs text-graystone-400 mt-2">Showing 10 of {periodEntries.length} projects</p>
+                                            )}
                                         </div>
 
                                         {/* Editable narrative */}
@@ -4149,47 +4166,18 @@
                                     </div>
                                 )}
 
-                                {/* Progress Metrics Section */}
-                                {reportSections.progressMetrics && (
-                                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-                                        <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2">
-                                            <i data-lucide="trending-up" className="w-5 h-5"></i>
-                                            Progress Metrics
-                                        </h3>
-
-                                        {/* Status Distribution */}
-                                        <div className="mb-6">
-                                            <h4 className="text-sm font-semibold text-graystone-700 mb-3">Status Distribution</h4>
-                                            <div className="space-y-2">
-                                                {KANBAN_STATUSES.map(status => {
-                                                    const count = statusCounts[status] || 0;
-                                                    const percent = periodEntries.length > 0 ? (count / periodEntries.length) * 100 : 0;
-
-                                                    return (
-                                                        <div key={status} className="flex items-center gap-3">
-                                                            <div className="w-28 text-sm text-graystone-600 truncate">{status}</div>
-                                                            <div className="flex-1 h-6 bg-graystone-100 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full rounded-full transition-all bg-ocean-500"
-                                                                    style={{ width: `${percent}%` }}
-                                                                />
-                                                            </div>
-                                                            <div className="w-10 text-sm font-medium text-graystone-700 text-right">{count}</div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
                                 {/* Team Workload Section */}
                                 {reportSections.teamWorkload && (
                                     <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-                                        <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2">
-                                            <i data-lucide="users" className="w-5 h-5"></i>
-                                            Team Workload
-                                        </h3>
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
+                                                <i data-lucide="users" className="w-5 h-5 text-white"></i>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-heading text-lg text-ocean-900">Team Workload</h3>
+                                                <p className="text-xs text-graystone-500">Per-member breakdown</p>
+                                            </div>
+                                        </div>
 
                                         {/* Visual Workload Distribution */}
                                         <div className="mb-6">
@@ -4279,32 +4267,77 @@
                                         return true;
                                     });
 
-                                    const renderProjectCard = (project) => (
-                                        <div key={project.id} className="bg-graystone-50 rounded-lg p-4 border border-graystone-200">
-                                            <div className="flex items-start justify-between mb-2">
-                                                <h4 className="font-medium text-ocean-900 text-sm">{project.title}</h4>
-                                                <span className={cx(
-                                                    "text-xs px-2 py-0.5 rounded-full font-medium",
-                                                    project.workflowStatus === 'Done' ? "bg-green-100 text-green-700" :
-                                                    project.workflowStatus === 'In Delivery' ? "bg-blue-100 text-blue-700" :
-                                                    "bg-graystone-200 text-graystone-600"
-                                                )}>
-                                                    {project.workflowStatus}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-3 text-xs text-graystone-500">
-                                                <span>{project.owner}</span>
-                                                {project.date && (
-                                                    <>
-                                                        <span>·</span>
-                                                        <span className={new Date(project.date) < new Date() && project.workflowStatus !== 'Done' ? 'text-red-500' : ''}>
-                                                            Due: {new Date(project.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                                                        </span>
-                                                    </>
+                                    const renderProjectCard = (project) => {
+                                        const hasSubtasks = project.subtasks && project.subtasks.length > 0;
+                                        const isExpanded = expandedProjectSubtasks[project.id];
+                                        const completedSubtasks = hasSubtasks ? project.subtasks.filter(s => s.completed).length : 0;
+
+                                        return (
+                                            <div key={project.id} className="bg-graystone-50 rounded-lg p-4 border border-graystone-200">
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <h4 className="font-medium text-ocean-900 text-sm">{project.title}</h4>
+                                                    <span className={cx(
+                                                        "text-xs px-2 py-0.5 rounded-full font-medium",
+                                                        project.workflowStatus === 'Done' ? "bg-green-100 text-green-700" :
+                                                        project.workflowStatus === 'In Delivery' ? "bg-blue-100 text-blue-700" :
+                                                        "bg-graystone-200 text-graystone-600"
+                                                    )}>
+                                                        {project.workflowStatus}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3 text-xs text-graystone-500 mb-2">
+                                                    <span>{project.owner}</span>
+                                                    {project.date && (
+                                                        <>
+                                                            <span>·</span>
+                                                            <span className={new Date(project.date) < new Date() && project.workflowStatus !== 'Done' ? 'text-red-500' : ''}>
+                                                                Due: {new Date(project.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Expandable Subtasks */}
+                                                {hasSubtasks && (
+                                                    <div className="mt-2 pt-2 border-t border-graystone-200">
+                                                        <button
+                                                            onClick={() => setExpandedProjectSubtasks(prev => ({
+                                                                ...prev,
+                                                                [project.id]: !prev[project.id]
+                                                            }))}
+                                                            className="flex items-center gap-2 text-xs text-ocean-600 hover:text-ocean-800 transition-colors w-full"
+                                                        >
+                                                            <i data-lucide={isExpanded ? "chevron-down" : "chevron-right"} className="w-3 h-3"></i>
+                                                            <span className="flex items-center gap-1">
+                                                                <i data-lucide="check-square" className="w-3 h-3"></i>
+                                                                {completedSubtasks}/{project.subtasks.length} subtasks
+                                                            </span>
+                                                        </button>
+
+                                                        {isExpanded && (
+                                                            <div className="mt-2 space-y-1 pl-5">
+                                                                {project.subtasks.map((subtask, idx) => (
+                                                                    <div
+                                                                        key={idx}
+                                                                        className={cx(
+                                                                            "flex items-center gap-2 text-xs py-1",
+                                                                            subtask.completed ? "text-graystone-400 line-through" : "text-graystone-600"
+                                                                        )}
+                                                                    >
+                                                                        <i data-lucide={subtask.completed ? "check-circle-2" : "circle"} className={cx(
+                                                                            "w-3 h-3",
+                                                                            subtask.completed ? "text-green-500" : "text-graystone-400"
+                                                                        )}></i>
+                                                                        <span>{subtask.title}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
-                                        </div>
-                                    );
+                                        );
+                                    };
 
                                     const renderProjectDetailed = (project) => (
                                         <div key={project.id} className="bg-white rounded-lg p-4 border border-graystone-200 mb-3">
@@ -8629,7 +8662,6 @@
             const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
             const [reportSections, setReportSections] = useState({
                 executiveSummary: true,
-                progressMetrics: true,
                 teamWorkload: true,
                 projects: true,
                 keyHighlights: true,
@@ -9814,102 +9846,116 @@
                     // === EXECUTIVE SUMMARY ===
                     if (reportData.sections.executiveSummary) {
                         checkPageBreak(50);
+
+                        const summaryProjects = reportData.projects ? reportData.projects.slice(0, 10) : [];
+                        const tableRowHeight = 6;
+                        const tableHeaderHeight = 8;
+
+                        // Section header card (matching app styling)
+                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
+
+                        // Blue icon placeholder
+                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, oceanMid);
+
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Executive Summary', margin, yPos + 5);
-                        yPos += 10;
+                        pdf.text('Executive Summary', margin + 22, yPos + 10);
+                        pdf.setFontSize(8);
+                        pdf.setTextColor(...grayText);
+                        pdf.text('Project overview with commentary', margin + 22, yPos + 16);
+                        yPos += 25;
 
-                        // Stats boxes
-                        const statBoxWidth = (contentWidth - 9) / 4;
-                        const stats = [
-                            { label: 'Total Items', value: reportData.stats.total, color: oceanMid },
-                            { label: 'Completed', value: reportData.stats.completed, color: greenColor },
-                            { label: 'In Progress', value: reportData.stats.inProgress, color: blueColor },
-                            { label: 'Completion Rate', value: `${reportData.stats.completionRate}%`, color: [147, 51, 234] }
-                        ];
+                        // Project list table
+                        if (summaryProjects.length > 0) {
+                            const cols = [85, 45, 40];
+                            const headers = ['Project', 'Owner', 'Due Date'];
 
-                        stats.forEach((stat, i) => {
-                            const x = margin + (i * (statBoxWidth + 3));
-                            drawRoundedRect(x, yPos, statBoxWidth, 18, 2, [255, 255, 255], lightBg);
-                            pdf.setFontSize(16);
-                            pdf.setTextColor(...stat.color);
-                            pdf.text(String(stat.value), x + 5, yPos + 10);
-                            pdf.setFontSize(7);
+                            // Table header row
+                            pdf.setFillColor(...lightBg);
+                            pdf.rect(margin + 3, yPos, contentWidth - 6, tableHeaderHeight, 'F');
+                            pdf.setFontSize(8);
                             pdf.setTextColor(...grayText);
-                            pdf.text(stat.label, x + 5, yPos + 15);
-                        });
-                        yPos += 24;
+                            let colX = margin + 6;
+                            headers.forEach((h, i) => {
+                                pdf.text(h, colX, yPos + 5.5);
+                                colX += cols[i];
+                            });
+                            yPos += tableHeaderHeight + 2;
+
+                            // Table rows
+                            summaryProjects.forEach((project, idx) => {
+                                checkPageBreak(tableRowHeight + 2);
+                                pdf.setFontSize(8);
+                                colX = margin + 6;
+
+                                // Project title
+                                pdf.setTextColor(...oceanDark);
+                                const title = project.title.length > 45 ? project.title.substring(0, 45) + '...' : project.title;
+                                pdf.text(title, colX, yPos + 4);
+                                colX += cols[0];
+
+                                // Owner
+                                pdf.setTextColor(...grayText);
+                                const owner = project.owner.length > 20 ? project.owner.substring(0, 20) + '...' : project.owner;
+                                pdf.text(owner, colX, yPos + 4);
+                                colX += cols[1];
+
+                                // Due date
+                                if (project.date) {
+                                    const dueDate = new Date(project.date);
+                                    const isOverdue = dueDate < new Date() && project.workflowStatus !== 'Done';
+                                    pdf.setTextColor(isOverdue ? 239 : grayText[0], isOverdue ? 68 : grayText[1], isOverdue ? 68 : grayText[2]);
+                                    pdf.text(dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), colX, yPos + 4);
+                                } else {
+                                    pdf.setTextColor(...grayText);
+                                    pdf.text('-', colX, yPos + 4);
+                                }
+
+                                yPos += tableRowHeight;
+                            });
+                        }
+                        yPos += 5;
 
                         // Narrative
                         if (reportData.narratives.executiveSummary) {
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.executiveSummary, contentWidth);
+                            const lines = pdf.splitTextToSize(reportData.narratives.executiveSummary, contentWidth - 10);
                             lines.forEach(line => {
                                 checkPageBreak(5);
-                                pdf.text(line, margin, yPos);
+                                pdf.text(line, margin + 5, yPos);
                                 yPos += 4;
                             });
                         }
-                        yPos += 8;
-                    }
-
-                    // === PROGRESS METRICS ===
-                    if (reportData.sections.progressMetrics) {
-                        checkPageBreak(60);
-                        pdf.setFontSize(14);
-                        pdf.setTextColor(...oceanDark);
-                        pdf.text('Progress Metrics', margin, yPos + 5);
-                        yPos += 12;
-
-                        pdf.setFontSize(10);
-                        pdf.setTextColor(...grayText);
-                        pdf.text('Status Distribution', margin, yPos);
-                        yPos += 6;
-
-                        // Status bars
-                        const KANBAN_STATUSES = ['Idea', 'Discovery', 'Preparation', 'In Delivery', 'Delivered', 'Impact Assessment', 'Done'];
-                        KANBAN_STATUSES.forEach(status => {
-                            checkPageBreak(8);
-                            const count = reportData.statusCounts[status] || 0;
-                            const percent = reportData.stats.total > 0 ? (count / reportData.stats.total) * 100 : 0;
-
-                            pdf.setFontSize(8);
-                            pdf.setTextColor(...grayText);
-                            pdf.text(status, margin, yPos + 3);
-
-                            // Bar background
-                            pdf.setFillColor(...lightBg);
-                            pdf.roundedRect(margin + 35, yPos, contentWidth - 50, 5, 1, 1, 'F');
-
-                            // Bar fill
-                            if (percent > 0) {
-                                pdf.setFillColor(...oceanMid);
-                                pdf.roundedRect(margin + 35, yPos, Math.max(2, (contentWidth - 50) * (percent / 100)), 5, 1, 1, 'F');
-                            }
-
-                            // Count
-                            pdf.text(String(count), margin + contentWidth - 10, yPos + 3);
-                            yPos += 7;
-                        });
-                        yPos += 8;
+                        yPos += 10;
                     }
 
                     // === TEAM WORKLOAD ===
                     if (reportData.sections.teamWorkload && reportData.memberData && reportData.memberData.length > 0) {
                         checkPageBreak(40);
+
+                        // Section header card (matching app styling)
+                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
+
+                        // Orange icon placeholder
+                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, [249, 115, 22]); // orange-500
+
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Team Workload', margin, yPos + 5);
-                        yPos += 12;
+                        pdf.text('Team Workload', margin + 22, yPos + 10);
+                        pdf.setFontSize(8);
+                        pdf.setTextColor(...grayText);
+                        pdf.text('Per-member breakdown', margin + 22, yPos + 16);
+                        yPos += 25;
 
                         // Table header
                         const cols = [50, 25, 30, 30, 25];
                         const headers = ['Team Member', 'Owned', 'In Progress', 'Completed', 'Overdue'];
-                        drawRoundedRect(margin, yPos, contentWidth, 8, 1, oceanMid);
+                        pdf.setFillColor(...lightBg);
+                        pdf.rect(margin, yPos, contentWidth, 8, 'F');
                         pdf.setFontSize(8);
-                        pdf.setTextColor(255, 255, 255);
-                        let colX = margin + 3;
+                        pdf.setTextColor(...grayText);
+                        let colX = margin + 5;
                         headers.forEach((h, i) => {
                             pdf.text(h, colX, yPos + 5.5);
                             colX += cols[i];
@@ -9920,10 +9966,11 @@
                         reportData.memberData.forEach((member, idx) => {
                             checkPageBreak(8);
                             const bgColor = idx % 2 === 0 ? [255, 255, 255] : lightBg;
-                            drawRoundedRect(margin, yPos, contentWidth, 8, 0, bgColor);
+                            pdf.setFillColor(...bgColor);
+                            pdf.rect(margin, yPos, contentWidth, 8, 'F');
 
                             pdf.setFontSize(8);
-                            colX = margin + 3;
+                            colX = margin + 5;
 
                             pdf.setTextColor(...oceanDark);
                             pdf.text(member.name.length > 20 ? member.name.substring(0, 20) + '...' : member.name, colX, yPos + 5.5);
@@ -9946,34 +9993,52 @@
 
                             yPos += 8;
                         });
-                        yPos += 8;
+                        yPos += 10;
                     }
 
                     // === PROJECTS ===
                     if (reportData.sections.projects && reportData.projects && reportData.projects.length > 0) {
                         checkPageBreak(40);
+
+                        // Section header card (matching app styling)
+                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
+
+                        // Purple icon placeholder
+                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, [147, 51, 234]);
+
                         pdf.setFontSize(14);
-                        pdf.setTextColor(147, 51, 234); // Purple
-                        pdf.text(`Projects (${reportData.projects.length})`, margin, yPos + 5);
-                        yPos += 12;
+                        pdf.setTextColor(...oceanDark);
+                        pdf.text('Projects', margin + 22, yPos + 10);
+                        pdf.setFontSize(8);
+                        pdf.setTextColor(...grayText);
+                        pdf.text(`${reportData.projects.length} project(s) due within selected period`, margin + 22, yPos + 16);
+                        yPos += 25;
 
                         const displayMode = reportData.projectsDisplayMode || 'cards';
 
-                        // Summary Cards
+                        // Status color helper matching app colors
+                        const getStatusColor = (status) => {
+                            if (status === 'Done') return { bg: [220, 252, 231], text: [21, 128, 61] }; // green-100, green-700
+                            if (status === 'In Delivery') return { bg: [219, 234, 254], text: [29, 78, 216] }; // blue-100, blue-700
+                            return { bg: lightBg, text: grayText }; // graystone
+                        };
+
+                        // Summary Cards (matching app's card view)
                         if (displayMode === 'cards' || displayMode === 'both') {
                             if (displayMode === 'both') {
-                                pdf.setFontSize(10);
+                                pdf.setFontSize(9);
                                 pdf.setTextColor(...grayText);
                                 pdf.text('Summary View', margin, yPos);
                                 yPos += 6;
                             }
 
-                            const cardWidth = (contentWidth - 6) / 3;
+                            const cardWidth = (contentWidth - 6) / 2; // 2 columns for better readability
+                            const cardHeight = 28;
                             let col = 0;
                             let rowStartY = yPos;
 
                             reportData.projects.forEach((project, idx) => {
-                                if (rowStartY + 20 > pageHeight - margin) {
+                                if (rowStartY + cardHeight > pageHeight - margin) {
                                     pdf.addPage();
                                     yPos = margin;
                                     rowStartY = margin;
@@ -9981,88 +10046,149 @@
                                 }
 
                                 const x = margin + (col * (cardWidth + 3));
-                                drawRoundedRect(x, rowStartY, cardWidth, 18, 2, lightBg);
+                                const statusColors = getStatusColor(project.workflowStatus);
+
+                                // Card background (matching app's bg-graystone-50)
+                                drawRoundedRect(x, rowStartY, cardWidth, cardHeight, 2, lightBg, [220, 220, 220]);
 
                                 // Title
-                                pdf.setFontSize(8);
+                                pdf.setFontSize(10);
                                 pdf.setTextColor(...oceanDark);
-                                const title = project.title.length > 25 ? project.title.substring(0, 25) + '...' : project.title;
-                                pdf.text(title, x + 3, rowStartY + 6);
+                                const maxTitleWidth = cardWidth - 40;
+                                let title = project.title;
+                                while (pdf.getTextWidth(title) > maxTitleWidth && title.length > 10) {
+                                    title = title.substring(0, title.length - 4) + '...';
+                                }
+                                pdf.text(title, x + 4, rowStartY + 7);
 
-                                // Owner & Status
+                                // Status badge (pill style in top-right)
+                                const statusText = project.workflowStatus;
+                                const statusWidth = pdf.getTextWidth(statusText) + 6;
+                                drawRoundedRect(x + cardWidth - statusWidth - 4, rowStartY + 3, statusWidth, 6, 1.5, statusColors.bg);
                                 pdf.setFontSize(6);
-                                pdf.setTextColor(...grayText);
-                                const owner = project.owner.split(' ')[0];
-                                pdf.text(owner, x + 3, rowStartY + 11);
+                                pdf.setTextColor(...statusColors.text);
+                                pdf.text(statusText, x + cardWidth - statusWidth - 1, rowStartY + 7);
 
-                                // Due date
+                                // Owner and due date row
+                                pdf.setFontSize(8);
+                                pdf.setTextColor(...grayText);
+                                const owner = project.owner;
+                                pdf.text(owner, x + 4, rowStartY + 14);
+
                                 if (project.date) {
                                     const dueDate = new Date(project.date);
                                     const isOverdue = dueDate < new Date() && project.workflowStatus !== 'Done';
                                     pdf.setTextColor(isOverdue ? 239 : grayText[0], isOverdue ? 68 : grayText[1], isOverdue ? 68 : grayText[2]);
-                                    pdf.text(`Due: ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, x + 3, rowStartY + 15);
+                                    pdf.text(`Due: ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, x + 4, rowStartY + 20);
                                 }
 
-                                col = (col + 1) % 3;
-                                if (col === 0) rowStartY += 21;
+                                // Subtask indicator
+                                if (project.subtasks && project.subtasks.length > 0) {
+                                    const completed = project.subtasks.filter(s => s.completed).length;
+                                    pdf.setFontSize(7);
+                                    pdf.setTextColor(...oceanMid);
+                                    pdf.text(`${completed}/${project.subtasks.length} subtasks`, x + cardWidth - 30, rowStartY + 24);
+                                }
+
+                                col = (col + 1) % 2;
+                                if (col === 0) rowStartY += cardHeight + 3;
                             });
 
-                            yPos = rowStartY + (col > 0 ? 21 : 0) + 5;
+                            yPos = rowStartY + (col > 0 ? cardHeight + 3 : 0) + 5;
                         }
 
                         // Detailed List
                         if (displayMode === 'detailed' || displayMode === 'both') {
                             if (displayMode === 'both') {
                                 checkPageBreak(20);
-                                pdf.setFontSize(10);
+                                pdf.setFontSize(9);
                                 pdf.setTextColor(...grayText);
                                 pdf.text('Detailed View', margin, yPos);
                                 yPos += 6;
                             }
 
                             reportData.projects.forEach((project, idx) => {
-                                const cardHeight = project.caption ? 28 : 18;
+                                const hasSubtasks = project.subtasks && project.subtasks.length > 0;
+                                const baseHeight = 20;
+                                const descHeight = project.caption ? 10 : 0;
+                                const subtaskHeight = hasSubtasks ? 6 + (project.subtasks.length * 5) : 0;
+                                const cardHeight = baseHeight + descHeight + subtaskHeight;
                                 checkPageBreak(cardHeight + 4);
 
-                                drawRoundedRect(margin, yPos, contentWidth, cardHeight, 2, [255, 255, 255], lightBg);
+                                const statusColors = getStatusColor(project.workflowStatus);
+
+                                // Card background
+                                drawRoundedRect(margin, yPos, contentWidth, cardHeight, 3, [255, 255, 255], [220, 220, 220]);
 
                                 // Title
-                                pdf.setFontSize(10);
+                                pdf.setFontSize(11);
                                 pdf.setTextColor(...oceanDark);
-                                pdf.text(project.title, margin + 4, yPos + 6);
+                                pdf.text(project.title, margin + 5, yPos + 7);
 
-                                // Owner, Team, Status
+                                // Status badge
+                                const statusText = project.workflowStatus;
+                                const statusWidth = pdf.getTextWidth(statusText) + 8;
+                                drawRoundedRect(margin + contentWidth - statusWidth - 5, yPos + 3, statusWidth, 7, 2, statusColors.bg);
                                 pdf.setFontSize(7);
+                                pdf.setTextColor(...statusColors.text);
+                                pdf.text(statusText, margin + contentWidth - statusWidth - 1, yPos + 8);
+
+                                // Owner, team, due date row
+                                pdf.setFontSize(8);
                                 pdf.setTextColor(...grayText);
-                                pdf.text(`${project.owner} · ${project.team} · ${project.workflowStatus}`, margin + 4, yPos + 12);
-
-                                // Description
-                                if (project.caption) {
-                                    pdf.setFontSize(7);
-                                    const desc = project.caption.length > 120 ? project.caption.substring(0, 120) + '...' : project.caption;
-                                    const lines = pdf.splitTextToSize(desc, contentWidth - 8);
-                                    lines.slice(0, 2).forEach((line, i) => {
-                                        pdf.text(line, margin + 4, yPos + 17 + (i * 4));
-                                    });
-                                }
-
-                                // Due date & subtasks on right
+                                let infoText = `${project.owner} · ${project.team}`;
                                 if (project.date) {
                                     const dueDate = new Date(project.date);
                                     const isOverdue = dueDate < new Date() && project.workflowStatus !== 'Done';
-                                    pdf.setFontSize(7);
-                                    pdf.setTextColor(isOverdue ? 239 : grayText[0], isOverdue ? 68 : grayText[1], isOverdue ? 68 : grayText[2]);
-                                    pdf.text(`Due: ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`, margin + contentWidth - 45, yPos + 6);
+                                    infoText += ` · Due: ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+                                    if (isOverdue) {
+                                        // Will show in red for the due date portion
+                                        pdf.setTextColor(...grayText);
+                                        pdf.text(`${project.owner} · ${project.team} · `, margin + 5, yPos + 14);
+                                        const prefixWidth = pdf.getTextWidth(`${project.owner} · ${project.team} · `);
+                                        pdf.setTextColor(239, 68, 68);
+                                        pdf.text(`Due: ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, margin + 5 + prefixWidth, yPos + 14);
+                                    } else {
+                                        pdf.text(infoText, margin + 5, yPos + 14);
+                                    }
+                                } else {
+                                    pdf.text(infoText, margin + 5, yPos + 14);
                                 }
 
-                                if (project.subtasks && project.subtasks.length > 0) {
-                                    const completed = project.subtasks.filter(s => s.completed).length;
-                                    pdf.setFontSize(7);
+                                let currentY = yPos + 18;
+
+                                // Description
+                                if (project.caption) {
+                                    pdf.setFontSize(8);
                                     pdf.setTextColor(...grayText);
-                                    pdf.text(`Subtasks: ${completed}/${project.subtasks.length}`, margin + contentWidth - 45, yPos + 12);
+                                    const desc = project.caption.length > 150 ? project.caption.substring(0, 150) + '...' : project.caption;
+                                    pdf.text(desc, margin + 5, currentY);
+                                    currentY += 8;
                                 }
 
-                                yPos += cardHeight + 3;
+                                // Subtasks list
+                                if (hasSubtasks) {
+                                    currentY += 2;
+                                    pdf.setFontSize(7);
+                                    pdf.setTextColor(...oceanMid);
+                                    const completed = project.subtasks.filter(s => s.completed).length;
+                                    pdf.text(`Subtasks (${completed}/${project.subtasks.length})`, margin + 5, currentY);
+                                    currentY += 5;
+
+                                    project.subtasks.forEach((subtask, sIdx) => {
+                                        pdf.setFontSize(7);
+                                        if (subtask.completed) {
+                                            pdf.setTextColor(34, 197, 94); // green-500
+                                            pdf.text(`[x] ${subtask.title}`, margin + 10, currentY);
+                                        } else {
+                                            pdf.setTextColor(...grayText);
+                                            pdf.text(`[ ] ${subtask.title}`, margin + 10, currentY);
+                                        }
+                                        currentY += 5;
+                                    });
+                                }
+
+                                yPos += cardHeight + 4;
                             });
                         }
 
@@ -10072,10 +10198,20 @@
                     // === KEY HIGHLIGHTS ===
                     if (reportData.sections.keyHighlights) {
                         checkPageBreak(30);
+
+                        // Section header card (matching app styling)
+                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
+
+                        // Green icon placeholder
+                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, greenColor);
+
                         pdf.setFontSize(14);
-                        pdf.setTextColor(...greenColor);
-                        pdf.text('Key Highlights', margin, yPos + 5);
-                        yPos += 10;
+                        pdf.setTextColor(...oceanDark);
+                        pdf.text('Key Highlights', margin + 22, yPos + 10);
+                        pdf.setFontSize(8);
+                        pdf.setTextColor(...grayText);
+                        pdf.text('Achievements and wins this period', margin + 22, yPos + 16);
+                        yPos += 25;
 
                         // Auto-detected
                         if (reportData.autoHighlights && reportData.autoHighlights.length > 0) {
@@ -10083,9 +10219,10 @@
                                 checkPageBreak(6);
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(...greenColor);
-                                pdf.text(`✓ ${h}`, margin + 3, yPos);
+                                pdf.text(`+ ${h}`, margin + 5, yPos);
                                 yPos += 5;
                             });
+                            yPos += 3;
                         }
 
                         // Narrative
@@ -10093,23 +10230,33 @@
                             yPos += 2;
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.keyHighlights, contentWidth);
+                            const lines = pdf.splitTextToSize(reportData.narratives.keyHighlights, contentWidth - 10);
                             lines.forEach(line => {
                                 checkPageBreak(5);
-                                pdf.text(line, margin, yPos);
+                                pdf.text(line, margin + 5, yPos);
                                 yPos += 4;
                             });
                         }
-                        yPos += 8;
+                        yPos += 10;
                     }
 
                     // === BLOCKERS & RISKS ===
                     if (reportData.sections.blockersRisks) {
                         checkPageBreak(30);
+
+                        // Section header card (matching app styling)
+                        drawRoundedRect(margin, yPos, contentWidth, 20, 3, [255, 255, 255], [220, 220, 220]);
+
+                        // Amber icon placeholder
+                        drawRoundedRect(margin + 5, yPos + 4, 12, 12, 2, amberColor);
+
                         pdf.setFontSize(14);
-                        pdf.setTextColor(...amberColor);
-                        pdf.text('Blockers & Risks', margin, yPos + 5);
-                        yPos += 10;
+                        pdf.setTextColor(...oceanDark);
+                        pdf.text('Blockers & Risks', margin + 22, yPos + 10);
+                        pdf.setFontSize(8);
+                        pdf.setTextColor(...grayText);
+                        pdf.text('Issues needing attention', margin + 22, yPos + 16);
+                        yPos += 25;
 
                         // Auto-detected
                         if (reportData.autoBlockers && reportData.autoBlockers.length > 0) {
@@ -10117,9 +10264,10 @@
                                 checkPageBreak(6);
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(...amberColor);
-                                pdf.text(`⚠ ${b}`, margin + 3, yPos);
+                                pdf.text(`! ${b}`, margin + 5, yPos);
                                 yPos += 5;
                             });
+                            yPos += 3;
                         }
 
                         // Narrative
@@ -10127,13 +10275,14 @@
                             yPos += 2;
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.blockersRisks, contentWidth);
+                            const lines = pdf.splitTextToSize(reportData.narratives.blockersRisks, contentWidth - 10);
                             lines.forEach(line => {
                                 checkPageBreak(5);
-                                pdf.text(line, margin, yPos);
+                                pdf.text(line, margin + 5, yPos);
                                 yPos += 4;
                             });
                         }
+                        yPos += 10;
                     }
 
                     // Footer
@@ -10147,9 +10296,11 @@
 
                 } catch (error) {
                     console.error('Status report PDF export error:', error);
-                    setSaveError('Failed to generate PDF. Please try again.');
+                    console.error('Error stack:', error.stack);
+                    alert(`PDF Export Error: ${error.message}\n\nCheck browser console for details.`);
                 } finally {
-                    document.body.removeChild(loadingOverlay);
+                    const overlay = document.getElementById('pdf-export-loading');
+                    if (overlay) document.body.removeChild(overlay);
                 }
             };
 
