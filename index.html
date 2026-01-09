@@ -476,7 +476,9 @@
 
         // Initialize Supabase client
         let supabase = null;
+        let supabaseInitAttempted = false;
         const initSupabase = () => {
+            if (supabase) return true; // Already initialized
             if (SUPABASE_CONFIG.ENABLED && SUPABASE_CONFIG.SUPABASE_URL !== "YOUR_SUPABASE_URL") {
                 if (window.supabase && window.supabase.createClient) {
                     supabase = window.supabase.createClient(
@@ -484,10 +486,13 @@
                         SUPABASE_CONFIG.SUPABASE_ANON_KEY
                     );
                     console.log("Supabase initialized successfully");
-                } else {
-                    console.warn("Supabase SDK not loaded yet");
+                    return true;
+                } else if (!supabaseInitAttempted) {
+                    console.warn("Supabase SDK not loaded - will use demo data");
+                    supabaseInitAttempted = true;
                 }
             }
+            return false;
         };
         // Try to init immediately, or wait for load
         if (window.supabase) {
@@ -8105,49 +8110,66 @@
                         return;
                     }
 
-                    // ===== SHAREPOINT MODE =====
-                    // 1. Get User (from SharePoint if auth not enabled, otherwise from Clerk)
-                    if (!AUTH_CONFIG.AUTH_ENABLED) {
-                        const user = await SP_API.getCurrentUser();
-                        setCurrentUser(user);
+                    // ===== FALLBACK: Use demo data =====
+                    // If Supabase was enabled but failed to initialize, use demo data instead of SharePoint
+                    if (SUPABASE_CONFIG.ENABLED && !supabase) {
+                        console.log("Supabase failed to initialize - using demo data");
+                        setEntries([
+                            { id: 1, title: "Website Redesign", caption: "Complete overhaul of main site", workflowStatus: "In Progress", team: "Advocacy & Influence", timelineValue: "2025-Q1", owner: "Dan Davis", collaborators: ["Francesca Harrison"], tags: ["Priority"], subtasks: [{ id: 1, title: "Design mockups", completed: true, assignedTo: "Francesca Harrison" }, { id: 2, title: "Implement homepage", completed: false, assignedTo: "Dan Davis" }] },
+                            { id: 2, title: "Annual Report 2024", caption: "Design and publish annual report", workflowStatus: "Ready for Review", team: "Advocacy & Influence", timelineValue: "2025-Q1", owner: "Francesca Harrison", collaborators: ["Madeleine Hewitt"], tags: ["Report"] },
+                            { id: 3, title: "Social Media Campaign", caption: "Q1 awareness campaign", workflowStatus: "Blocked", team: "Advocacy & Influence", timelineValue: "2025-01", owner: "Madeleine Hewitt", collaborators: [], tags: ["Marketing", "Priority"] },
+                            { id: 4, title: "Research Paper Draft", caption: "Population trends analysis", workflowStatus: "In Progress", team: "Research", timelineValue: "2025-Q2", owner: "Emma Lewendon-Strutt", collaborators: ["Josh Hill"], tags: ["Research"] },
+                            { id: 5, title: "Donor Database Update", caption: "Clean and update CRM", workflowStatus: "Not Started", team: "Fundraising", timelineValue: "2025-Q1", owner: "Josh Hill", collaborators: [], tags: [] },
+                        ]);
+                        setLoading(false);
+                        return;
                     }
 
-                    // 2. Get Workflow Items
-                    try {
-                        const spItems = await SP_API.fetchList('WorkflowItems');
-                        const mappedEntries = spItems.map(item => {
-                            const extra = item.JSON_Data ? JSON.parse(item.JSON_Data) : {};
-                            return {
-                                id: item.ID,
-                                title: item.Title,
-                                caption: item.caption,
-                                workflowStatus: item.workflowStatus,
-                                team: item.team,
-                                timelineValue: item.timelineValue,
-                                owner: item.owner?.Title || "Unassigned",
-                                collaborators: item.collaborators?.results ? item.collaborators.results.map(c => c.Title) : [],
-                                ...extra // Unpack tags, subtasks, documents
-                            };
-                        });
-                        setEntries(mappedEntries);
-                    } catch (e) { console.error("Could not load WorkflowItems", e); }
+                    // ===== SHAREPOINT MODE (only when explicitly not using Supabase) =====
+                    if (!SUPABASE_CONFIG.ENABLED) {
+                        // 1. Get User (from SharePoint if auth not enabled, otherwise from Clerk)
+                        if (!AUTH_CONFIG.AUTH_ENABLED) {
+                            const user = await SP_API.getCurrentUser();
+                            setCurrentUser(user);
+                        }
 
-                    // 3. Get Managers list (if available)
-                    try {
-                        const mgrItems = await SP_API.fetchManagers();
-                        const mappedManagers = mgrItems.map((m) => {
-                            const emailValue = (m.Email && m.Email.EMail) || m.Email || "";
-                            const nameValue = m.Title || (m.Email && m.Email.Title) || emailValue || "";
-                            return {
-                                name: nameValue,
-                                email: emailValue || nameValue,
-                                team: m.Team || "",
-                                reports: m.Reports?.results ? m.Reports.results.map((r) => r.Title) : []
-                            };
-                        }).filter((m) => m.name);
-                        if (mappedManagers.length) setManagers(mappedManagers);
-                    } catch (e) {
-                        console.warn("Could not load Managers list; using defaults", e);
+                        // 2. Get Workflow Items
+                        try {
+                            const spItems = await SP_API.fetchList('WorkflowItems');
+                            const mappedEntries = spItems.map(item => {
+                                const extra = item.JSON_Data ? JSON.parse(item.JSON_Data) : {};
+                                return {
+                                    id: item.ID,
+                                    title: item.Title,
+                                    caption: item.caption,
+                                    workflowStatus: item.workflowStatus,
+                                    team: item.team,
+                                    timelineValue: item.timelineValue,
+                                    owner: item.owner?.Title || "Unassigned",
+                                    collaborators: item.collaborators?.results ? item.collaborators.results.map(c => c.Title) : [],
+                                    ...extra // Unpack tags, subtasks, documents
+                                };
+                            });
+                            setEntries(mappedEntries);
+                        } catch (e) { console.error("Could not load WorkflowItems", e); }
+
+                        // 3. Get Managers list (if available)
+                        try {
+                            const mgrItems = await SP_API.fetchManagers();
+                            const mappedManagers = mgrItems.map((m) => {
+                                const emailValue = (m.Email && m.Email.EMail) || m.Email || "";
+                                const nameValue = m.Title || (m.Email && m.Email.Title) || emailValue || "";
+                                return {
+                                    name: nameValue,
+                                    email: emailValue || nameValue,
+                                    team: m.Team || "",
+                                    reports: m.Reports?.results ? m.Reports.results.map((r) => r.Title) : []
+                                };
+                            }).filter((m) => m.name);
+                            if (mappedManagers.length) setManagers(mappedManagers);
+                        } catch (e) {
+                            console.warn("Could not load Managers list; using defaults", e);
+                        }
                     }
 
                     setLoading(false);
