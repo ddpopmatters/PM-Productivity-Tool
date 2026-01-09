@@ -10070,20 +10070,28 @@
 
                     // === PROJECTS ===
                     if (reportData.sections.projects && reportData.projects && reportData.projects.length > 0) {
-                        checkPageBreak(40);
+                        const displayMode = reportData.projectsDisplayMode || 'cards';
+                        const innerCardHeight = 32;
+                        const innerCardWidth = (contentWidth - (cardPadding * 2) - 6) / 2;
+                        const projectRows = Math.ceil(reportData.projects.length / 2);
+                        const projectsCardHeight = 28 + (projectRows * (innerCardHeight + 4)) + 10;
 
-                        // Section header
+                        checkPageBreak(Math.min(projectsCardHeight, 120) + 5);
+
+                        // Draw outer white card
+                        drawCard(margin, yPos, contentWidth, Math.min(projectsCardHeight, pageHeight - yPos - margin - 10));
+                        const outerCardStartY = yPos;
+
+                        // Section header inside card
                         pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Projects', margin, yPos + 5);
+                        pdf.text('Projects', margin + cardPadding, yPos + 10);
                         pdf.setFont('helvetica', 'normal');
                         pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text(`${reportData.projects.length} project(s) due within selected period`, margin, yPos + 11);
-                        yPos += 16;
-
-                        const displayMode = reportData.projectsDisplayMode || 'cards';
+                        pdf.text(`${reportData.projects.length} project(s) due within selected period`, margin + cardPadding, yPos + 16);
+                        yPos += 24;
 
                         // Status color helper matching app colors
                         const getStatusColor = (status) => {
@@ -10097,33 +10105,40 @@
                             if (displayMode === 'both') {
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(...grayText);
-                                pdf.text('Summary View', margin, yPos);
+                                pdf.text('Summary View', margin + cardPadding, yPos);
                                 yPos += 6;
                             }
 
-                            const cardWidth = (contentWidth - 6) / 2; // 2 columns for better readability
-                            const cardHeight = 28;
                             let col = 0;
                             let rowStartY = yPos;
 
                             reportData.projects.forEach((project, idx) => {
-                                if (rowStartY + cardHeight > pageHeight - margin) {
+                                // Check if we need a new page
+                                if (rowStartY + innerCardHeight > pageHeight - margin) {
                                     pdf.addPage();
-                                    yPos = margin;
-                                    rowStartY = margin;
+                                    drawPageBackground();
+                                    // Draw continuation card on new page
+                                    drawCard(margin, margin, contentWidth, pageHeight - margin * 2 - 10);
+                                    yPos = margin + cardPadding;
+                                    rowStartY = yPos;
                                     col = 0;
                                 }
 
-                                const x = margin + (col * (cardWidth + 3));
+                                const x = margin + cardPadding + (col * (innerCardWidth + 4));
                                 const statusColors = getStatusColor(project.workflowStatus);
 
-                                // Card background (matching app's bg-graystone-50)
-                                drawRoundedRect(x, rowStartY, cardWidth, cardHeight, 2, lightBg, [220, 220, 220]);
+                                // Inner project card with subtle shadow
+                                pdf.setFillColor(230, 235, 240);
+                                pdf.roundedRect(x + 0.5, rowStartY + 0.8, innerCardWidth, innerCardHeight, 2, 2, 'F');
+                                pdf.setFillColor(...lightBg);
+                                pdf.setDrawColor(200, 210, 220);
+                                pdf.roundedRect(x, rowStartY, innerCardWidth, innerCardHeight, 2, 2, 'FD');
 
                                 // Title
-                                pdf.setFontSize(10);
+                                pdf.setFont('helvetica', 'bold');
+                                pdf.setFontSize(9);
                                 pdf.setTextColor(...oceanDark);
-                                const maxTitleWidth = cardWidth - 40;
+                                const maxTitleWidth = innerCardWidth - 35;
                                 let title = project.title;
                                 while (pdf.getTextWidth(title) > maxTitleWidth && title.length > 10) {
                                     title = title.substring(0, title.length - 4) + '...';
@@ -10131,12 +10146,13 @@
                                 pdf.text(title, x + 4, rowStartY + 7);
 
                                 // Status badge (pill style in top-right)
+                                pdf.setFont('helvetica', 'normal');
                                 const statusText = project.workflowStatus;
                                 const statusWidth = pdf.getTextWidth(statusText) + 6;
-                                drawRoundedRect(x + cardWidth - statusWidth - 4, rowStartY + 3, statusWidth, 6, 1.5, statusColors.bg);
+                                drawRoundedRect(x + innerCardWidth - statusWidth - 4, rowStartY + 3, statusWidth, 6, 1.5, statusColors.bg);
                                 pdf.setFontSize(6);
                                 pdf.setTextColor(...statusColors.text);
-                                pdf.text(statusText, x + cardWidth - statusWidth - 1, rowStartY + 7);
+                                pdf.text(statusText, x + innerCardWidth - statusWidth - 1, rowStartY + 7);
 
                                 // Owner and due date row
                                 pdf.setFontSize(8);
@@ -10148,7 +10164,7 @@
                                     const dueDate = new Date(project.date);
                                     const isOverdue = dueDate < new Date() && project.workflowStatus !== 'Done';
                                     pdf.setTextColor(isOverdue ? 239 : grayText[0], isOverdue ? 68 : grayText[1], isOverdue ? 68 : grayText[2]);
-                                    pdf.text(`Due: ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, x + 4, rowStartY + 20);
+                                    pdf.text(`Due: ${dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, x + 4, rowStartY + 21);
                                 }
 
                                 // Subtask indicator
@@ -10156,14 +10172,14 @@
                                     const completed = project.subtasks.filter(s => s.completed).length;
                                     pdf.setFontSize(7);
                                     pdf.setTextColor(...oceanMid);
-                                    pdf.text(`${completed}/${project.subtasks.length} subtasks`, x + cardWidth - 30, rowStartY + 24);
+                                    pdf.text(`${completed}/${project.subtasks.length} subtasks`, x + 4, rowStartY + 28);
                                 }
 
                                 col = (col + 1) % 2;
-                                if (col === 0) rowStartY += cardHeight + 3;
+                                if (col === 0) rowStartY += innerCardHeight + 4;
                             });
 
-                            yPos = rowStartY + (col > 0 ? cardHeight + 3 : 0) + 5;
+                            yPos = rowStartY + (col > 0 ? innerCardHeight + 4 : 0) + 10;
                         }
 
                         // Detailed List
