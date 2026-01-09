@@ -3138,11 +3138,8 @@
                 if (!mgr) return [];
                 const reports = Array.isArray(mgr.reports) ? mgr.reports : [];
                 const reportSet = new Set(reports.length ? reports : []);
-                return entries.filter((entry) => {
-                    const ownerMatch = reportSet.has(entry.owner);
-                    const collabMatch = Array.isArray(entry.collaborators) && entry.collaborators.some((c) => reportSet.has(c));
-                    return ownerMatch || collabMatch;
-                });
+                // Only include entries owned by direct reports (not just collaborators)
+                return entries.filter((entry) => reportSet.has(entry.owner));
             };
 
             const computeBottleneck = (items) => {
@@ -3213,9 +3210,11 @@
             // The correct logic is already handled by the useEffect above that watches myManagerRecord.
             // Removed to prevent overriding the correct manager selection.
 
-            const collectMemberItems = (memberName) => {
-                const ownedProjects = entries.filter((e) => e.owner === memberName);
-                const memberSubtasks = entries.flatMap((entry) =>
+            const collectMemberItems = (memberName, scopedEntries = null) => {
+                // Use scoped entries if provided, otherwise fall back to all entries
+                const sourceEntries = scopedEntries || entries;
+                const ownedProjects = sourceEntries.filter((e) => e.owner === memberName);
+                const memberSubtasks = sourceEntries.flatMap((entry) =>
                     Array.isArray(entry.subtasks)
                         ? entry.subtasks
                               .filter((st) => st.assignedTo === memberName)
