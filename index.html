@@ -10266,26 +10266,31 @@
 
                     // === KEY HIGHLIGHTS ===
                     if (reportData.sections.keyHighlights) {
-                        checkPageBreak(30);
+                        const highlightsCount = reportData.autoHighlights?.length || 0;
+                        const narrativeLines = reportData.narratives.keyHighlights ? Math.ceil(reportData.narratives.keyHighlights.length / 80) : 0;
+                        const highlightsCardHeight = 28 + (highlightsCount * 6) + (narrativeLines * 5) + 10;
+                        checkPageBreak(highlightsCardHeight + 5);
 
-                        // Section header
+                        // Draw card
+                        drawCard(margin, yPos, contentWidth, highlightsCardHeight);
+
+                        // Section header inside card
                         pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Key Highlights', margin, yPos + 5);
+                        pdf.text('Key Highlights', margin + cardPadding, yPos + 10);
                         pdf.setFont('helvetica', 'normal');
                         pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Achievements and wins this period', margin, yPos + 11);
-                        yPos += 16;
+                        pdf.text('Achievements and wins this period', margin + cardPadding, yPos + 16);
+                        yPos += 22;
 
                         // Auto-detected
                         if (reportData.autoHighlights && reportData.autoHighlights.length > 0) {
                             reportData.autoHighlights.forEach(h => {
-                                checkPageBreak(6);
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(...greenColor);
-                                pdf.text(`+ ${h}`, margin, yPos);
+                                pdf.text(`+ ${h}`, margin + cardPadding, yPos);
                                 yPos += 5;
                             });
                             yPos += 3;
@@ -10296,10 +10301,9 @@
                             yPos += 2;
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.keyHighlights, contentWidth);
+                            const lines = pdf.splitTextToSize(reportData.narratives.keyHighlights, contentWidth - (cardPadding * 2));
                             lines.forEach(line => {
-                                checkPageBreak(5);
-                                pdf.text(line, margin, yPos);
+                                pdf.text(line, margin + cardPadding, yPos);
                                 yPos += 4;
                             });
                         }
@@ -10308,26 +10312,31 @@
 
                     // === BLOCKERS & RISKS ===
                     if (reportData.sections.blockersRisks) {
-                        checkPageBreak(30);
+                        const blockersCount = reportData.autoBlockers?.length || 0;
+                        const blockerNarrativeLines = reportData.narratives.blockersRisks ? Math.ceil(reportData.narratives.blockersRisks.length / 80) : 0;
+                        const blockersCardHeight = 28 + (blockersCount * 6) + (blockerNarrativeLines * 5) + 10;
+                        checkPageBreak(blockersCardHeight + 5);
 
-                        // Section header
+                        // Draw card
+                        drawCard(margin, yPos, contentWidth, blockersCardHeight);
+
+                        // Section header inside card
                         pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(14);
                         pdf.setTextColor(...oceanDark);
-                        pdf.text('Blockers & Risks', margin, yPos + 5);
+                        pdf.text('Blockers & Risks', margin + cardPadding, yPos + 10);
                         pdf.setFont('helvetica', 'normal');
                         pdf.setFontSize(9);
                         pdf.setTextColor(...grayText);
-                        pdf.text('Issues needing attention', margin, yPos + 11);
-                        yPos += 16;
+                        pdf.text('Issues needing attention', margin + cardPadding, yPos + 16);
+                        yPos += 22;
 
                         // Auto-detected
                         if (reportData.autoBlockers && reportData.autoBlockers.length > 0) {
                             reportData.autoBlockers.forEach(b => {
-                                checkPageBreak(6);
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(...amberColor);
-                                pdf.text(`! ${b}`, margin, yPos);
+                                pdf.text(`! ${b}`, margin + cardPadding, yPos);
                                 yPos += 5;
                             });
                             yPos += 3;
@@ -10338,10 +10347,9 @@
                             yPos += 2;
                             pdf.setFontSize(9);
                             pdf.setTextColor(...grayText);
-                            const lines = pdf.splitTextToSize(reportData.narratives.blockersRisks, contentWidth);
+                            const lines = pdf.splitTextToSize(reportData.narratives.blockersRisks, contentWidth - (cardPadding * 2));
                             lines.forEach(line => {
-                                checkPageBreak(5);
-                                pdf.text(line, margin, yPos);
+                                pdf.text(line, margin + cardPadding, yPos);
                                 yPos += 4;
                             });
                         }
@@ -10350,7 +10358,7 @@
 
                     // Footer
                     pdf.setFontSize(7);
-                    pdf.setTextColor(...grayText);
+                    pdf.setTextColor(255, 255, 255); // White text on blue background
                     pdf.text(`Generated on ${new Date().toLocaleDateString('en-GB')}`, margin, pageHeight - 10);
 
                     // Save
