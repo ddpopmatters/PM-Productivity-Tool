@@ -9396,6 +9396,14 @@
                     const grayText = [109, 109, 109];     // graystone-600
                     const lightBg = [247, 247, 247];      // graystone-50
                     const cardBorder = [220, 220, 220];   // graystone-200
+                    const pageBgColor = [207, 235, 248];   // #CFEBF8 light blue background
+                    const cardPadding = 8;
+
+                    // Helper: Draw page background
+                    const drawPageBackground = () => {
+                        pdf.setFillColor(...pageBgColor);
+                        pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+                    };
 
                     // Helper: Draw rounded rectangle
                     const drawRoundedRect = (x, y, w, h, r, fillColor, strokeColor = null) => {
@@ -9403,6 +9411,19 @@
                         if (strokeColor) pdf.setDrawColor(...strokeColor);
                         pdf.roundedRect(x, y, w, h, r, r, strokeColor ? 'FD' : 'F');
                     };
+
+                    // Helper: Draw white card with shadow
+                    const drawCard = (x, y, w, h, r = 4) => {
+                        // Shadow
+                        pdf.setFillColor(180, 210, 225);
+                        pdf.roundedRect(x + 1.5, y + 2, w, h, r, r, 'F');
+                        // White card
+                        pdf.setFillColor(255, 255, 255);
+                        pdf.roundedRect(x, y, w, h, r, r, 'F');
+                    };
+
+                    // Draw initial page background
+                    drawPageBackground();
 
                     // Helper: Draw status badge
                     const drawStatusBadge = (status, x, y) => {
@@ -9497,7 +9518,7 @@
 
                         stats.forEach((stat, i) => {
                             const x = margin + (i * (statBoxWidth + 3));
-                            drawRoundedRect(x, yPos, statBoxWidth, 16, 2, [255, 255, 255], cardBorder);
+                            drawCard(x, yPos, statBoxWidth, 16, 2);
                             pdf.setFontSize(18);
                             pdf.setTextColor(...stat.color);
                             pdf.text(String(stat.value), x + 5, yPos + 10);
@@ -9532,6 +9553,7 @@
                                 // Check for new page
                                 if (rowStartY + cardHeight + 2 > pageHeight - margin) {
                                     pdf.addPage();
+                                    drawPageBackground();
                                     yPos = margin;
                                     rowStartY = margin;
                                     col = 0;
@@ -9543,12 +9565,8 @@
                                 // Get status colors
                                 const statusColors = STATUS_COLORS[entry.workflowStatus] || STATUS_COLORS['Draft'];
 
-                                // === SHADOW ===
-                                pdf.setFillColor(220, 220, 220); // graystone-200
-                                pdf.roundedRect(x + 1, y + 1, cardWidth, cardHeight, 3, 3, 'F');
-
-                                // === CARD BACKGROUND ===
-                                drawRoundedRect(x, y, cardWidth, cardHeight, 3, [255, 255, 255], cardBorder);
+                                // === CARD WITH SHADOW (using drawCard helper) ===
+                                drawCard(x, y, cardWidth, cardHeight, 3);
 
                                 // === TITLE ===
                                 pdf.setFontSize(12);
@@ -9661,6 +9679,7 @@
                             filteredEntries.forEach((entry, idx) => {
                                 if (yPos + rowHeight > pageHeight - margin) {
                                     pdf.addPage();
+                                    drawPageBackground();
                                     yPos = margin;
                                 }
 
@@ -9727,6 +9746,7 @@
 
                                 if (yPos + itemHeight > pageHeight - margin) {
                                     pdf.addPage();
+                                    drawPageBackground();
                                     yPos = margin;
                                 }
 
@@ -9755,6 +9775,7 @@
                                 // Description (detailed)
                                 if (options.viewMode === 'detailed' && entry.caption) {
                                     pdf.setFontSize(7);
+                                    pdf.setTextColor(...grayText);
                                     const desc = entry.caption.length > 120 ? entry.caption.substring(0, 120) + '...' : entry.caption;
                                     pdf.text(desc, margin, yPos + innerY);
                                     innerY += 5;
@@ -9766,6 +9787,7 @@
                                     const percent = (completed / entry.subtasks.length) * 100;
                                     drawProgressBar(percent, margin, yPos + innerY, 50);
                                     pdf.setFontSize(6);
+                                    pdf.setTextColor(...grayText);
                                     pdf.text(`${completed}/${entry.subtasks.length} subtasks`, margin + 65, yPos + innerY + 2.5);
                                     innerY += 6;
                                 }
@@ -9847,7 +9869,7 @@
                     const shadowColor = [0, 0, 0];
 
                     // Colors (app styling)
-                    const pageBgColor = [14, 116, 144];   // ocean-600 background
+                    const pageBgColor = [207, 235, 248];   // #CFEBF8 light blue background
                     const cardPadding = 8;
 
                     // Helper: Draw page background with blue color
@@ -9866,7 +9888,7 @@
                     // Helper: Draw white card with shadow
                     const drawCard = (x, y, w, h, r = 4) => {
                         // Shadow
-                        pdf.setFillColor(0, 70, 90);
+                        pdf.setFillColor(180, 210, 225);
                         pdf.roundedRect(x + 1.5, y + 2, w, h, r, r, 'F');
                         // White card
                         pdf.setFillColor(255, 255, 255);
@@ -10374,7 +10396,7 @@
 
                     // Footer
                     pdf.setFontSize(7);
-                    pdf.setTextColor(255, 255, 255); // White text on blue background
+                    pdf.setTextColor(...grayText);
                     pdf.text(`Generated on ${new Date().toLocaleDateString('en-GB')}`, margin, pageHeight - 10);
 
                     // Save
