@@ -2,9 +2,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 // Use Resend for email sending - set RESEND_API_KEY in Supabase secrets
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'notifications@yourdomain.com'
+const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'noreply@populationmatters.org'
 const APP_NAME = Deno.env.get('APP_NAME') || 'PM Productivity Tool'
-const APP_URL = Deno.env.get('APP_URL') || 'https://your-app-url.com'
+const APP_URL = Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

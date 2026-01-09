@@ -453,14 +453,8 @@
         window.supabaseReady = new Promise((resolve) => {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-            script.onload = () => {
-                console.log('Supabase SDK loaded, createClient available:', typeof window.supabase?.createClient);
-                resolve(window.supabase);
-            };
-            script.onerror = () => {
-                console.error('Failed to load Supabase SDK');
-                resolve(null);
-            };
+            script.onload = () => resolve(window.supabase);
+            script.onerror = () => resolve(null);
             document.head.appendChild(script);
         });
     </script>
@@ -468,25 +462,70 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // ============================================
-        // AUTHENTICATION CONFIGURATION
-        // ============================================
-        const AUTH_CONFIG = {
-            // Clerk publishable key from https://dashboard.clerk.com
+        // ============================================================
+        // PRODUCTION CONFIGURATION - Update these values for deployment
+        // ============================================================
+        const APP_CONFIG = {
+            // Authentication (Clerk) - Get key from https://dashboard.clerk.com
             CLERK_PUBLISHABLE_KEY: "pk_test_cmVmaW5lZC13YWhvby00NC5jbGVyay5hY2NvdW50cy5kZXYk",
-            // Set to true to enable authentication (set false for development)
             AUTH_ENABLED: true,
-        };
 
-        // ============================================
-        // SUPABASE CONFIGURATION
-        // ============================================
-        const SUPABASE_CONFIG = {
-            // Get these from your Supabase project: Settings → API
+            // Database (Supabase) - Get from Supabase project: Settings → API
             SUPABASE_URL: "https://jzalaltexmotkusvqoew.supabase.co",
             SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6YWxhbHRleG1vdGt1c3Zxb2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NDAxMDUsImV4cCI6MjA4MzQxNjEwNX0.hr4GB0m7GU2mWS_MBu_8JykWtmRGY_aI6cPe8jjhTx0",
-            ENABLED: true,
+            SUPABASE_ENABLED: true,
+
+            // Branding
+            ORG_NAME: "Population Matters",
+            ORG_DOMAIN: "populationmatters.org",
+            LOGO_URL: "https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png",
+
+            // Environment
+            IS_PRODUCTION: true,
+            DEBUG_MODE: false
         };
+        // ============================================================
+
+        // Legacy config references for backwards compatibility
+        const AUTH_CONFIG = {
+            CLERK_PUBLISHABLE_KEY: APP_CONFIG.CLERK_PUBLISHABLE_KEY,
+            AUTH_ENABLED: APP_CONFIG.AUTH_ENABLED,
+        };
+        const SUPABASE_CONFIG = {
+            SUPABASE_URL: APP_CONFIG.SUPABASE_URL,
+            SUPABASE_ANON_KEY: APP_CONFIG.SUPABASE_ANON_KEY,
+            ENABLED: APP_CONFIG.SUPABASE_ENABLED,
+        };
+
+        // ============================================================
+        // LOGGER UTILITY - Production-safe logging
+        // ============================================================
+        const Logger = {
+            debug: (...args) => {
+                if (APP_CONFIG.DEBUG_MODE) console.log('[DEBUG]', ...args);
+            },
+            warn: (...args) => {
+                if (APP_CONFIG.DEBUG_MODE) console.warn('[WARN]', ...args);
+            },
+            error: (error, context = '') => {
+                if (APP_CONFIG.DEBUG_MODE) {
+                    console.error('[ERROR]', context, error);
+                }
+                // Future: send to error monitoring service (Sentry, etc.)
+            }
+        };
+
+        // ============================================================
+        // GLOBAL ERROR HANDLERS
+        // ============================================================
+        window.onerror = (message, source, lineno, colno, error) => {
+            Logger.error(error, `Uncaught: ${source}:${lineno}`);
+            return false;
+        };
+
+        window.addEventListener('unhandledrejection', (event) => {
+            Logger.error(event.reason, 'Unhandled Promise Rejection');
+        });
 
         // Initialize Supabase client
         let supabase = null;
@@ -501,7 +540,7 @@
 
             // Wait for the SDK to load via our dynamic loader
             supabaseLib = await window.supabaseReady;
-            console.log("Supabase SDK ready:", typeof supabaseLib?.createClient);
+            Logger.debug("Supabase SDK ready:", typeof supabaseLib?.createClient);
             return supabaseLib;
         };
 
@@ -524,9 +563,9 @@
                         // Get JWT from Clerk using the 'supabase' template
                         // You must create this template in Clerk Dashboard → JWT Templates
                         supabaseToken = await clerkSession.getToken({ template: 'supabase' });
-                        console.log("Got Clerk token for Supabase:", supabaseToken ? "✓" : "✗");
+                        Logger.debug("Got Clerk token for Supabase:", supabaseToken ? "yes" : "no");
                     } catch (e) {
-                        console.warn("Could not get Clerk token for Supabase:", e.message);
+                        Logger.warn("Could not get Clerk token for Supabase:", e.message);
                     }
                 }
 
@@ -544,10 +583,10 @@
                     SUPABASE_CONFIG.SUPABASE_ANON_KEY,
                     options
                 );
-                console.log("Supabase initialized", supabaseToken ? "with Clerk auth" : "without auth");
+                Logger.debug("Supabase initialized", supabaseToken ? "with Clerk auth" : "without auth");
                 return true;
             } catch (e) {
-                console.error("Supabase createClient error:", e);
+                Logger.error(e, "Supabase createClient error");
                 return false;
             }
         };
@@ -558,34 +597,27 @@
         setTimeout(initSupabaseSDK, 0);
 
         // ============================================
-        // USER ROLES & PRE-SEEDED PROFILES
+        // USER PROFILES (loaded from Supabase)
         // ============================================
-        // Seed data for initial setup - actual roles are stored in Supabase user_profiles table
-        const SEED_PROFILES = [
-            { email: "daniel.davis@populationmatters.org", name: "Dan Davis", team: "Advocacy & Influence", role: "admin" },
-            { email: "jameen.kaur@populationmatters.org", name: "Jameen Kaur", team: "Advocacy & Influence", role: "manager" },
-            { email: "emma.lewendon-strutt@populationmatters.org", name: "Emma Lewendon-Strutt", team: "Research", role: "member" },
-            { email: "josh.hill@populationmatters.org", name: "Josh Hill", team: "Research", role: "member" },
-            { email: "francesca.harrison@populationmatters.org", name: "Francesca Harrison", team: "Advocacy & Influence", role: "member" },
-            { email: "madeleine.hewitt@populationmatters.org", name: "Madeleine Hewitt", team: "Advocacy & Influence", role: "member" },
-            { email: "shweta.shirodkar@populationmatters.org", name: "Shweta Shirodkar", team: "Advocacy & Influence", role: "member" }
-        ];
+        // Note: All user profiles are now managed in Supabase user_profiles table
+        // SEED_PROFILES kept empty for backwards compatibility with fallback logic
+        const SEED_PROFILES = [];
 
         // Global cache for user profiles loaded from Supabase
         // This gets populated at app startup and updated when roles change
         let userProfilesCache = [];
 
-        // Legacy USERS_CONFIG for backwards compatibility during migration
+        // Legacy USERS_CONFIG for backwards compatibility (empty - data from Supabase)
         const USERS_CONFIG = {
-            admins: ["daniel.davis@populationmatters.org"],
-            managers: ["daniel.davis@populationmatters.org", "jameen.kaur@populationmatters.org"],
-            profiles: [...SEED_PROFILES]
+            admins: [],
+            managers: [],
+            profiles: []
         };
 
         // Load user profiles cache from Supabase
         const loadUserProfilesCache = async () => {
             if (!supabase) {
-                console.log("Supabase not available, using seed profiles");
+                Logger.debug("Supabase not available, using seed profiles");
                 userProfilesCache = [...SEED_PROFILES];
                 return;
             }
@@ -593,13 +625,13 @@
                 const profiles = await SUPABASE_API.fetchUserProfiles();
                 if (profiles.length > 0) {
                     userProfilesCache = profiles;
-                    console.log(`Loaded ${profiles.length} user profiles from Supabase`);
+                    Logger.debug(`Loaded ${profiles.length} user profiles from Supabase`);
                 } else {
                     // No profiles in DB yet, use seed data
                     userProfilesCache = [...SEED_PROFILES];
                 }
             } catch (e) {
-                console.error("Failed to load profiles cache:", e);
+                Logger.error(e, "Failed to load profiles cache");
                 userProfilesCache = [...SEED_PROFILES];
             }
         };
@@ -677,7 +709,7 @@
                     .eq('email', normalized);
 
                 if (error) {
-                    console.error('Failed to update role in Supabase:', error);
+                    Logger.error(error, 'Failed to update role in Supabase');
                     return false;
                 }
             }
@@ -746,7 +778,7 @@
             const element = document.getElementById(elementId);
 
             if (!element) {
-                console.error('Export element not found:', elementId);
+                Logger.error(elementId, 'Export element not found');
                 return false;
             }
 
@@ -849,7 +881,7 @@
                 return true;
 
             } catch (error) {
-                console.error('PDF export error:', error);
+                Logger.error(error, 'PDF export error');
                 const overlay = document.getElementById('pdf-export-loading');
                 if (overlay) document.body.removeChild(overlay);
                 return false;
@@ -930,7 +962,7 @@
                     .select('*')
                     .order('created_at', { ascending: false });
                 if (error) {
-                    console.error('Supabase fetch error:', error);
+                    Logger.error(error, 'Supabase fetch error');
                     return [];
                 }
                 return data || [];
@@ -963,7 +995,7 @@
                     .select()
                     .single();
                 if (error) {
-                    console.error('Supabase save error:', error);
+                    Logger.error(error, 'Supabase save error');
                     return null;
                 }
                 return data;
@@ -1000,7 +1032,7 @@
                     .select()
                     .single();
                 if (error) {
-                    console.error('Supabase update error:', error);
+                    Logger.error(error, 'Supabase update error');
                     return null;
                 }
                 return data;
@@ -1014,7 +1046,7 @@
                     .delete()
                     .eq('id', id);
                 if (error) {
-                    console.error('Supabase delete error:', error);
+                    Logger.error(error, 'Supabase delete error');
                     return false;
                 }
                 return true;
@@ -1027,7 +1059,7 @@
                     .from('managers')
                     .select('*');
                 if (error) {
-                    console.error('Supabase managers fetch error:', error);
+                    Logger.error(error, 'Supabase managers fetch error');
                     return [];
                 }
                 return data || [];
@@ -1041,7 +1073,7 @@
                     .on('postgres_changes',
                         { event: '*', schema: 'public', table: 'workflow_items' },
                         (payload) => {
-                            console.log('Real-time update:', payload);
+                            Logger.debug('Real-time update:', payload);
                             callback(payload);
                         }
                     )
@@ -1078,7 +1110,7 @@
                     .select('*')
                     .order('claimed_at', { ascending: false });
                 if (error) {
-                    console.error('Supabase user profiles fetch error:', error);
+                    Logger.error(error, 'Supabase user profiles fetch error');
                     return [];
                 }
                 return data || [];
@@ -1114,7 +1146,7 @@
                     .single();
 
                 if (error) {
-                    console.error('Supabase claim profile error:', error);
+                    Logger.error(error, 'Supabase claim profile error');
                     return null;
                 }
                 return data;
@@ -1150,7 +1182,7 @@
                     .single();
 
                 if (error) {
-                    console.error('Activity log error:', error);
+                    Logger.error(error, 'Activity log error');
                     return null;
                 }
                 return data;
@@ -1166,7 +1198,7 @@
                     .limit(limit);
 
                 if (error) {
-                    console.error('Fetch activity error:', error);
+                    Logger.error(error, 'Fetch activity error');
                     return [];
                 }
                 return data || [];
@@ -1183,7 +1215,7 @@
                     .limit(limit);
 
                 if (error) {
-                    console.error('Fetch item activity error:', error);
+                    Logger.error(error, 'Fetch item activity error');
                     return [];
                 }
                 return data || [];
@@ -1204,7 +1236,7 @@
                     .limit(limit);
 
                 if (error) {
-                    console.error('Fetch notifications error:', error);
+                    Logger.error(error, 'Fetch notifications error');
                     return [];
                 }
                 return data || [];
@@ -1225,7 +1257,7 @@
                     });
 
                 if (error) {
-                    console.error('File upload error:', error);
+                    Logger.error(error, 'File upload error');
                     return null;
                 }
 
@@ -1253,7 +1285,7 @@
                     .remove([filePath]);
 
                 if (error) {
-                    console.error('File delete error:', error);
+                    Logger.error(error, 'File delete error');
                     return false;
                 }
                 return true;
@@ -1267,7 +1299,7 @@
             const actorName = window.__currentUserName || '';
 
             if (!actorEmail) {
-                console.warn('Cannot log activity: no user email');
+                Logger.warn('Cannot log activity: no user email');
                 return;
             }
 
@@ -1313,7 +1345,7 @@
                     }
                 );
             } catch (error) {
-                console.warn('Failed to send notification email:', error);
+                Logger.warn('Failed to send notification email:', error);
             }
         };
 
@@ -1328,7 +1360,7 @@
 
             // Check if we're running on file:// protocol (local testing)
             if (window.location.protocol === 'file:') {
-                console.warn("Clerk auth disabled: Running on file:// protocol. Deploy to a web server for authentication.");
+                Logger.warn("Clerk auth disabled: Running on file:// protocol. Deploy to a web server for authentication.");
                 return null;
             }
 
@@ -1343,7 +1375,7 @@
                 }
 
                 if (!window.Clerk) {
-                    console.warn("Clerk SDK not loaded. Authentication will be disabled.");
+                    Logger.warn("Clerk SDK not loaded. Authentication will be disabled.");
                     return null;
                 }
 
@@ -1363,10 +1395,10 @@
                     return clerkInstance;
                 }
 
-                console.warn("Clerk SDK format not recognized.");
+                Logger.warn("Clerk SDK format not recognized.");
                 return null;
             } catch (e) {
-                console.error("Failed to initialize Clerk:", e);
+                Logger.error(e, "Failed to initialize Clerk");
                 return null;
             }
         };
@@ -1424,7 +1456,7 @@
                         setSuccess('Enter the verification code sent to your email.');
                     }
                 } catch (err) {
-                    console.error('Sign in error:', err);
+                    Logger.error(err, 'Sign in error');
                     setError(err.errors?.[0]?.message || err.message || 'Sign in failed. Please try again.');
                 } finally {
                     setLoading(false);
@@ -1502,7 +1534,7 @@
                         setSuccess('Verification code sent! Check your email.');
                     }
                 } catch (err) {
-                    console.error('Sign up error:', err);
+                    Logger.error(err, 'Sign up error');
                     setError(err.errors?.[0]?.message || 'Sign up failed. Please try again.');
                 } finally {
                     setLoading(false);
@@ -1927,7 +1959,7 @@
                     setInviteEmail('');
                     forceUpdate(n => n + 1);
                 } catch (error) {
-                    console.error('Invite error:', error);
+                    Logger.error(error, 'Invite error');
                     setMessage({ type: 'error', text: error.message || 'Failed to send invitation' });
                 } finally {
                     setSending(false);
@@ -1981,7 +2013,7 @@
 
                     setMessage({ type: 'success', text: `Invitation sent to ${name} (${email})!` });
                 } catch (error) {
-                    console.error('Invite error:', error);
+                    Logger.error(error, 'Invite error');
                     setMessage({ type: 'error', text: error.message || 'Failed to send invitation' });
                 } finally {
                     setSendingEmail(null);
@@ -2145,7 +2177,7 @@
                                                 type="email"
                                                 value={inviteEmail}
                                                 onChange={(e) => setInviteEmail(e.target.value)}
-                                                placeholder="colleague@populationmatters.org"
+                                                placeholder={`colleague@${APP_CONFIG.ORG_DOMAIN}`}
                                                 className="flex-1 px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
                                                 required
                                             />
@@ -2207,7 +2239,7 @@
                                                 type="email"
                                                 value={newAdminEmail}
                                                 onChange={(e) => setNewAdminEmail(e.target.value)}
-                                                placeholder="new-admin@populationmatters.org"
+                                                placeholder={`new-admin@${APP_CONFIG.ORG_DOMAIN}`}
                                                 className="flex-1 px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
                                                 required
                                             />
@@ -2267,7 +2299,7 @@
                                                 type="email"
                                                 value={newManagerEmail}
                                                 onChange={(e) => setNewManagerEmail(e.target.value)}
-                                                placeholder="manager@populationmatters.org"
+                                                placeholder={`manager@${APP_CONFIG.ORG_DOMAIN}`}
                                                 className="flex-1 px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
                                                 required
                                             />
@@ -2393,7 +2425,7 @@
                                                             type="email"
                                                             value={newProfile.email}
                                                             onChange={(e) => setNewProfile({ ...newProfile, email: e.target.value })}
-                                                            placeholder="user@populationmatters.org"
+                                                            placeholder={`user@${APP_CONFIG.ORG_DOMAIN}`}
                                                             className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
                                                             required
                                                         />
@@ -2679,7 +2711,7 @@
 
             componentDidCatch(error, errorInfo) {
                 this.setState({ error, errorInfo });
-                console.error('ErrorBoundary caught an error:', error, errorInfo);
+                Logger.error(error, 'ErrorBoundary caught an error');
             }
 
             render() {
@@ -2710,7 +2742,7 @@
                                         Try Again
                                     </button>
                                 </div>
-                                {this.state.error && (
+                                {APP_CONFIG.DEBUG_MODE && this.state.error && (
                                     <details className="mt-6 text-left">
                                         <summary className="text-sm text-graystone-500 cursor-pointer hover:text-graystone-700">
                                             Technical details
@@ -3285,7 +3317,7 @@
                                 Please contact an administrator to set up your manager profile with reports.
                             </p>
                             <p className="text-xs text-amber-600">
-                                Expected email format: firstname.lastname@populationmatters.org
+                                Expected email format: firstname.lastname@{APP_CONFIG.ORG_DOMAIN}
                             </p>
                         </div>
                     </div>
@@ -5264,8 +5296,8 @@
                     {/* Logo/Header */}
                     <div className="p-6 border-b border-ocean-100">
                         <img
-                            src="https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png"
-                            alt="Population Matters"
+                            src={APP_CONFIG.LOGO_URL}
+                            alt={APP_CONFIG.ORG_NAME}
                             className="h-10 mb-4"
                         />
                         <h1 className="text-2xl text-ocean-900">{(currentUser || 'User').split(' ')[0]}'s Project Hub</h1>
@@ -5993,7 +6025,7 @@
                                 failedFiles.push(file.name);
                             }
                         } catch (fileErr) {
-                            console.error(`Failed to upload ${file.name}:`, fileErr);
+                            Logger.error(fileErr, `Failed to upload ${file.name}`);
                             failedFiles.push(file.name);
                         }
                     }
@@ -6008,7 +6040,7 @@
                         alert(`Failed to upload ${failedFiles.length} file(s):\n${failedFiles.join('\n')}`);
                     }
                 } catch (err) {
-                    console.error('Upload error:', err);
+                    Logger.error(err, 'Upload error');
                     alert('An error occurred while uploading files. Please try again.');
                 } finally {
                     setUploadingFile(false);
@@ -8778,20 +8810,20 @@
                 if (!AUTH_CONFIG.AUTH_ENABLED) return;
 
                 async function checkAuth() {
-                    // Skip auth on file:// protocol (local testing)
-                    if (window.location.protocol === 'file:') {
-                        console.log("Local testing mode: Skipping authentication");
+                    // Skip auth on file:// protocol (local testing) - only in DEBUG mode
+                    if (APP_CONFIG.DEBUG_MODE && window.location.protocol === 'file:') {
+                        Logger.debug("Local testing mode: Skipping authentication");
                         setAuthChecked(true);
                         setAuthUser({ localTest: true }); // Fake user for local testing
-                        setUserEmail("daniel.davis@populationmatters.org"); // Default test email
-                        setCurrentUser("Dan Davis"); // Default test user
+                        setUserEmail(`test@${APP_CONFIG.ORG_DOMAIN}`); // Test email
+                        setCurrentUser("Test User"); // Test user
                         return;
                     }
 
                     const clerk = await initClerk();
                     if (!clerk) {
                         // Clerk failed to load - show login screen anyway
-                        console.warn("Clerk unavailable - authentication may not work");
+                        Logger.warn("Clerk unavailable - authentication may not work");
                         setAuthChecked(true);
                         return;
                     }
@@ -8805,7 +8837,7 @@
                         const preseededProfile = getPreseededProfile(email);
                         if (preseededProfile) {
                             setCurrentUser(preseededProfile.name);
-                            console.log(`Restored session for ${email} → ${preseededProfile.name}`);
+                            Logger.debug(`Restored session for ${email}`);
                         } else {
                             setCurrentUser(clerk.user.fullName || clerk.user.firstName || "User");
                         }
@@ -8832,7 +8864,7 @@
                         // Use the pre-seeded name and team
                         setCurrentUser(preseededProfile.name);
                         window.__currentUserName = preseededProfile.name;
-                        console.log(`Matched user ${email} to pre-seeded profile: ${preseededProfile.name}`);
+                        Logger.debug(`Matched user ${email} to pre-seeded profile`);
 
                         // Claim the profile in Supabase (marks them as active)
                         await SUPABASE_API.claimUserProfile(
@@ -8842,7 +8874,7 @@
                             preseededProfile.role,
                             clerkUserId
                         );
-                        console.log(`Profile claimed for ${email}`);
+                        Logger.debug(`Profile claimed for ${email}`);
 
                         // Log login activity
                         logActivity('login', 'user_profile', email, preseededProfile.name);
@@ -8876,7 +8908,7 @@
             const handleSignOut = async () => {
                 // In local test mode, just reset to test user
                 if (authUser?.localTest) {
-                    console.log("Local test mode: Sign out simulated");
+                    Logger.debug("Local test mode: Sign out simulated");
                     return;
                 }
 
@@ -8894,7 +8926,7 @@
                 async function init() {
                     // Local testing mode - use mock data
                     if (window.location.protocol === 'file:') {
-                        console.log("Local testing mode: Loading mock data");
+                        Logger.debug("Local testing mode: Loading mock data");
                         setEntries([
                             { id: 1, title: "Website Redesign", caption: "Complete overhaul of main site", workflowStatus: "In Progress", team: "Advocacy & Influence", timelineValue: "2025-Q1", owner: "Dan Davis", collaborators: ["Francesca Harrison"], tags: ["Priority"], subtasks: [{ id: 1, title: "Design mockups", completed: true, assignedTo: "Francesca Harrison" }, { id: 2, title: "Implement homepage", completed: false, assignedTo: "Dan Davis" }] },
                             { id: 2, title: "Annual Report 2024", caption: "Compile and publish annual report", workflowStatus: "Ready for Review", team: "Research", timelineValue: "2025-Q1", owner: "Emma Lewendon-Strutt", collaborators: ["Josh Hill"], tags: ["Report"] },
@@ -8916,21 +8948,21 @@
                         const clerkSession = window.Clerk?.session || null;
                         await initSupabase(clerkSession);
                         if (!supabase) {
-                            console.warn("Supabase SDK failed to load - using demo data");
+                            Logger.warn("Supabase SDK failed to load - using demo data");
                         }
                     }
 
                     if (SUPABASE_CONFIG.ENABLED && supabase) {
-                        console.log("Loading data from Supabase...");
+                        Logger.debug("Loading data from Supabase...");
 
                         // 1. Load workflow items
                         try {
                             const items = await SUPABASE_API.fetchWorkflowItems();
                             const mappedEntries = items.map(SUPABASE_API.mapToAppFormat);
                             setEntries(mappedEntries);
-                            console.log(`Loaded ${mappedEntries.length} items from Supabase`);
+                            Logger.debug(`Loaded ${mappedEntries.length} items from Supabase`);
                         } catch (e) {
-                            console.error("Could not load from Supabase:", e);
+                            Logger.error(e, "Could not load from Supabase");
                         }
 
                         // 2. Load managers (or use defaults)
@@ -8946,7 +8978,7 @@
                                 setManagers(mappedManagers);
                             }
                         } catch (e) {
-                            console.warn("Could not load managers from Supabase; using defaults", e);
+                            Logger.warn("Could not load managers from Supabase; using defaults", e);
                         }
 
                         // 3. Load user profiles cache for role checking
@@ -8967,7 +8999,7 @@
                     // ===== FALLBACK: Use demo data =====
                     // If Supabase was enabled but failed to initialize, use demo data instead of SharePoint
                     if (SUPABASE_CONFIG.ENABLED && !supabase) {
-                        console.log("Supabase failed to initialize - using demo data");
+                        Logger.warn("Supabase failed to initialize - using demo data");
                         setEntries([
                             { id: 1, title: "Website Redesign", caption: "Complete overhaul of main site", workflowStatus: "In Progress", team: "Advocacy & Influence", timelineValue: "2025-Q1", owner: "Dan Davis", collaborators: ["Francesca Harrison"], tags: ["Priority"], subtasks: [{ id: 1, title: "Design mockups", completed: true, assignedTo: "Francesca Harrison" }, { id: 2, title: "Implement homepage", completed: false, assignedTo: "Dan Davis" }] },
                             { id: 2, title: "Annual Report 2024", caption: "Design and publish annual report", workflowStatus: "Ready for Review", team: "Advocacy & Influence", timelineValue: "2025-Q1", owner: "Francesca Harrison", collaborators: ["Madeleine Hewitt"], tags: ["Report"] },
@@ -9005,7 +9037,7 @@
                                 };
                             });
                             setEntries(mappedEntries);
-                        } catch (e) { console.error("Could not load WorkflowItems", e); }
+                        } catch (e) { Logger.error(e, "Could not load WorkflowItems"); }
 
                         // 3. Get Managers list (if available)
                         try {
@@ -9022,7 +9054,7 @@
                             }).filter((m) => m.name);
                             if (mappedManagers.length) setManagers(mappedManagers);
                         } catch (e) {
-                            console.warn("Could not load Managers list; using defaults", e);
+                            Logger.warn("Could not load Managers list; using defaults", e);
                         }
                     }
 
@@ -9130,7 +9162,7 @@
                     };
                     await SP_API.updateItem('WorkflowItems', id, payload);
                 } catch (e) {
-                    console.error("Failed to persist entry:", e);
+                    Logger.error(e, "Failed to persist entry");
                 }
             };
 
@@ -9163,7 +9195,7 @@
                 // Check permission before allowing any updates
                 const existingEntry = entries.find(e => e.id === entryId);
                 if (existingEntry && !canEditItem(existingEntry, userEmail, currentUser)) {
-                    console.warn("Permission denied: Cannot update items you don't own");
+                    Logger.warn("Permission denied: Cannot update items you don't own");
                     setSaveError("You can only edit your own items or items you collaborate on.");
                     setTimeout(() => setSaveError(""), 3000);
                     return;
@@ -9288,8 +9320,8 @@
                 closeSubtaskModal();
             };
 
-            // Logo URL for PDF exports
-            const PM_LOGO_URL = 'https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png';
+            // Logo URL for PDF exports (uses APP_CONFIG)
+            const PM_LOGO_URL = APP_CONFIG.LOGO_URL;
 
             // Helper to load image for PDF
             const loadImageForPdf = (url) => {
@@ -9812,7 +9844,7 @@
                     pdf.save(filename);
 
                 } catch (error) {
-                    console.error('PDF export error:', error);
+                    Logger.error(error, 'PDF export error');
                     setSaveError('Failed to generate PDF. Please try again.');
                 } finally {
                     document.body.removeChild(loadingOverlay);
@@ -10404,9 +10436,8 @@
                     pdf.save(filename);
 
                 } catch (error) {
-                    console.error('Status report PDF export error:', error);
-                    console.error('Error stack:', error.stack);
-                    alert(`PDF Export Error: ${error.message}\n\nCheck browser console for details.`);
+                    Logger.error(error, 'Status report PDF export error');
+                    alert(`PDF Export Error: ${error.message}`);
                 } finally {
                     const overlay = document.getElementById('pdf-export-loading');
                     if (overlay) document.body.removeChild(overlay);
@@ -10508,7 +10539,7 @@
                     await SP_API.saveItem('WorkflowItems', payload);
                     window.location.reload();
                 } catch (error) {
-                    console.error("Failed to save item:", error);
+                    Logger.error(error, "Failed to save item");
                     setSaveError("Failed to save item. Please try again.");
                     setSaving(false);
                 }
@@ -10520,7 +10551,7 @@
                 if (!entry) return;
 
                 if (!canEditItem(entry, userEmail, currentUser)) {
-                    console.warn("Permission denied: Cannot update status of items you don't own");
+                    Logger.warn("Permission denied: Cannot update status of items you don't own");
                     setSaveError("You can only update your own items or items you collaborate on.");
                     setTimeout(() => setSaveError(""), 3000);
                     return;
@@ -10602,7 +10633,7 @@
                             team: entry.team
                         });
                     } catch (error) {
-                        console.error(`Failed to delete item ${entry.id}:`, error);
+                        Logger.error(error, `Failed to delete item ${entry.id}`);
                         failedDeletes.push(entry);
                     }
                 }
