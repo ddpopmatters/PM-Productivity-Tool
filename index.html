@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-
+<!-- Version: 2025-01-09-v2 - Fixed console spam and SharePoint fallback -->
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8056,13 +8056,11 @@
                     }
 
                     // ===== SUPABASE MODE =====
-                    // Wait for Supabase to initialize if needed
+                    // Wait for Supabase to initialize (max 1 second, no console spam)
                     if (SUPABASE_CONFIG.ENABLED && !supabase) {
-                        let attempts = 0;
-                        while (!supabase && attempts < 20) {
+                        for (let i = 0; i < 10 && !supabase; i++) {
                             await new Promise(r => setTimeout(r, 100));
                             initSupabase();
-                            attempts++;
                         }
                     }
 
