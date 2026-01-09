@@ -1,20 +1,63 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Use Resend for email sending - set RESEND_API_KEY in Supabase secrets
+// Environment variables
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'noreply@populationmatters.org'
-const APP_NAME = Deno.env.get('APP_NAME') || 'PM Productivity Tool'
+const APP_NAME = Deno.env.get('APP_NAME') || 'Productivity Tool'
 const APP_URL = Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Restrict CORS to only the app's domain (security fix)
+const ALLOWED_ORIGINS = [
+  'https://ddpopmatters.github.io',
+  APP_URL
+]
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  // Check if origin is allowed
+  const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed =>
+    origin === allowed || origin.startsWith(allowed)
+  ) ? origin : ALLOWED_ORIGINS[0]
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
+
+// HTML escaping function to prevent XSS/injection attacks
+function escapeHtml(text: string | undefined | null): string {
+  if (!text) return ''
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return text.replace(/[&<>"']/g, m => map[m])
+}
+
+// Email format validation
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+// Validate notification type
+const VALID_NOTIFICATION_TYPES = [
+  'mention', 'assignment', 'status_change', 'comment', 'subtask_assigned', 'due_reminder'
+] as const
+
+type NotificationType = typeof VALID_NOTIFICATION_TYPES[number]
 
 interface NotificationRequest {
   recipientEmail: string
   recipientName?: string
-  notificationType: 'mention' | 'assignment' | 'status_change' | 'comment' | 'subtask_assigned' | 'due_reminder'
+  notificationType: NotificationType
   itemTitle: string
   itemId: string
   actorName: string
@@ -23,57 +66,67 @@ interface NotificationRequest {
 
 function generateEmailContent(notification: NotificationRequest): { subject: string, html: string } {
   const { notificationType, itemTitle, actorName, details, itemId } = notification
-  const itemUrl = `${APP_URL}?item=${itemId}`
+  const itemUrl = `${APP_URL}?item=${encodeURIComponent(itemId)}`
+
+  // Escape all user-supplied content
+  const safeItemTitle = escapeHtml(itemTitle)
+  const safeActorName = escapeHtml(actorName)
+  const safeComment = escapeHtml(details?.comment)
+  const safeSubtaskTitle = escapeHtml(details?.subtask_title)
+  const safeDeadline = escapeHtml(details?.deadline)
+  const safeFromStatus = escapeHtml(details?.from_status) || 'Unknown'
+  const safeToStatus = escapeHtml(details?.to_status) || 'Unknown'
+  const safeDueDate = escapeHtml(details?.due_date) || 'soon'
 
   let subject = ''
   let bodyText = ''
 
   switch (notificationType) {
     case 'mention':
-      subject = `${actorName} mentioned you in "${itemTitle}"`
-      bodyText = `<p><strong>${actorName}</strong> mentioned you in a comment on <strong>${itemTitle}</strong>.</p>`
-      if (details?.comment) {
-        bodyText += `<blockquote style="border-left: 3px solid #0077b6; padding-left: 12px; color: #555;">${details.comment}</blockquote>`
+      subject = `${safeActorName} mentioned you in "${safeItemTitle}"`
+      bodyText = `<p><strong>${safeActorName}</strong> mentioned you in a comment on <strong>${safeItemTitle}</strong>.</p>`
+      if (safeComment) {
+        bodyText += `<blockquote style="border-left: 3px solid #0077b6; padding-left: 12px; color: #555;">${safeComment}</blockquote>`
       }
       break
 
     case 'assignment':
-      subject = `You've been assigned to "${itemTitle}"`
-      bodyText = `<p><strong>${actorName}</strong> assigned you to work on <strong>${itemTitle}</strong>.</p>`
+      subject = `You've been assigned to "${safeItemTitle}"`
+      bodyText = `<p><strong>${safeActorName}</strong> assigned you to work on <strong>${safeItemTitle}</strong>.</p>`
       break
 
     case 'status_change':
-      subject = `Status updated on "${itemTitle}"`
-      bodyText = `<p><strong>${actorName}</strong> changed the status of <strong>${itemTitle}</strong> from <em>${details?.from_status || 'Unknown'}</em> to <em>${details?.to_status || 'Unknown'}</em>.</p>`
+      subject = `Status updated on "${safeItemTitle}"`
+      bodyText = `<p><strong>${safeActorName}</strong> changed the status of <strong>${safeItemTitle}</strong> from <em>${safeFromStatus}</em> to <em>${safeToStatus}</em>.</p>`
       break
 
     case 'comment':
-      subject = `New comment on "${itemTitle}"`
-      bodyText = `<p><strong>${actorName}</strong> added a comment on <strong>${itemTitle}</strong>.</p>`
-      if (details?.comment) {
-        bodyText += `<blockquote style="border-left: 3px solid #0077b6; padding-left: 12px; color: #555;">${details.comment}</blockquote>`
+      subject = `New comment on "${safeItemTitle}"`
+      bodyText = `<p><strong>${safeActorName}</strong> added a comment on <strong>${safeItemTitle}</strong>.</p>`
+      if (safeComment) {
+        bodyText += `<blockquote style="border-left: 3px solid #0077b6; padding-left: 12px; color: #555;">${safeComment}</blockquote>`
       }
       break
 
     case 'subtask_assigned':
-      subject = `New subtask assigned to you on "${itemTitle}"`
-      bodyText = `<p><strong>${actorName}</strong> assigned you a subtask on <strong>${itemTitle}</strong>.</p>`
-      if (details?.subtask_title) {
-        bodyText += `<p>Subtask: <strong>${details.subtask_title}</strong></p>`
+      subject = `New subtask assigned to you on "${safeItemTitle}"`
+      bodyText = `<p><strong>${safeActorName}</strong> assigned you a subtask on <strong>${safeItemTitle}</strong>.</p>`
+      if (safeSubtaskTitle) {
+        bodyText += `<p>Subtask: <strong>${safeSubtaskTitle}</strong></p>`
       }
-      if (details?.deadline) {
-        bodyText += `<p>Deadline: ${details.deadline}</p>`
+      if (safeDeadline) {
+        bodyText += `<p>Deadline: ${safeDeadline}</p>`
       }
       break
 
     case 'due_reminder':
-      subject = `Reminder: "${itemTitle}" is due soon`
-      bodyText = `<p>This is a reminder that <strong>${itemTitle}</strong> is due ${details?.due_date || 'soon'}.</p>`
+      subject = `Reminder: "${safeItemTitle}" is due soon`
+      bodyText = `<p>This is a reminder that <strong>${safeItemTitle}</strong> is due ${safeDueDate}.</p>`
       break
 
     default:
-      subject = `Update on "${itemTitle}"`
-      bodyText = `<p>There's been an update on <strong>${itemTitle}</strong>.</p>`
+      subject = `Update on "${safeItemTitle}"`
+      bodyText = `<p>There's been an update on <strong>${safeItemTitle}</strong>.</p>`
   }
 
   const html = `
@@ -85,7 +138,7 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #0077b6 0%, #00b4d8 100%); padding: 24px; border-radius: 12px 12px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 20px;">${APP_NAME}</h1>
+        <h1 style="color: white; margin: 0; font-size: 20px;">${escapeHtml(APP_NAME)}</h1>
       </div>
 
       <div style="background: white; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
@@ -101,7 +154,7 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
 
         <p style="font-size: 12px; color: #6b7280;">
           You received this email because you're involved in this item.
-          <a href="${APP_URL}" style="color: #0077b6;">Visit ${APP_NAME}</a>
+          <a href="${APP_URL}" style="color: #0077b6;">Visit ${escapeHtml(APP_NAME)}</a>
         </p>
       </div>
     </body>
@@ -112,13 +165,54 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Method not allowed' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 405 }
+    )
+  }
+
   try {
-    // Check if Resend is configured
+    // ============================================
+    // AUTHENTICATION CHECK (security fix)
+    // ============================================
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing or invalid authorization header' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+
+    // Verify the JWT token using Supabase Admin client
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+
+    if (authError || !user) {
+      console.error('Auth verification failed:', authError?.message)
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid or expired token' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    // Log authenticated user for audit trail
+    console.log(`Email request from authenticated user: ${user.email}`)
+
+    // ============================================
+    // CHECK RESEND CONFIGURATION
+    // ============================================
     if (!RESEND_API_KEY) {
       console.warn('RESEND_API_KEY not configured - email not sent')
       return new Response(
@@ -129,20 +223,52 @@ serve(async (req) => {
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200 // Return 200 even if not configured to not break the flow
+          status: 200 // Return 200 to not break app flow
         }
       )
     }
 
+    // ============================================
+    // VALIDATE REQUEST BODY
+    // ============================================
     const notification: NotificationRequest = await req.json()
 
+    // Validate recipient email
     if (!notification.recipientEmail) {
-      throw new Error('Recipient email is required')
+      return new Response(
+        JSON.stringify({ success: false, error: 'Recipient email is required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
     }
 
+    if (!isValidEmail(notification.recipientEmail)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid recipient email format' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    // Validate notification type
+    if (!VALID_NOTIFICATION_TYPES.includes(notification.notificationType as NotificationType)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid notification type' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    // Validate required fields
+    if (!notification.itemTitle || !notification.itemId || !notification.actorName) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing required fields: itemTitle, itemId, actorName' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    // ============================================
+    // GENERATE AND SEND EMAIL
+    // ============================================
     const { subject, html } = generateEmailContent(notification)
 
-    // Send email via Resend
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -160,8 +286,11 @@ serve(async (req) => {
     const resendData = await resendResponse.json()
 
     if (!resendResponse.ok) {
+      console.error('Resend API error:', resendData)
       throw new Error(resendData.message || 'Failed to send email')
     }
+
+    console.log(`Email sent successfully to ${notification.recipientEmail} by ${user.email}`)
 
     return new Response(
       JSON.stringify({
@@ -180,7 +309,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message || 'An unexpected error occurred'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1321,6 +1321,220 @@
         };
 
         // ============================================
+        // AUTH CALLBACK COMPONENT (handles email confirmation, password reset, etc.)
+        // ============================================
+        function AuthCallback({ type, onContinue, onAuthChange }) {
+            const [status, setStatus] = useState('processing'); // 'processing', 'success', 'error', 'reset-password'
+            const [error, setError] = useState('');
+            const [newPassword, setNewPassword] = useState('');
+            const [confirmNewPassword, setConfirmNewPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                async function handleCallback() {
+                    try {
+                        await initSupabase();
+                        if (!supabase) {
+                            setError('Unable to connect to authentication service.');
+                            setStatus('error');
+                            return;
+                        }
+
+                        // Get the session from URL (Supabase handles the token exchange)
+                        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+                        if (sessionError) {
+                            throw sessionError;
+                        }
+
+                        if (type === 'recovery') {
+                            // Password reset - show password form
+                            setStatus('reset-password');
+                        } else if (session) {
+                            // Email confirmed or magic link - user is now signed in
+                            setStatus('success');
+                            if (onAuthChange) {
+                                onAuthChange(session.user);
+                            }
+                        } else {
+                            // No session but also no error - might be already confirmed
+                            setStatus('success');
+                        }
+                    } catch (err) {
+                        Logger.error(err, 'Auth callback error');
+                        setError(err.message || 'Authentication failed. Please try again.');
+                        setStatus('error');
+                    }
+                }
+
+                handleCallback();
+            }, [type]);
+
+            // Initialize Lucide icons when status changes
+            useEffect(() => {
+                setTimeout(() => lucide.createIcons(), 50);
+            }, [status]);
+
+            const handlePasswordReset = async (e) => {
+                e.preventDefault();
+                if (newPassword !== confirmNewPassword) {
+                    setError('Passwords do not match.');
+                    return;
+                }
+                if (newPassword.length < 8) {
+                    setError('Password must be at least 8 characters.');
+                    return;
+                }
+
+                setLoading(true);
+                setError('');
+
+                try {
+                    const { error } = await supabase.auth.updateUser({
+                        password: newPassword
+                    });
+
+                    if (error) throw error;
+                    setStatus('success');
+                } catch (err) {
+                    setError(err.message || 'Failed to update password.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const getTitle = () => {
+                switch (type) {
+                    case 'signup': return 'Email Confirmed';
+                    case 'recovery': return status === 'success' ? 'Password Updated' : 'Reset Password';
+                    case 'magiclink': return 'Signed In';
+                    case 'invite': return 'Invitation Accepted';
+                    default: return 'Authentication Complete';
+                }
+            };
+
+            const getMessage = () => {
+                switch (type) {
+                    case 'signup': return 'Your email has been confirmed. You can now access the Productivity Tool.';
+                    case 'recovery': return 'Your password has been updated successfully.';
+                    case 'magiclink': return 'You have been signed in successfully.';
+                    case 'invite': return 'Welcome! Your account is now active.';
+                    default: return 'Authentication successful.';
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#cfebf8' }}>
+                    <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md border border-graystone-200">
+                        <div className="text-center mb-6">
+                            <img
+                                src={APP_CONFIG.LOGO_URL}
+                                alt={APP_CONFIG.ORG_NAME}
+                                className="h-12 mx-auto mb-3"
+                            />
+                            <h1 className="text-2xl font-bold text-ocean-900 uppercase tracking-tight">Productivity Tool</h1>
+                        </div>
+
+                        {status === 'processing' && (
+                            <div className="text-center py-8">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean-500 mx-auto mb-4"></div>
+                                <p className="text-graystone-600">Processing...</p>
+                            </div>
+                        )}
+
+                        {status === 'success' && (
+                            <div className="text-center">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i data-lucide="check" className="w-8 h-8 text-green-600"></i>
+                                </div>
+                                <h2 className="text-xl font-bold text-ocean-900 mb-2 uppercase">{getTitle()}</h2>
+                                <p className="text-graystone-600 mb-6">{getMessage()}</p>
+                                <button
+                                    onClick={onContinue}
+                                    className="w-full bg-ocean-500 text-white py-3 rounded-xl font-semibold hover:bg-ocean-600 transition"
+                                >
+                                    Go to Dashboard
+                                </button>
+                            </div>
+                        )}
+
+                        {status === 'reset-password' && (
+                            <div>
+                                <h2 className="text-xl font-bold text-ocean-900 mb-2 uppercase text-center">Set New Password</h2>
+                                <p className="text-graystone-600 mb-6 text-center text-sm">Enter your new password below.</p>
+
+                                {error && (
+                                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+                                        {error}
+                                    </div>
+                                )}
+
+                                <form onSubmit={handlePasswordReset} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">New Password</label>
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            className="w-full px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                                            placeholder="••••••••"
+                                            required
+                                            minLength={8}
+                                            autoComplete="new-password"
+                                        />
+                                        {newPassword && newPassword.length < 8 && (
+                                            <p className="text-red-600 text-xs mt-1">Password must be at least 8 characters</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Confirm New Password</label>
+                                        <input
+                                            type="password"
+                                            value={confirmNewPassword}
+                                            onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                            className={`w-full px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition ${confirmNewPassword && newPassword !== confirmNewPassword ? 'border-red-300' : ''}`}
+                                            placeholder="••••••••"
+                                            required
+                                            minLength={8}
+                                            autoComplete="new-password"
+                                        />
+                                        {confirmNewPassword && newPassword !== confirmNewPassword && (
+                                            <p className="text-red-600 text-xs mt-1">Passwords do not match</p>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={loading || newPassword.length < 8 || newPassword !== confirmNewPassword}
+                                        className="w-full bg-ocean-500 text-white py-3 rounded-xl font-semibold hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                    >
+                                        {loading ? 'Updating...' : 'Update Password'}
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {status === 'error' && (
+                            <div className="text-center">
+                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i data-lucide="x" className="w-8 h-8 text-red-600"></i>
+                                </div>
+                                <h2 className="text-xl font-bold text-ocean-900 mb-2 uppercase">Something Went Wrong</h2>
+                                <p className="text-graystone-600 mb-2">{error || 'Authentication failed.'}</p>
+                                <p className="text-graystone-500 text-sm mb-6">The link may have expired. Please try again.</p>
+                                <button
+                                    onClick={onContinue}
+                                    className="w-full bg-ocean-500 text-white py-3 rounded-xl font-semibold hover:bg-ocean-600 transition"
+                                >
+                                    Go to Sign In
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // ============================================
         // LOGIN SCREEN COMPONENT (Supabase Auth)
         // ============================================
         function LoginScreen({ onAuthChange }) {
@@ -8411,8 +8625,12 @@
 
             // Dark mode state
             const [darkMode, setDarkMode] = useState(() => {
-                const saved = localStorage.getItem('darkMode');
-                return saved ? JSON.parse(saved) : false;
+                try {
+                    const saved = localStorage.getItem('darkMode');
+                    return saved ? JSON.parse(saved) : false;
+                } catch {
+                    return false;
+                }
             });
 
             // Mobile sidebar state
@@ -8426,7 +8644,6 @@
             const [pdfExportContext, setPdfExportContext] = useState('dashboard'); // 'dashboard' | 'manager-hub'
             const [pdfExportTab, setPdfExportTab] = useState('content'); // 'content' | 'filters' | 'layout'
             const [pdfExportOptions, setPdfExportOptions] = useState(() => {
-                const saved = localStorage.getItem('pdfExportPreferences');
                 const defaults = {
                     // Content Selection
                     includeTaskDetails: true,
@@ -8443,7 +8660,12 @@
                     viewMode: 'detailed',
                     layoutStyle: 'cards' // 'cards' | 'table' | 'list'
                 };
-                return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+                try {
+                    const saved = localStorage.getItem('pdfExportPreferences');
+                    return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+                } catch {
+                    return defaults;
+                }
             });
 
             // Weekly Status Report state
@@ -8575,6 +8797,28 @@
             const [authUser, setAuthUser] = useState(null);
             const [userEmail, setUserEmail] = useState("");
             const [authChecked, setAuthChecked] = useState(!APP_CONFIG.AUTH_ENABLED);
+            const [authCallbackType, setAuthCallbackType] = useState(null); // 'signup', 'recovery', 'magiclink', 'invite'
+
+            // Check for auth callback in URL hash on mount
+            useEffect(() => {
+                const hash = window.location.hash;
+                if (hash && hash.includes('access_token=')) {
+                    // Parse the hash to get the type
+                    const params = new URLSearchParams(hash.substring(1));
+                    const type = params.get('type');
+                    if (type) {
+                        Logger.debug('Auth callback detected:', type);
+                        setAuthCallbackType(type);
+                    }
+                }
+            }, []);
+
+            // Handle clearing auth callback and continuing to dashboard
+            const handleAuthCallbackContinue = () => {
+                // Clear the URL hash
+                window.history.replaceState(null, '', window.location.pathname);
+                setAuthCallbackType(null);
+            };
 
             // Check authentication on mount (Supabase Auth)
             useEffect(() => {
@@ -10951,6 +11195,17 @@
                     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#cfebf8' }}>
                         <LoadingSpinner size="lg" text="Loading..." className="text-ocean-700" />
                     </div>
+                );
+            }
+
+            // Show auth callback page (email confirmation, password reset, etc.)
+            if (authCallbackType) {
+                return (
+                    <AuthCallback
+                        type={authCallbackType}
+                        onContinue={handleAuthCallbackContinue}
+                        onAuthChange={handleAuthChange}
+                    />
                 );
             }
 
