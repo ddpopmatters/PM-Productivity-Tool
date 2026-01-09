@@ -7903,7 +7903,8 @@
                     teamFilter: [],
                     // Layout
                     orientation: 'landscape',
-                    viewMode: 'detailed'
+                    viewMode: 'detailed',
+                    layoutStyle: 'cards' // 'cards' | 'table' | 'list'
                 };
                 return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
             });
@@ -8522,6 +8523,20 @@
                 closeSubtaskModal();
             };
 
+            // Status badge colors for PDF
+            const STATUS_COLORS = {
+                'Idea': { bg: [243, 232, 255], text: [124, 58, 237] },
+                'Discovery': { bg: [219, 234, 254], text: [37, 99, 235] },
+                'Preparation': { bg: [254, 243, 199], text: [217, 119, 6] },
+                'In Delivery': { bg: [207, 250, 254], text: [8, 145, 178] },
+                'In Progress': { bg: [207, 250, 254], text: [8, 145, 178] },
+                'Delivered': { bg: [209, 250, 229], text: [5, 150, 105] },
+                'Ready for Review': { bg: [254, 243, 199], text: [217, 119, 6] },
+                'Impact Assessment': { bg: [255, 237, 213], text: [234, 88, 12] },
+                'Done': { bg: [187, 247, 208], text: [22, 163, 74] },
+                'Draft': { bg: [241, 245, 249], text: [100, 116, 139] }
+            };
+
             // Custom PDF Export Handler
             const handleCustomPdfExport = async () => {
                 const { jsPDF } = window.jspdf;
@@ -8549,8 +8564,6 @@
                     // Filter entries based on options
                     let filteredEntries = entries.filter(entry => {
                         if (entry.archived) return false;
-
-                        // Date filter
                         if (options.dateRange.preset !== 'all' && options.dateRange.start) {
                             const entryDate = entry.date ? new Date(entry.date) : (entry.timelineValue ? parseTimelineValue(entry.timelineValue) : null);
                             if (entryDate) {
@@ -8559,28 +8572,16 @@
                                 if (entryDate < start || entryDate > end) return false;
                             }
                         }
-
-                        // Status filter
-                        if (options.statusFilter.length > 0 && !options.statusFilter.includes(entry.workflowStatus)) {
-                            return false;
-                        }
-
-                        // Member filter
+                        if (options.statusFilter.length > 0 && !options.statusFilter.includes(entry.workflowStatus)) return false;
                         if (options.memberFilter.length > 0) {
                             const isOwner = options.memberFilter.includes(entry.owner);
                             const isCollaborator = entry.collaborators?.some(c => options.memberFilter.includes(c));
                             if (!isOwner && !isCollaborator) return false;
                         }
-
-                        // Team filter
-                        if (options.teamFilter.length > 0 && !options.teamFilter.includes(entry.team)) {
-                            return false;
-                        }
-
+                        if (options.teamFilter.length > 0 && !options.teamFilter.includes(entry.team)) return false;
                         return true;
                     });
 
-                    // Helper to parse timeline values
                     function parseTimelineValue(tv) {
                         if (!tv) return null;
                         if (tv.includes('Q')) {
@@ -8592,190 +8593,359 @@
 
                     // Create PDF
                     const isLandscape = options.orientation === 'landscape';
-                    const pdf = new jsPDF({
-                        orientation: options.orientation,
-                        unit: 'mm',
-                        format: 'a4'
-                    });
+                    const pdf = new jsPDF({ orientation: options.orientation, unit: 'mm', format: 'a4' });
 
                     const pageWidth = isLandscape ? 297 : 210;
                     const pageHeight = isLandscape ? 210 : 297;
-                    const margin = 15;
+                    const margin = 12;
                     const contentWidth = pageWidth - (margin * 2);
                     let yPos = margin;
 
                     // Colors
-                    const oceanColor = [12, 74, 110];
-                    const grayColor = [100, 116, 139];
-                    const lightGray = [200, 200, 200];
+                    const oceanDark = [12, 74, 110];
+                    const oceanMid = [17, 96, 125];
+                    const grayText = [100, 116, 139];
+                    const lightBg = [248, 250, 252];
+                    const cardBorder = [226, 232, 240];
+
+                    // Helper: Draw rounded rectangle
+                    const drawRoundedRect = (x, y, w, h, r, fillColor, strokeColor = null) => {
+                        pdf.setFillColor(...fillColor);
+                        if (strokeColor) pdf.setDrawColor(...strokeColor);
+                        pdf.roundedRect(x, y, w, h, r, r, strokeColor ? 'FD' : 'F');
+                    };
+
+                    // Helper: Draw status badge
+                    const drawStatusBadge = (status, x, y) => {
+                        const colors = STATUS_COLORS[status] || STATUS_COLORS['Draft'];
+                        const badgeWidth = pdf.getTextWidth(status) + 6;
+                        drawRoundedRect(x, y - 3.5, badgeWidth, 5, 1.5, colors.bg);
+                        pdf.setFontSize(7);
+                        pdf.setTextColor(...colors.text);
+                        pdf.text(status, x + 3, y);
+                        return badgeWidth;
+                    };
+
+                    // Helper: Draw progress bar
+                    const drawProgressBar = (percent, x, y, width) => {
+                        const barHeight = 3;
+                        // Background
+                        drawRoundedRect(x, y, width, barHeight, 1, [226, 232, 240]);
+                        // Fill
+                        if (percent > 0) {
+                            const fillWidth = Math.max(2, (width * percent) / 100);
+                            const fillColor = percent >= 100 ? [34, 197, 94] : [14, 165, 233];
+                            drawRoundedRect(x, y, fillWidth, barHeight, 1, fillColor);
+                        }
+                        // Text
+                        pdf.setFontSize(6);
+                        pdf.setTextColor(...grayText);
+                        pdf.text(`${Math.round(percent)}%`, x + width + 2, y + 2.5);
+                    };
+
+                    // ===== HEADER SECTION =====
+                    const headerHeight = 22;
+                    drawRoundedRect(margin, yPos, contentWidth, headerHeight, 3, oceanMid);
 
                     // Title
                     const title = pdfExportContext === 'manager-hub'
                         ? `${currentUser}'s Team Workstreams`
                         : `${currentUser}'s Dashboard`;
-
-                    pdf.setFontSize(20);
-                    pdf.setTextColor(...oceanColor);
-                    pdf.text(title, margin, yPos + 7);
-                    yPos += 12;
+                    pdf.setFontSize(16);
+                    pdf.setTextColor(255, 255, 255);
+                    pdf.text(title, margin + 8, yPos + 9);
 
                     // Date
-                    pdf.setFontSize(10);
-                    pdf.setTextColor(...grayColor);
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(207, 250, 254);
                     pdf.text(`Generated: ${new Date().toLocaleDateString('en-GB', {
                         day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                    })}`, margin, yPos);
-                    yPos += 8;
+                    })}`, margin + 8, yPos + 16);
 
-                    // Filter summary
+                    yPos += headerHeight + 6;
+
+                    // Filter summary pills
                     let filterSummary = [];
                     if (options.dateRange.preset !== 'all') filterSummary.push(`Date: ${options.dateRange.preset}`);
-                    if (options.statusFilter.length > 0) filterSummary.push(`Status: ${options.statusFilter.join(', ')}`);
-                    if (options.memberFilter.length > 0) filterSummary.push(`Members: ${options.memberFilter.join(', ')}`);
+                    if (options.statusFilter.length > 0) filterSummary.push(`Status: ${options.statusFilter.length} selected`);
+                    if (options.memberFilter.length > 0) filterSummary.push(`Members: ${options.memberFilter.length}`);
                     if (options.teamFilter.length > 0) filterSummary.push(`Teams: ${options.teamFilter.join(', ')}`);
 
                     if (filterSummary.length > 0) {
-                        pdf.setFontSize(8);
-                        pdf.text(`Filters: ${filterSummary.join(' | ')}`, margin, yPos);
-                        yPos += 6;
+                        let filterX = margin;
+                        pdf.setFontSize(7);
+                        filterSummary.forEach(filter => {
+                            const filterWidth = pdf.getTextWidth(filter) + 6;
+                            drawRoundedRect(filterX, yPos, filterWidth, 5, 1.5, [241, 245, 249]);
+                            pdf.setTextColor(...grayText);
+                            pdf.text(filter, filterX + 3, yPos + 3.5);
+                            filterX += filterWidth + 3;
+                        });
+                        yPos += 10;
                     }
 
-                    // Divider line
-                    pdf.setDrawColor(...lightGray);
-                    pdf.line(margin, yPos, pageWidth - margin, yPos);
-                    yPos += 8;
-
-                    // Team Statistics
+                    // ===== STATISTICS SECTION =====
                     if (options.includeTeamStats) {
-                        pdf.setFontSize(14);
-                        pdf.setTextColor(...oceanColor);
-                        pdf.text('Summary Statistics', margin, yPos);
-                        yPos += 8;
-
                         const totalItems = filteredEntries.length;
                         const inProgress = filteredEntries.filter(e => e.workflowStatus === 'In Delivery' || e.workflowStatus === 'In Progress').length;
                         const completed = filteredEntries.filter(e => e.workflowStatus === 'Done' || e.workflowStatus === 'Delivered').length;
-                        const overdue = filteredEntries.filter(e => {
-                            if (!e.date) return false;
-                            return new Date(e.date) < new Date();
-                        }).length;
+                        const overdue = filteredEntries.filter(e => e.date && new Date(e.date) < new Date()).length;
 
-                        pdf.setFontSize(10);
-                        pdf.setTextColor(...grayColor);
-                        const stats = options.viewMode === 'compact'
-                            ? `Total: ${totalItems} | In Progress: ${inProgress} | Completed: ${completed} | Overdue: ${overdue}`
-                            : [
-                                `Total Items: ${totalItems}`,
-                                `In Progress: ${inProgress}`,
-                                `Completed: ${completed}`,
-                                `Overdue: ${overdue}`
-                            ];
+                        const statBoxWidth = (contentWidth - 9) / 4;
+                        const stats = [
+                            { label: 'Total', value: totalItems, color: oceanMid },
+                            { label: 'In Progress', value: inProgress, color: [14, 165, 233] },
+                            { label: 'Completed', value: completed, color: [34, 197, 94] },
+                            { label: 'Overdue', value: overdue, color: [239, 68, 68] }
+                        ];
 
-                        if (Array.isArray(stats)) {
-                            stats.forEach(stat => {
-                                pdf.text(stat, margin, yPos);
-                                yPos += 5;
-                            });
-                        } else {
-                            pdf.text(stats, margin, yPos);
-                            yPos += 5;
-                        }
-                        yPos += 5;
+                        stats.forEach((stat, i) => {
+                            const x = margin + (i * (statBoxWidth + 3));
+                            drawRoundedRect(x, yPos, statBoxWidth, 16, 2, [255, 255, 255], cardBorder);
+                            pdf.setFontSize(18);
+                            pdf.setTextColor(...stat.color);
+                            pdf.text(String(stat.value), x + 5, yPos + 10);
+                            pdf.setFontSize(7);
+                            pdf.setTextColor(...grayText);
+                            pdf.text(stat.label, x + 5, yPos + 14);
+                        });
+                        yPos += 22;
                     }
 
-                    // Task Details
+                    // ===== TASKS SECTION =====
                     if (options.includeTaskDetails && filteredEntries.length > 0) {
-                        pdf.setFontSize(14);
-                        pdf.setTextColor(...oceanColor);
-                        pdf.text('Tasks', margin, yPos);
-                        yPos += 8;
+                        pdf.setFontSize(12);
+                        pdf.setTextColor(...oceanDark);
+                        pdf.text('Tasks', margin, yPos + 4);
+                        yPos += 10;
 
-                        filteredEntries.forEach((entry, idx) => {
-                            // Check if we need a new page
-                            if (yPos > pageHeight - 40) {
-                                pdf.addPage();
-                                yPos = margin;
-                            }
+                        const layoutStyle = options.layoutStyle || 'cards';
 
-                            // Task title
-                            pdf.setFontSize(11);
-                            pdf.setTextColor(...oceanColor);
-                            const titleText = options.viewMode === 'compact'
-                                ? `${entry.title} [${entry.workflowStatus}]`
-                                : entry.title;
-                            pdf.text(titleText, margin, yPos);
-                            yPos += 5;
+                        // CARDS LAYOUT
+                        if (layoutStyle === 'cards') {
+                            const cardWidth = isLandscape ? (contentWidth - 4) / 2 : contentWidth;
+                            const cardPadding = 5;
+                            let col = 0;
+                            let rowStartY = yPos;
 
-                            if (options.viewMode === 'detailed') {
-                                pdf.setFontSize(9);
-                                pdf.setTextColor(...grayColor);
+                            filteredEntries.forEach((entry, idx) => {
+                                // Calculate card height
+                                let cardHeight = 28;
+                                if (options.viewMode === 'detailed' && entry.caption) cardHeight += 10;
+                                if (options.includeSubtasks && entry.subtasks?.length > 0) cardHeight += 8;
 
-                                // Status, Owner, Team
-                                pdf.text(`Status: ${entry.workflowStatus} | Owner: ${entry.owner} | Team: ${entry.team}`, margin + 2, yPos);
-                                yPos += 4;
-
-                                // Description (truncated)
-                                if (entry.caption) {
-                                    const desc = entry.caption.length > 150 ? entry.caption.substring(0, 150) + '...' : entry.caption;
-                                    const lines = pdf.splitTextToSize(desc, contentWidth - 4);
-                                    lines.slice(0, 2).forEach(line => {
-                                        pdf.text(line, margin + 2, yPos);
-                                        yPos += 4;
-                                    });
+                                // Check for new page
+                                if (rowStartY + cardHeight > pageHeight - margin) {
+                                    pdf.addPage();
+                                    yPos = margin;
+                                    rowStartY = margin;
+                                    col = 0;
                                 }
 
-                                // Deadline
+                                const x = margin + (col * (cardWidth + 4));
+                                const y = rowStartY;
+
+                                // Card background
+                                drawRoundedRect(x, y, cardWidth, cardHeight, 3, [255, 255, 255], cardBorder);
+
+                                // Title
+                                pdf.setFontSize(10);
+                                pdf.setTextColor(...oceanDark);
+                                const titleText = entry.title.length > 40 ? entry.title.substring(0, 40) + '...' : entry.title;
+                                pdf.text(titleText, x + cardPadding, y + 7);
+
+                                // Status badge
+                                drawStatusBadge(entry.workflowStatus, x + cardPadding, y + 14);
+
+                                // Owner & Team
+                                pdf.setFontSize(7);
+                                pdf.setTextColor(...grayText);
+                                pdf.text(`${entry.owner} • ${entry.team}`, x + cardPadding, y + 20);
+
+                                // Due date if exists
                                 if (entry.date) {
-                                    pdf.text(`Due: ${new Date(entry.date).toLocaleDateString('en-GB')}`, margin + 2, yPos);
-                                    yPos += 4;
+                                    const dueDate = new Date(entry.date);
+                                    const isOverdue = dueDate < new Date();
+                                    pdf.setTextColor(isOverdue ? 239 : 100, isOverdue ? 68 : 116, isOverdue ? 68 : 139);
+                                    pdf.text(`Due: ${dueDate.toLocaleDateString('en-GB')}`, x + cardWidth - cardPadding - 25, y + 20);
                                 }
-                            }
 
-                            // Subtasks
-                            if (options.includeSubtasks && entry.subtasks && entry.subtasks.length > 0) {
-                                const completedSubtasks = entry.subtasks.filter(s => s.completed).length;
-                                pdf.setFontSize(8);
-                                pdf.setTextColor(...grayColor);
+                                let innerY = 24;
 
-                                if (options.viewMode === 'compact') {
-                                    pdf.text(`  Subtasks: ${completedSubtasks}/${entry.subtasks.length} complete`, margin + 2, yPos);
-                                    yPos += 4;
-                                } else {
-                                    pdf.text(`Subtasks (${completedSubtasks}/${entry.subtasks.length}):`, margin + 2, yPos);
-                                    yPos += 4;
-                                    entry.subtasks.slice(0, 5).forEach(st => {
-                                        const check = st.completed ? '[x]' : '[ ]';
-                                        pdf.text(`  ${check} ${st.title}${st.assignedTo ? ` - ${st.assignedTo}` : ''}`, margin + 4, yPos);
-                                        yPos += 3.5;
-                                    });
-                                    if (entry.subtasks.length > 5) {
-                                        pdf.text(`  ... and ${entry.subtasks.length - 5} more`, margin + 4, yPos);
-                                        yPos += 3.5;
-                                    }
-                                }
-                            }
-
-                            // Comments
-                            if (options.includeComments && entry.comments && entry.comments.length > 0) {
-                                pdf.setFontSize(8);
-                                pdf.setTextColor(...grayColor);
-
-                                if (options.viewMode === 'compact') {
-                                    pdf.text(`  Comments: ${entry.comments.length}`, margin + 2, yPos);
-                                    yPos += 4;
-                                } else {
-                                    pdf.text(`Comments (${entry.comments.length}):`, margin + 2, yPos);
-                                    yPos += 4;
-                                    entry.comments.slice(-3).forEach(comment => {
-                                        const commentText = `${comment.author}: ${comment.text?.substring(0, 80)}${comment.text?.length > 80 ? '...' : ''}`;
-                                        pdf.text(`  - ${commentText}`, margin + 4, yPos);
-                                        yPos += 3.5;
+                                // Description (detailed mode)
+                                if (options.viewMode === 'detailed' && entry.caption) {
+                                    pdf.setFontSize(7);
+                                    pdf.setTextColor(...grayText);
+                                    const desc = entry.caption.length > 80 ? entry.caption.substring(0, 80) + '...' : entry.caption;
+                                    const lines = pdf.splitTextToSize(desc, cardWidth - (cardPadding * 2));
+                                    lines.slice(0, 2).forEach(line => {
+                                        pdf.text(line, x + cardPadding, y + innerY);
+                                        innerY += 4;
                                     });
                                 }
-                            }
 
-                            yPos += 4; // Space between entries
-                        });
+                                // Subtasks progress
+                                if (options.includeSubtasks && entry.subtasks && entry.subtasks.length > 0) {
+                                    const completedSubtasks = entry.subtasks.filter(s => s.completed).length;
+                                    const percent = (completedSubtasks / entry.subtasks.length) * 100;
+                                    drawProgressBar(percent, x + cardPadding, y + innerY, 40);
+                                    pdf.setFontSize(6);
+                                    pdf.setTextColor(...grayText);
+                                    pdf.text(`${completedSubtasks}/${entry.subtasks.length} subtasks`, x + cardPadding + 55, y + innerY + 2.5);
+                                }
+
+                                // Move to next position
+                                if (isLandscape) {
+                                    col = (col + 1) % 2;
+                                    if (col === 0) rowStartY += cardHeight + 4;
+                                } else {
+                                    rowStartY += cardHeight + 4;
+                                }
+                            });
+                            yPos = rowStartY;
+                        }
+
+                        // TABLE LAYOUT
+                        else if (layoutStyle === 'table') {
+                            const colWidths = isLandscape
+                                ? [80, 35, 45, 45, 30, 30]
+                                : [55, 30, 35, 35, 25, 25];
+                            const rowHeight = 8;
+
+                            // Header row
+                            drawRoundedRect(margin, yPos, contentWidth, rowHeight, 1, oceanMid);
+                            pdf.setFontSize(8);
+                            pdf.setTextColor(255, 255, 255);
+                            let colX = margin + 3;
+                            ['Title', 'Status', 'Owner', 'Team', 'Progress', 'Due'].forEach((header, i) => {
+                                pdf.text(header, colX, yPos + 5.5);
+                                colX += colWidths[i];
+                            });
+                            yPos += rowHeight + 1;
+
+                            // Data rows
+                            filteredEntries.forEach((entry, idx) => {
+                                if (yPos + rowHeight > pageHeight - margin) {
+                                    pdf.addPage();
+                                    yPos = margin;
+                                }
+
+                                const bgColor = idx % 2 === 0 ? [255, 255, 255] : lightBg;
+                                drawRoundedRect(margin, yPos, contentWidth, rowHeight, 0, bgColor);
+
+                                pdf.setFontSize(7);
+                                colX = margin + 3;
+
+                                // Title
+                                pdf.setTextColor(...oceanDark);
+                                const titleText = entry.title.length > 30 ? entry.title.substring(0, 30) + '...' : entry.title;
+                                pdf.text(titleText, colX, yPos + 5.5);
+                                colX += colWidths[0];
+
+                                // Status badge (smaller)
+                                const statusColors = STATUS_COLORS[entry.workflowStatus] || STATUS_COLORS['Draft'];
+                                pdf.setTextColor(...statusColors.text);
+                                const shortStatus = entry.workflowStatus.length > 12 ? entry.workflowStatus.substring(0, 12) + '..' : entry.workflowStatus;
+                                pdf.text(shortStatus, colX, yPos + 5.5);
+                                colX += colWidths[1];
+
+                                // Owner
+                                pdf.setTextColor(...grayText);
+                                const shortOwner = entry.owner.split(' ')[0];
+                                pdf.text(shortOwner, colX, yPos + 5.5);
+                                colX += colWidths[2];
+
+                                // Team
+                                const shortTeam = entry.team.length > 15 ? entry.team.substring(0, 15) + '..' : entry.team;
+                                pdf.text(shortTeam, colX, yPos + 5.5);
+                                colX += colWidths[3];
+
+                                // Progress
+                                if (entry.subtasks && entry.subtasks.length > 0) {
+                                    const completed = entry.subtasks.filter(s => s.completed).length;
+                                    const percent = Math.round((completed / entry.subtasks.length) * 100);
+                                    pdf.text(`${percent}%`, colX, yPos + 5.5);
+                                } else {
+                                    pdf.text('-', colX, yPos + 5.5);
+                                }
+                                colX += colWidths[4];
+
+                                // Due date
+                                if (entry.date) {
+                                    const dueDate = new Date(entry.date);
+                                    const isOverdue = dueDate < new Date();
+                                    pdf.setTextColor(isOverdue ? 239 : 100, isOverdue ? 68 : 116, isOverdue ? 68 : 139);
+                                    pdf.text(dueDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), colX, yPos + 5.5);
+                                } else {
+                                    pdf.text('-', colX, yPos + 5.5);
+                                }
+
+                                yPos += rowHeight;
+                            });
+                        }
+
+                        // LIST LAYOUT
+                        else if (layoutStyle === 'list') {
+                            filteredEntries.forEach((entry, idx) => {
+                                let itemHeight = 12;
+                                if (options.viewMode === 'detailed') itemHeight += 8;
+                                if (options.includeSubtasks && entry.subtasks?.length > 0) itemHeight += 6;
+
+                                if (yPos + itemHeight > pageHeight - margin) {
+                                    pdf.addPage();
+                                    yPos = margin;
+                                }
+
+                                // Title and status on same line
+                                pdf.setFontSize(10);
+                                pdf.setTextColor(...oceanDark);
+                                const titleText = entry.title.length > 50 ? entry.title.substring(0, 50) + '...' : entry.title;
+                                pdf.text(titleText, margin, yPos + 5);
+
+                                // Status badge
+                                const titleWidth = pdf.getTextWidth(titleText);
+                                drawStatusBadge(entry.workflowStatus, margin + titleWidth + 4, yPos + 5);
+
+                                // Owner, Team, Due
+                                pdf.setFontSize(8);
+                                pdf.setTextColor(...grayText);
+                                let metaText = `${entry.owner} • ${entry.team}`;
+                                if (entry.date) {
+                                    const dueDate = new Date(entry.date);
+                                    metaText += ` • Due: ${dueDate.toLocaleDateString('en-GB')}`;
+                                }
+                                pdf.text(metaText, margin, yPos + 10);
+
+                                let innerY = 14;
+
+                                // Description (detailed)
+                                if (options.viewMode === 'detailed' && entry.caption) {
+                                    pdf.setFontSize(7);
+                                    const desc = entry.caption.length > 120 ? entry.caption.substring(0, 120) + '...' : entry.caption;
+                                    pdf.text(desc, margin, yPos + innerY);
+                                    innerY += 5;
+                                }
+
+                                // Subtasks
+                                if (options.includeSubtasks && entry.subtasks && entry.subtasks.length > 0) {
+                                    const completed = entry.subtasks.filter(s => s.completed).length;
+                                    const percent = (completed / entry.subtasks.length) * 100;
+                                    drawProgressBar(percent, margin, yPos + innerY, 50);
+                                    pdf.setFontSize(6);
+                                    pdf.text(`${completed}/${entry.subtasks.length} subtasks`, margin + 65, yPos + innerY + 2.5);
+                                    innerY += 6;
+                                }
+
+                                yPos += itemHeight;
+
+                                // Divider line
+                                if (idx < filteredEntries.length - 1) {
+                                    pdf.setDrawColor(...cardBorder);
+                                    pdf.line(margin, yPos, pageWidth - margin, yPos);
+                                    yPos += 4;
+                                }
+                            });
+                        }
                     }
 
                     // Save PDF
@@ -10149,6 +10319,65 @@
                                                     </button>
                                                 </div>
                                             </div>
+
+                                            {/* Layout Style */}
+                                            <div>
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase mb-3">Layout Style</h4>
+                                                <div className="flex gap-3">
+                                                    <button
+                                                        onClick={() => setPdfExportOptions(prev => ({ ...prev, layoutStyle: 'cards' }))}
+                                                        className={cx(
+                                                            "flex-1 p-4 rounded-xl border-2 transition",
+                                                            pdfExportOptions.layoutStyle === 'cards'
+                                                                ? "border-ocean-500 bg-ocean-50"
+                                                                : "border-graystone-200 hover:border-ocean-300"
+                                                        )}
+                                                    >
+                                                        <div className="flex gap-1 mb-2">
+                                                            <div className="w-1/2 h-8 bg-current rounded opacity-40 border border-current"></div>
+                                                            <div className="w-1/2 h-8 bg-current rounded opacity-40 border border-current"></div>
+                                                        </div>
+                                                        <span className="text-sm font-medium">Cards</span>
+                                                        <p className="text-xs text-graystone-500 mt-1">Task cards in grid</p>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setPdfExportOptions(prev => ({ ...prev, layoutStyle: 'table' }))}
+                                                        className={cx(
+                                                            "flex-1 p-4 rounded-xl border-2 transition",
+                                                            pdfExportOptions.layoutStyle === 'table'
+                                                                ? "border-ocean-500 bg-ocean-50"
+                                                                : "border-graystone-200 hover:border-ocean-300"
+                                                        )}
+                                                    >
+                                                        <div className="flex flex-col gap-1 mb-2">
+                                                            <div className="h-2 bg-current rounded w-full opacity-60"></div>
+                                                            <div className="h-1.5 bg-current rounded w-full opacity-30"></div>
+                                                            <div className="h-1.5 bg-current rounded w-full opacity-20"></div>
+                                                            <div className="h-1.5 bg-current rounded w-full opacity-30"></div>
+                                                        </div>
+                                                        <span className="text-sm font-medium">Table</span>
+                                                        <p className="text-xs text-graystone-500 mt-1">Structured rows</p>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setPdfExportOptions(prev => ({ ...prev, layoutStyle: 'list' }))}
+                                                        className={cx(
+                                                            "flex-1 p-4 rounded-xl border-2 transition",
+                                                            pdfExportOptions.layoutStyle === 'list'
+                                                                ? "border-ocean-500 bg-ocean-50"
+                                                                : "border-graystone-200 hover:border-ocean-300"
+                                                        )}
+                                                    >
+                                                        <div className="flex flex-col gap-1 mb-2">
+                                                            <div className="h-2 bg-current rounded w-full opacity-50"></div>
+                                                            <div className="h-px bg-current w-full opacity-30"></div>
+                                                            <div className="h-2 bg-current rounded w-full opacity-50"></div>
+                                                            <div className="h-px bg-current w-full opacity-30"></div>
+                                                        </div>
+                                                        <span className="text-sm font-medium">List</span>
+                                                        <p className="text-xs text-graystone-500 mt-1">Simple list view</p>
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -10167,7 +10396,8 @@
                                                 memberFilter: [],
                                                 teamFilter: [],
                                                 orientation: 'landscape',
-                                                viewMode: 'detailed'
+                                                viewMode: 'detailed',
+                                                layoutStyle: 'cards'
                                             });
                                         }}
                                         className="text-sm text-graystone-500 hover:text-graystone-700 transition-colors"
