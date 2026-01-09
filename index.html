@@ -476,19 +476,33 @@
 
         // Initialize Supabase client
         let supabase = null;
-        let supabaseInitAttempted = false;
+        let supabaseDebugLogged = false;
         const initSupabase = () => {
             if (supabase) return true; // Already initialized
             if (SUPABASE_CONFIG.ENABLED && SUPABASE_CONFIG.SUPABASE_URL !== "YOUR_SUPABASE_URL") {
-                // Check for Supabase SDK - it may be at window.supabase or need to be accessed differently
+                // Debug: Log what's available (only once)
+                if (!supabaseDebugLogged) {
+                    console.log("Supabase SDK check:", {
+                        windowSupabase: typeof window.supabase,
+                        hasCreateClient: window.supabase ? typeof window.supabase.createClient : 'N/A',
+                        keys: window.supabase ? Object.keys(window.supabase).join(', ') : 'none'
+                    });
+                    supabaseDebugLogged = true;
+                }
+
+                // Check for Supabase SDK
                 const supabaseLib = window.supabase;
                 if (supabaseLib && typeof supabaseLib.createClient === 'function') {
-                    supabase = supabaseLib.createClient(
-                        SUPABASE_CONFIG.SUPABASE_URL,
-                        SUPABASE_CONFIG.SUPABASE_ANON_KEY
-                    );
-                    console.log("Supabase initialized successfully");
-                    return true;
+                    try {
+                        supabase = supabaseLib.createClient(
+                            SUPABASE_CONFIG.SUPABASE_URL,
+                            SUPABASE_CONFIG.SUPABASE_ANON_KEY
+                        );
+                        console.log("Supabase initialized successfully:", supabase);
+                        return true;
+                    } catch (e) {
+                        console.error("Supabase createClient error:", e);
+                    }
                 }
             }
             return false;
