@@ -8,7 +8,7 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 
 ## 1. Confirm Signup
 
-**Subject:** `Confirm your email for PM Productivity Tool`
+**Subject:** `Confirm your email for Productivity Tool`
 
 **Body:**
 ```html
@@ -21,13 +21,14 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 <body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
   <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+      <img src="https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png" alt="Population Matters" style="height: 48px; margin-bottom: 12px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">Productivity Tool</h1>
     </div>
 
     <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Welcome! Confirm your email</h2>
 
     <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
-      Thanks for signing up for PM Productivity Tool. Please confirm your email address by clicking the button below.
+      Thanks for signing up for the Productivity Tool. Please confirm your email address by clicking the button below.
     </p>
 
     <div style="text-align: center; margin: 32px 0;">
@@ -63,7 +64,7 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 
 ## 2. Reset Password
 
-**Subject:** `Reset your password for PM Productivity Tool`
+**Subject:** `Reset your password for Productivity Tool`
 
 **Body:**
 ```html
@@ -76,7 +77,8 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 <body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
   <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+      <img src="https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png" alt="Population Matters" style="height: 48px; margin-bottom: 12px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">Productivity Tool</h1>
     </div>
 
     <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Reset your password</h2>
@@ -120,7 +122,7 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 
 ## 3. Magic Link (if enabled)
 
-**Subject:** `Your sign-in link for PM Productivity Tool`
+**Subject:** `Your sign-in link for Productivity Tool`
 
 **Body:**
 ```html
@@ -133,13 +135,14 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 <body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
   <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+      <img src="https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png" alt="Population Matters" style="height: 48px; margin-bottom: 12px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">Productivity Tool</h1>
     </div>
 
     <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Sign in to your account</h2>
 
     <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
-      Click the button below to securely sign in to PM Productivity Tool. No password needed!
+      Click the button below to securely sign in to the Productivity Tool. No password needed!
     </p>
 
     <div style="text-align: center; margin: 32px 0;">
@@ -175,7 +178,7 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 
 ## 4. Invite User
 
-**Subject:** `You've been invited to PM Productivity Tool`
+**Subject:** `You've been invited to Productivity Tool`
 
 **Body:**
 ```html
@@ -188,13 +191,14 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 <body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
   <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+      <img src="https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png" alt="Population Matters" style="height: 48px; margin-bottom: 12px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">Productivity Tool</h1>
     </div>
 
     <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">You're invited!</h2>
 
     <p style="color: #4f4f4f; margin: 0 0 24px 0; font-size: 14px;">
-      You've been invited to join <strong>PM Productivity Tool</strong>, the project management platform for Population Matters.
+      You've been invited to join the <strong>Productivity Tool</strong>, the project management platform for Population Matters.
     </p>
 
     <div style="background: #f7f7f7; border-radius: 12px; padding: 16px 20px; margin: 24px 0; border: 1px solid #e5e7eb;">
@@ -238,7 +242,7 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 
 ## 5. Change Email Address
 
-**Subject:** `Confirm your new email for PM Productivity Tool`
+**Subject:** `Confirm your new email for Productivity Tool`
 
 **Body:**
 ```html
@@ -251,7 +255,8 @@ These templates match the PM Productivity Tool's visual style exactly - white ca
 <body style="font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #cfebf8;">
   <div style="background: white; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">PM Productivity Tool</h1>
+      <img src="https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png" alt="Population Matters" style="height: 48px; margin-bottom: 12px;">
+      <h1 style="color: #11607d; margin: 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em;">Productivity Tool</h1>
     </div>
 
     <h2 style="color: #11607d; margin: 0 0 16px 0; font-family: Impact, 'Arial Black', Arial, sans-serif; font-size: 18px; font-weight: 900; text-transform: uppercase;">Confirm your new email</h2>
