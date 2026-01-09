@@ -490,39 +490,72 @@
 
         // Initialize Supabase client
         let supabase = null;
-        const initSupabase = async () => {
-            if (supabase) return true; // Already initialized
+        let supabaseLib = null;
+
+        // Initialize Supabase SDK (without auth token)
+        const initSupabaseSDK = async () => {
+            if (supabaseLib) return supabaseLib;
+            if (!SUPABASE_CONFIG.ENABLED || SUPABASE_CONFIG.SUPABASE_URL === "YOUR_SUPABASE_URL") {
+                return null;
+            }
+
+            // Wait for the SDK to load via our dynamic loader
+            supabaseLib = await window.supabaseReady;
+            console.log("Supabase SDK ready:", typeof supabaseLib?.createClient);
+            return supabaseLib;
+        };
+
+        // Initialize Supabase client with Clerk JWT for authenticated requests
+        const initSupabase = async (clerkSession = null) => {
             if (!SUPABASE_CONFIG.ENABLED || SUPABASE_CONFIG.SUPABASE_URL === "YOUR_SUPABASE_URL") {
                 return false;
             }
 
-            // Wait for the SDK to load via our dynamic loader
-            const supabaseLib = await window.supabaseReady;
-
-            console.log("Supabase SDK ready check:", {
-                supabaseLib: typeof supabaseLib,
-                hasCreateClient: supabaseLib ? typeof supabaseLib.createClient : 'N/A'
-            });
-
-            if (supabaseLib && typeof supabaseLib.createClient === 'function') {
-                try {
-                    supabase = supabaseLib.createClient(
-                        SUPABASE_CONFIG.SUPABASE_URL,
-                        SUPABASE_CONFIG.SUPABASE_ANON_KEY
-                    );
-                    console.log("Supabase initialized successfully");
-                    return true;
-                } catch (e) {
-                    console.error("Supabase createClient error:", e);
-                }
+            const lib = await initSupabaseSDK();
+            if (!lib || typeof lib.createClient !== 'function') {
+                return false;
             }
-            return false;
+
+            try {
+                // If we have a Clerk session, get a Supabase JWT token
+                let supabaseToken = null;
+                if (clerkSession) {
+                    try {
+                        // Get JWT from Clerk using the 'supabase' template
+                        // You must create this template in Clerk Dashboard → JWT Templates
+                        supabaseToken = await clerkSession.getToken({ template: 'supabase' });
+                        console.log("Got Clerk token for Supabase:", supabaseToken ? "✓" : "✗");
+                    } catch (e) {
+                        console.warn("Could not get Clerk token for Supabase:", e.message);
+                    }
+                }
+
+                // Create Supabase client with optional auth header
+                const options = supabaseToken ? {
+                    global: {
+                        headers: {
+                            Authorization: `Bearer ${supabaseToken}`
+                        }
+                    }
+                } : {};
+
+                supabase = lib.createClient(
+                    SUPABASE_CONFIG.SUPABASE_URL,
+                    SUPABASE_CONFIG.SUPABASE_ANON_KEY,
+                    options
+                );
+                console.log("Supabase initialized", supabaseToken ? "with Clerk auth" : "without auth");
+                return true;
+            } catch (e) {
+                console.error("Supabase createClient error:", e);
+                return false;
+            }
         };
-        // Try to init on DOMContentLoaded and load events
-        document.addEventListener('DOMContentLoaded', initSupabase);
-        window.addEventListener('load', initSupabase);
-        // Also try immediately in case scripts already loaded
-        setTimeout(initSupabase, 0);
+
+        // Try to init SDK on load (client will be created later with auth)
+        document.addEventListener('DOMContentLoaded', initSupabaseSDK);
+        window.addEventListener('load', initSupabaseSDK);
+        setTimeout(initSupabaseSDK, 0);
 
         // ============================================
         // USER ROLES & PRE-SEEDED PROFILES
@@ -8079,9 +8112,11 @@
                     }
 
                     // ===== SUPABASE MODE =====
-                    // Wait for Supabase SDK to load and initialize
+                    // Wait for Supabase SDK to load and initialize with Clerk auth
                     if (SUPABASE_CONFIG.ENABLED && !supabase) {
-                        await initSupabase();
+                        // Pass Clerk session for JWT-authenticated Supabase requests
+                        const clerkSession = window.Clerk?.session || null;
+                        await initSupabase(clerkSession);
                         if (!supabase) {
                             console.warn("Supabase SDK failed to load - using demo data");
                         }
