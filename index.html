@@ -1927,38 +1927,40 @@
                     const email = inviteEmail.toLowerCase().trim();
                     const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-                    // Create profile in Supabase (user will sign up with this email)
-                    if (supabase) {
-                        const { error } = await supabase
-                            .from('user_profiles')
-                            .upsert([{
-                                email: email,
-                                name: name,
-                                role: 'member',
-                                team: TEAMS[0],
-                                invited_at: new Date().toISOString(),
-                                invited_by: currentUserEmail
-                            }], { onConflict: 'email' });
-
-                        if (error && error.code !== '23505') {
-                            throw new Error(error.message);
-                        }
+                    // Get user's session token
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) {
+                        throw new Error('You must be logged in to send invites');
                     }
 
-                    // Add to pre-seeded profiles if not exists
-                    if (!getPreseededProfile(email)) {
-                        addProfile({
+                    // Call the invite Edge Function
+                    const response = await fetch(`${APP_CONFIG.SUPABASE_URL}/functions/v1/invite-user`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify({
                             email: email,
                             name: name,
                             team: TEAMS[0],
                             role: 'member'
-                        });
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        if (result.alreadyExists) {
+                            throw new Error(`This user already has an account. They can sign in directly.`);
+                        }
+                        throw new Error(result.error || 'Failed to send invite');
                     }
 
                     setInvites(prev => [...prev, {
                         email: email,
                         sentAt: new Date().toISOString(),
-                        status: 'ready'
+                        status: 'sent'
                     }]);
 
                     // Log activity
@@ -1966,7 +1968,7 @@
                         invited_by: currentUserEmail
                     });
 
-                    setMessage({ type: 'success', text: `Profile created for ${email}. They can now sign up!` });
+                    setMessage({ type: 'success', text: `Invitation email sent to ${email}!` });
                     setInviteEmail('');
                     forceUpdate(n => n + 1);
 
@@ -1975,42 +1977,59 @@
                     setClaimedProfiles(profiles);
                 } catch (error) {
                     Logger.error(error, 'Invite error');
-                    setMessage({ type: 'error', text: error.message || 'Failed to create profile' });
+                    setMessage({ type: 'error', text: error.message || 'Failed to send invite' });
                 } finally {
                     setSending(false);
                 }
             };
 
             // Create profile for a pre-seeded user (used by profile invite buttons)
-            const handleSendProfileInvite = async (email, name) => {
+            const handleSendProfileInvite = async (email, name, team, role) => {
                 if (!email) return;
 
                 setSendingEmail(email);
                 setMessage({ type: '', text: '' });
 
                 try {
-                    // Create/update profile in Supabase
-                    if (supabase) {
-                        const { error } = await supabase
-                            .from('user_profiles')
-                            .upsert([{
-                                email: email.toLowerCase().trim(),
-                                name: name,
-                                role: 'member',
-                                team: '',
-                                invited_at: new Date().toISOString(),
-                                invited_by: currentUserEmail
-                            }], { onConflict: 'email' });
+                    // Get the seed profile data if available
+                    const seedProfile = SEED_PROFILES.find(p => p.email.toLowerCase() === email.toLowerCase());
+                    const profileTeam = team || seedProfile?.team || '';
+                    const profileRole = role || seedProfile?.role || 'member';
 
-                        if (error && error.code !== '23505') {
-                            throw new Error(error.message);
+                    // Get user's session token
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) {
+                        throw new Error('You must be logged in to send invites');
+                    }
+
+                    // Call the invite Edge Function
+                    const response = await fetch(`${APP_CONFIG.SUPABASE_URL}/functions/v1/invite-user`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify({
+                            email: email.toLowerCase().trim(),
+                            name: name,
+                            team: profileTeam,
+                            role: profileRole
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        if (result.alreadyExists) {
+                            throw new Error(`${name} already has an account. They can sign in directly.`);
                         }
+                        throw new Error(result.error || 'Failed to send invite');
                     }
 
                     setInvites(prev => [...prev, {
                         email: email,
                         sentAt: new Date().toISOString(),
-                        status: 'ready'
+                        status: 'sent'
                     }]);
 
                     // Log activity
@@ -2018,14 +2037,14 @@
                         invited_by: currentUserEmail
                     });
 
-                    setMessage({ type: 'success', text: `Profile created for ${name}. They can now sign up!` });
+                    setMessage({ type: 'success', text: `Invitation email sent to ${name}!` });
 
                     // Reload profiles
                     const profiles = await SUPABASE_API.fetchUserProfiles();
                     setClaimedProfiles(profiles);
                 } catch (error) {
                     Logger.error(error, 'Invite error');
-                    setMessage({ type: 'error', text: error.message || 'Failed to create profile' });
+                    setMessage({ type: 'error', text: error.message || 'Failed to send invite' });
                 } finally {
                     setSendingEmail(null);
                 }
