@@ -23,19 +23,41 @@ Deno.serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '')
+    console.log('Token received, length:', token.length)
 
     // Create admin client with service role key
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    console.log('SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET')
+    console.log('SERVICE_ROLE_KEY:', serviceRoleKey ? 'SET (length: ' + serviceRoleKey.length + ')' : 'NOT SET')
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('Missing environment variables')
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      supabaseUrl,
+      serviceRoleKey,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
     // Verify the calling user's token and check if they're admin
+    console.log('Verifying user token...')
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+
+    if (authError) {
+      console.error('Auth error:', authError.message)
+    }
+    console.log('User:', user ? user.email : 'null')
+
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
+        JSON.stringify({ error: 'Invalid or expired token', details: authError?.message }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
