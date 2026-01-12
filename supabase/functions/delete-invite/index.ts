@@ -49,13 +49,13 @@ Deno.serve(async (req) => {
 
     if (!callerProfile || callerProfile.role !== 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Only admins can send invites' }),
+        JSON.stringify({ error: 'Only admins can delete invites' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Get request body
-    const { email, name, team, role, resend } = await req.json()
+    const { email } = await req.json()
 
     if (!email) {
       return new Response(
@@ -66,68 +66,37 @@ Deno.serve(async (req) => {
 
     const normalizedEmail = email.toLowerCase().trim()
 
-    // Check if user already exists in auth
+    // Check if user exists in auth
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
     const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === normalizedEmail)
 
     if (existingUser) {
-      // If resending, delete the old user and create a new invite
-      if (resend) {
-        // Check if user has actually signed in (has last_sign_in_at)
-        if (existingUser.last_sign_in_at) {
-          return new Response(
-            JSON.stringify({ error: 'User has already signed in. Cannot resend invite.', alreadyClaimed: true }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-        // Delete the pending user so we can re-invite
-        await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
-      } else {
+      // Check if user has actually signed in
+      if (existingUser.last_sign_in_at) {
         return new Response(
-          JSON.stringify({ error: 'User already has an account', alreadyExists: true }),
+          JSON.stringify({ error: 'Cannot delete - user has already signed in', alreadyClaimed: true }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+      // Delete the pending auth user
+      await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
     }
 
-    // Send the invitation via Supabase Auth
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      normalizedEmail,
-      {
-        data: {
-          name: name || normalizedEmail.split('@')[0],
-          team: team || '',
-          role: role || 'member'
-        },
-        redirectTo: 'https://ddpopmatters.github.io/PM-Productivity-Tool/'
-      }
-    )
-
-    if (inviteError) {
-      console.error('Invite error:', inviteError)
-      return new Response(
-        JSON.stringify({ error: inviteError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Update or create the user_profiles record
-    await supabaseAdmin
+    // Delete from user_profiles
+    const { error: deleteError } = await supabaseAdmin
       .from('user_profiles')
-      .upsert([{
-        email: normalizedEmail,
-        name: name || normalizedEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-        team: team || '',
-        role: role || 'member',
-        invited_at: new Date().toISOString(),
-        invited_by: user.email
-      }], { onConflict: 'email' })
+      .delete()
+      .eq('email', normalizedEmail)
+
+    if (deleteError) {
+      console.error('Delete profile error:', deleteError)
+      // Don't fail if profile doesn't exist
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Invitation sent to ${normalizedEmail}`,
-        userId: inviteData.user?.id
+        message: `Invite deleted for ${normalizedEmail}`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
