@@ -564,13 +564,22 @@
         // ============================================
         // USER PROFILES (loaded from Supabase)
         // ============================================
-        // Note: All user profiles are now managed in Supabase user_profiles table
-        // SEED_PROFILES kept empty for backwards compatibility with fallback logic
-        const SEED_PROFILES = [];
+        // Seed profiles provide initial user data. When users sign in, their profiles
+        // are claimed in Supabase. This ensures the app works even before DB is populated.
+        const SEED_PROFILES = [
+            { email: "jameen.kaur@populationmatters.org", name: "Jameen Kaur", team: "Advocacy & Influence", role: "admin" },
+            { email: "daniel.davis@populationmatters.org", name: "Dan Davis", team: "Advocacy & Influence", role: "manager" },
+            { email: "emma.lewendon-strutt@populationmatters.org", name: "Emma Lewendon-Strutt", team: "Research", role: "member" },
+            { email: "josh.hill@populationmatters.org", name: "Josh Hill", team: "Research", role: "member" },
+            { email: "francesca.harrison@populationmatters.org", name: "Francesca Harrison", team: "Advocacy & Influence", role: "member" },
+            { email: "madeleine.hewitt@populationmatters.org", name: "Madeleine Hewitt", team: "Fundraising", role: "member" },
+            { email: "shweta.shirodkar@populationmatters.org", name: "Shweta Shirodkar", team: "Advocacy & Influence", role: "member" }
+        ];
 
         // Global cache for user profiles loaded from Supabase
         // This gets populated at app startup and updated when roles change
-        let userProfilesCache = [];
+        // Initialize with seed profiles so data is available immediately
+        let userProfilesCache = [...SEED_PROFILES];
 
         // Legacy USERS_CONFIG for backwards compatibility (empty - data from Supabase)
         const USERS_CONFIG = {
@@ -8960,8 +8969,12 @@
                 }
             };
 
-            // Load Data on Startup
+            // Load Data on Startup - only after auth is checked
             useEffect(() => {
+                // Wait for auth to be checked before loading data
+                // This ensures RLS policies work correctly with authenticated users
+                if (!authChecked) return;
+
                 let realtimeSubscription = null; // Store subscription for cleanup
 
                 async function init() {
@@ -9107,7 +9120,7 @@
                         realtimeSubscription.unsubscribe();
                     }
                 };
-            }, []);
+            }, [authChecked]); // Re-run when auth is checked
 
             // Fetch notifications when user is logged in
             useEffect(() => {
