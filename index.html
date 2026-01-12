@@ -1912,7 +1912,7 @@
             const claimedEmails = claimedProfiles.map(p => p.email.toLowerCase());
 
             // Filter pre-seeded profiles into pending (not claimed)
-            const pendingProfiles = USERS_CONFIG.profiles.filter(
+            const pendingProfiles = SEED_PROFILES.filter(
                 p => !claimedEmails.includes(p.email.toLowerCase())
             );
 
