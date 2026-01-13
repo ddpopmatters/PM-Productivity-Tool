@@ -6091,7 +6091,10 @@
             const [customFieldsModalOpen, setCustomFieldsModalOpen] = useState(false);
             const [descriptionDraft, setDescriptionDraft] = useState(getCaption());
             const [documentsDraft, setDocumentsDraft] = useState(getDocuments());
-            const [newDocInput, setNewDocInput] = useState("");
+            const [newDocTitle, setNewDocTitle] = useState("");
+            const [newDocUrl, setNewDocUrl] = useState("");
+            const [newDocNotes, setNewDocNotes] = useState("");
+            const [showAddLinkForm, setShowAddLinkForm] = useState(false);
             const [dependencySearch, setDependencySearch] = useState("");
             const [newFieldName, setNewFieldName] = useState("");
             const [newFieldValue, setNewFieldValue] = useState("");
@@ -6134,18 +6137,58 @@
 
             const handleDocumentsSave = () => {
                 if (onUpdateEntry) {
-                    const cleaned = documentsDraft.map((doc) => (doc || "").trim()).filter(Boolean);
+                    // Filter out empty entries
+                    const cleaned = documentsDraft.filter((doc) => {
+                        if (typeof doc === 'string') return doc.trim();
+                        return doc && (doc.title?.trim() || doc.url?.trim());
+                    });
                     onUpdateEntry(entry.id, { documents: cleaned });
                 }
-                setNewDocInput("");
+                resetDocForm();
                 setDocumentsModalOpen(false);
             };
 
+            const resetDocForm = () => {
+                setNewDocTitle("");
+                setNewDocUrl("");
+                setNewDocNotes("");
+                setShowAddLinkForm(false);
+            };
+
             const addDocumentDraft = () => {
-                const trimmed = newDocInput.trim();
-                if (!trimmed) return;
-                setDocumentsDraft((prev) => [...prev, trimmed]);
-                setNewDocInput("");
+                const title = newDocTitle.trim();
+                const url = newDocUrl.trim();
+                const notes = newDocNotes.trim();
+                if (!title && !url) return;
+
+                const newDoc = {
+                    id: `doc${Date.now()}`,
+                    title: title || 'Untitled Link',
+                    url: url,
+                    notes: notes
+                };
+                setDocumentsDraft((prev) => [...prev, newDoc]);
+                resetDocForm();
+            };
+
+            // Helper to get display title for a document (handles both old string format and new object format)
+            const getDocTitle = (doc) => {
+                if (typeof doc === 'string') return doc;
+                return doc.title || doc.url || 'Untitled';
+            };
+
+            const getDocUrl = (doc) => {
+                if (typeof doc === 'string') {
+                    // Check if old format is a URL
+                    if (doc.startsWith('http://') || doc.startsWith('https://')) return doc;
+                    return null;
+                }
+                return doc.url || null;
+            };
+
+            const getDocNotes = (doc) => {
+                if (typeof doc === 'string') return null;
+                return doc.notes || null;
             };
 
             const handleFileSelect = (event) => {
@@ -6404,15 +6447,15 @@
                                 </p>
                             </div>
 
-                            {/* Documents */}
+                            {/* SharePoint Links */}
                             <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-bold text-ocean-900">Documents</h3>
+                                    <h3 className="text-lg font-bold text-ocean-900">SharePoint Links</h3>
                                     {canEdit && (
                                         <button
                                             onClick={() => {
                                                 setDocumentsDraft(getDocuments());
-                                                setNewDocInput("");
+                                                resetDocForm();
                                                 setDocumentsModalOpen(true);
                                             }}
                                             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
@@ -6422,23 +6465,56 @@
                                     )}
                                 </div>
                                 {entry.documents && entry.documents.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {entry.documents.map((doc, i) => (
-                                            <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-graystone-200 hover:border-ocean-300 hover:bg-ocean-50 transition-all cursor-pointer group">
-                                                <div className="bg-ocean-100 p-2 rounded-lg text-ocean-600 group-hover:bg-white group-hover:text-ocean-700 transition-colors">
-                                                    <Icon name="file-text" className="w-5 h-5" />
+                                    <div className="space-y-3">
+                                        {entry.documents.map((doc, i) => {
+                                            const title = getDocTitle(doc);
+                                            const url = getDocUrl(doc);
+                                            const notes = getDocNotes(doc);
+                                            return (
+                                                <div key={i} className="p-4 rounded-xl border border-graystone-200 hover:border-ocean-300 hover:bg-ocean-50/50 transition-all group">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="bg-ocean-100 p-2 rounded-lg text-ocean-600 group-hover:bg-white group-hover:text-ocean-700 transition-colors shrink-0">
+                                                            <Icon name="link" className="w-5 h-5" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-sm font-medium text-ocean-900">{title}</div>
+                                                            {url && (
+                                                                <a
+                                                                    href={url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-xs text-ocean-600 hover:text-ocean-700 hover:underline truncate block mt-0.5"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    {url}
+                                                                </a>
+                                                            )}
+                                                            {notes && (
+                                                                <div className="text-xs text-graystone-600 mt-2 bg-graystone-50 rounded-lg px-2 py-1.5">
+                                                                    {notes}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {url && (
+                                                            <a
+                                                                href={url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="p-2 rounded-lg hover:bg-ocean-100 transition-colors shrink-0"
+                                                                title="Open link"
+                                                            >
+                                                                <Icon name="external-link" className="w-4 h-4 text-ocean-600" />
+                                                            </a>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-graystone-900 truncate">{doc}</div>
-                                                    <div className="text-xs text-graystone-500">SharePoint</div>
-                                                </div>
-                                                <Icon name="download" className="w-4 h-4 text-graystone-400 group-hover:text-ocean-600" />
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div className="text-center py-8 text-graystone-500 bg-graystone-50 rounded-xl border border-dashed border-graystone-200">
-                                        No documents attached
+                                        <div className="flex justify-center mb-2"><Icon name="link" className="w-6 h-6 text-graystone-300" /></div>
+                                        No SharePoint links added yet
                                     </div>
                                 )}
                             </div>
@@ -7168,14 +7244,14 @@
                         aria-modal="true"
                         aria-labelledby="documents-modal-title"
                     >
-                        <div className="fixed inset-0" onClick={() => { setDocumentsDraft(getDocuments()); setNewDocInput(""); setDocumentsModalOpen(false); }} aria-hidden="true" />
+                        <div className="fixed inset-0" onClick={() => { setDocumentsDraft(getDocuments()); resetDocForm(); setDocumentsModalOpen(false); }} aria-hidden="true" />
                         <div className="relative bg-white rounded-2xl p-6 w-full max-w-xl shadow-xl animate-in fade-in zoom-in-95 duration-200">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 id="documents-modal-title" className="text-lg font-bold text-ocean-900">Manage documents</h3>
+                                <h3 id="documents-modal-title" className="text-lg font-bold text-ocean-900">SharePoint Links</h3>
                                 <button
                                     onClick={() => {
                                         setDocumentsDraft(getDocuments());
-                                        setNewDocInput("");
+                                        resetDocForm();
                                         setDocumentsModalOpen(false);
                                     }}
                                     className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
@@ -7184,75 +7260,117 @@
                                     <Icon name="x" className="w-5 h-5 text-white" />
                                 </button>
                             </div>
-                            <p className="text-sm text-graystone-600 mb-3">Drop in SharePoint links or filenames so the team can find assets fast.</p>
-                            <div className="flex flex-col gap-2 mb-4">
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        value={newDocInput}
-                                        onChange={(e) => setNewDocInput(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                addDocumentDraft();
-                                            }
-                                        }}
-                                        placeholder="Paste a SharePoint link or filename"
-                                        className="flex-1 rounded-lg border border-graystone-200 px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200"
-                                    />
-                                    <button
-                                        onClick={addDocumentDraft}
-                                        className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm"
-                                    >
-                                        Add
-                                    </button>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        className="hidden"
-                                        multiple
-                                        onChange={handleFileSelect}
-                                    />
-                                    <button
-                                        onClick={triggerUpload}
-                                        className="px-4 py-2 bg-ocean-50 text-ocean-700 text-sm font-medium rounded-lg hover:bg-ocean-100 transition-colors border border-ocean-100"
-                                    >
-                                        Upload from device (SharePoint)
-                                    </button>
-                                    <span className="text-xs text-graystone-500">Files will sync to SharePoint once connected.</span>
-                                </div>
-                            </div>
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                                {documentsDraft.length > 0 ? (
-                                    documentsDraft.map((doc, index) => (
-                                        <div
-                                            key={`${doc}-${index}`}
-                                            className="flex items-center justify-between rounded-xl border border-graystone-200 px-3 py-2 shadow-sm"
-                                        >
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <Icon name="file-text" className="w-4 h-4 text-ocean-600" />
-                                                <span className="text-sm text-graystone-800 truncate">{doc}</span>
-                                            </div>
+                            <p className="text-sm text-graystone-600 mb-4">Add links to SharePoint files so the team can find assets fast.</p>
+
+                            {/* Add Link Form */}
+                            {showAddLinkForm ? (
+                                <div className="bg-ocean-50 border border-ocean-200 rounded-xl p-4 mb-4">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Title *</label>
+                                            <input
+                                                type="text"
+                                                value={newDocTitle}
+                                                onChange={(e) => setNewDocTitle(e.target.value)}
+                                                placeholder="e.g., Campaign Brief Q1"
+                                                className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100 bg-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">SharePoint URL</label>
+                                            <input
+                                                type="url"
+                                                value={newDocUrl}
+                                                onChange={(e) => setNewDocUrl(e.target.value)}
+                                                placeholder="https://sharepoint.com/..."
+                                                className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100 bg-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Notes</label>
+                                            <textarea
+                                                value={newDocNotes}
+                                                onChange={(e) => setNewDocNotes(e.target.value)}
+                                                placeholder="Add any helpful context about this file..."
+                                                className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100 bg-white min-h-[60px]"
+                                            />
+                                        </div>
+                                        <div className="flex justify-end gap-2 pt-2">
                                             <button
-                                                onClick={() => removeDocumentDraft(index)}
-                                                className="p-1 rounded-full hover:bg-graystone-100 transition-colors"
+                                                onClick={resetDocForm}
+                                                className="px-3 py-1.5 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
                                             >
-                                                <Icon name="trash-2" className="w-4 h-4 text-rose-500" />
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={addDocumentDraft}
+                                                disabled={!newDocTitle.trim() && !newDocUrl.trim()}
+                                                className="px-4 py-1.5 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                Add Link
                                             </button>
                                         </div>
-                                    ))
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setShowAddLinkForm(true)}
+                                    className="w-full px-4 py-3 mb-4 bg-ocean-50 text-ocean-700 text-sm font-medium rounded-xl hover:bg-ocean-100 transition-colors border border-ocean-200 border-dashed flex items-center justify-center gap-2"
+                                >
+                                    <Icon name="plus" className="w-4 h-4" />
+                                    Add SharePoint Link
+                                </button>
+                            )}
+
+                            {/* Links List */}
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {documentsDraft.length > 0 ? (
+                                    documentsDraft.map((doc, index) => {
+                                        const title = getDocTitle(doc);
+                                        const url = getDocUrl(doc);
+                                        const notes = getDocNotes(doc);
+                                        return (
+                                            <div
+                                                key={`${typeof doc === 'string' ? doc : doc.id}-${index}`}
+                                                className="rounded-xl border border-graystone-200 p-3 shadow-sm"
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex items-start gap-2 min-w-0 flex-1">
+                                                        <Icon name="link" className="w-4 h-4 text-ocean-600 mt-0.5 shrink-0" />
+                                                        <div className="min-w-0">
+                                                            <div className="text-sm font-medium text-graystone-800">{title}</div>
+                                                            {url && (
+                                                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-ocean-600 hover:underline truncate block">
+                                                                    {url}
+                                                                </a>
+                                                            )}
+                                                            {notes && (
+                                                                <div className="text-xs text-graystone-500 mt-1">{notes}</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => removeDocumentDraft(index)}
+                                                        className="p-1 rounded-full hover:bg-graystone-100 transition-colors shrink-0"
+                                                    >
+                                                        <Icon name="trash-2" className="w-4 h-4 text-rose-500" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
                                 ) : (
-                                    <div className="text-sm text-graystone-500 bg-graystone-50 border border-dashed border-graystone-200 rounded-xl px-3 py-4 text-center">
-                                        Nothing attached yet
+                                    <div className="text-sm text-graystone-500 bg-graystone-50 border border-dashed border-graystone-200 rounded-xl px-3 py-6 text-center">
+                                        <div className="flex justify-center mb-2"><Icon name="link" className="w-6 h-6 text-graystone-300" /></div>
+                                        No links added yet
                                     </div>
                                 )}
                             </div>
-                            <div className="flex justify-end gap-3 mt-4">
+                            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-graystone-200">
                                 <button
                                     onClick={() => {
                                         setDocumentsDraft(getDocuments());
-                                        setNewDocInput("");
+                                        resetDocForm();
                                         setDocumentsModalOpen(false);
                                     }}
                                     className="px-4 py-2 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
