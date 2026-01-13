@@ -49,7 +49,7 @@ function isValidEmail(email: string): boolean {
 
 // Validate notification type
 const VALID_NOTIFICATION_TYPES = [
-  'mention', 'assignment', 'status_change', 'comment', 'subtask_assigned', 'due_reminder'
+  'mention', 'assignment', 'collaborator_added', 'status_change', 'comment', 'subtask_assigned', 'due_reminder'
 ] as const
 
 type NotificationType = typeof VALID_NOTIFICATION_TYPES[number]
@@ -92,7 +92,12 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
 
     case 'assignment':
       subject = `You've been assigned to "${safeItemTitle}"`
-      bodyText = `<p><strong>${safeActorName}</strong> assigned you to work on <strong>${safeItemTitle}</strong>.</p>`
+      bodyText = `<p><strong>${safeActorName}</strong> assigned you as the owner of <strong>${safeItemTitle}</strong>.</p>`
+      break
+
+    case 'collaborator_added':
+      subject = `You've been added as a collaborator on "${safeItemTitle}"`
+      bodyText = `<p><strong>${safeActorName}</strong> added you as a collaborator on <strong>${safeItemTitle}</strong>.</p>`
       break
 
     case 'status_change':

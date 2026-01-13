@@ -9785,6 +9785,57 @@
                             team: existingEntry.team
                         }, existingEntry.collaborators || []);
                     }
+
+                    // Detect owner change and send notification
+                    if (updatedEntry.owner && updatedEntry.owner !== existingEntry.owner) {
+                        logActivity('owner_assigned', 'workflow_item', entryId, existingEntry.title, {
+                            new_owner: updatedEntry.owner,
+                            old_owner: existingEntry.owner
+                        }, existingEntry.collaborators || []);
+
+                        // Send email notification to new owner
+                        const ownerProfile = userProfilesCache.find(p =>
+                            p.name === updatedEntry.owner || p.email === updatedEntry.owner
+                        );
+                        if (ownerProfile && ownerProfile.email && ownerProfile.email !== userEmail) {
+                            sendNotificationEmail(
+                                ownerProfile.email,
+                                ownerProfile.name,
+                                'assignment',
+                                existingEntry.title,
+                                entryId,
+                                {}
+                            );
+                        }
+                    }
+
+                    // Detect new collaborators and send notifications
+                    const oldCollaborators = existingEntry.collaborators || [];
+                    const newCollaborators = updatedEntry.collaborators || [];
+                    const addedCollaborators = newCollaborators.filter(c => !oldCollaborators.includes(c));
+
+                    if (addedCollaborators.length > 0) {
+                        logActivity('collaborators_added', 'workflow_item', entryId, existingEntry.title, {
+                            added_collaborators: addedCollaborators.join(', ')
+                        }, newCollaborators);
+
+                        // Send email notifications to new collaborators
+                        addedCollaborators.forEach(collaborator => {
+                            const profile = userProfilesCache.find(p =>
+                                p.name === collaborator || p.email === collaborator
+                            );
+                            if (profile && profile.email && profile.email !== userEmail) {
+                                sendNotificationEmail(
+                                    profile.email,
+                                    profile.name,
+                                    'collaborator_added',
+                                    existingEntry.title,
+                                    entryId,
+                                    {}
+                                );
+                            }
+                        });
+                    }
                 }
             };
 
