@@ -453,7 +453,36 @@
     </script>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useLayoutEffect } = React;
+
+        // ============================================
+        // LUCIDE ICON COMPONENT (React-safe)
+        // ============================================
+        // Prevents React reconciliation errors with Lucide icons
+        // by managing icon rendering outside React's virtual DOM
+        const Icon = ({ name, className = "", size, ...props }) => {
+            const iconRef = useRef(null);
+
+            useLayoutEffect(() => {
+                if (iconRef.current && window.lucide) {
+                    // Clear any existing content
+                    iconRef.current.innerHTML = '';
+                    // Create the icon element
+                    const iconEl = document.createElement('i');
+                    iconEl.setAttribute('data-lucide', name);
+                    if (className) iconEl.className = className;
+                    if (size) {
+                        iconEl.style.width = typeof size === 'number' ? `${size}px` : size;
+                        iconEl.style.height = typeof size === 'number' ? `${size}px` : size;
+                    }
+                    iconRef.current.appendChild(iconEl);
+                    // Transform just this icon
+                    lucide.createIcons({ nodes: [iconEl] });
+                }
+            }, [name, className, size]);
+
+            return <span ref={iconRef} className="inline-flex" {...props} />;
+        };
 
         // ============================================================
         // PRODUCTION CONFIGURATION - Update these values for deployment
@@ -4547,7 +4576,7 @@
                                                 {hasSubtasks && (
                                                     <div className="mt-2 pt-2 border-t border-graystone-200">
                                                         <div className="flex items-center gap-1 text-xs text-ocean-600 mb-2">
-                                                            <i data-lucide="check-square" className="w-3 h-3"></i>
+                                                            <Icon name="check-square" className="w-3 h-3" />
                                                             <span>{completedSubtasks}/{project.subtasks.length} subtasks</span>
                                                         </div>
                                                         <div className="space-y-1">
@@ -4559,10 +4588,10 @@
                                                                         subtask.completed ? "text-graystone-400 line-through" : "text-graystone-600"
                                                                     )}
                                                                 >
-                                                                    <i data-lucide={subtask.completed ? "check-circle-2" : "circle"} className={cx(
+                                                                    <Icon name={subtask.completed ? "check-circle-2" : "circle"} className={cx(
                                                                         "w-3 h-3 flex-shrink-0",
                                                                         subtask.completed ? "text-green-500" : "text-graystone-400"
-                                                                    )}></i>
+                                                                    )} />
                                                                     <span>{subtask.title}</span>
                                                                 </div>
                                                             ))}
@@ -4598,19 +4627,19 @@
                                                         "flex items-center gap-1",
                                                         new Date(project.date) < new Date() && project.workflowStatus !== 'Done' ? 'text-red-500' : ''
                                                     )}>
-                                                        <i data-lucide="calendar" className="w-3 h-3"></i>
+                                                        <Icon name="calendar" className="w-3 h-3" />
                                                         Due: {new Date(project.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                     </span>
                                                 )}
                                                 {project.subtasks && project.subtasks.length > 0 && (
                                                     <span className="flex items-center gap-1">
-                                                        <i data-lucide="check-square" className="w-3 h-3"></i>
+                                                        <Icon name="check-square" className="w-3 h-3" />
                                                         Subtasks: {project.subtasks.filter(s => s.completed).length}/{project.subtasks.length}
                                                     </span>
                                                 )}
                                                 {project.collaborators && project.collaborators.length > 0 && (
                                                     <span className="flex items-center gap-1">
-                                                        <i data-lucide="users" className="w-3 h-3"></i>
+                                                        <Icon name="users" className="w-3 h-3" />
                                                         {project.collaborators.slice(0, 2).join(', ')}{project.collaborators.length > 2 ? ` +${project.collaborators.length - 2}` : ''}
                                                     </span>
                                                 )}
@@ -6296,14 +6325,14 @@
                     <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-4">
                             <Button variant="ghost" onClick={onBack} className="rounded-full p-2 hover:bg-ocean-50">
-                                <i data-lucide="arrow-left" className="w-6 h-6 text-ocean-600"></i>
+                                <Icon name="arrow-left" className="w-6 h-6 text-ocean-600" />
                             </Button>
                             <div>
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-3xl font-bold text-ocean-900">{entry.title}</h1>
                                     {entry.archived && (
                                         <span className="px-3 py-1 bg-amber-100 text-amber-800 text-sm font-medium rounded-full flex items-center gap-1.5">
-                                            <i data-lucide="archive" className="w-4 h-4"></i>
+                                            <Icon name="archive" className="w-4 h-4" />
                                             Archived
                                         </span>
                                     )}
@@ -6326,7 +6355,7 @@
                                             : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300"
                                     )}
                                 >
-                                    <i data-lucide={entry.archived ? "archive-restore" : "archive"} className="w-5 h-5"></i>
+                                    <Icon name={entry.archived ? "archive-restore" : "archive"} className="w-5 h-5" />
                                     {entry.archived ? "Restore" : "Archive"}
                                 </button>
                             )}
@@ -6357,11 +6386,11 @@
                                             }}
                                             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
                                         >
-                                            <i data-lucide="edit" className="w-5 h-5 text-ocean-600"></i>
+                                            <Icon name="edit" className="w-5 h-5 text-ocean-600" />
                                         </button>
                                     ) : (
                                         <span className="text-xs text-graystone-400 flex items-center gap-1">
-                                            <i data-lucide="eye" className="w-3 h-3"></i> View only
+                                            <Icon name="eye" className="w-3 h-3" /> View only
                                         </span>
                                     )}
                                 </div>
@@ -6383,7 +6412,7 @@
                                             }}
                                             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
                                         >
-                                            <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
+                                            <Icon name="plus" className="w-5 h-5 text-ocean-600" />
                                         </button>
                                     )}
                                 </div>
@@ -6392,13 +6421,13 @@
                                         {entry.documents.map((doc, i) => (
                                             <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-graystone-200 hover:border-ocean-300 hover:bg-ocean-50 transition-all cursor-pointer group">
                                                 <div className="bg-ocean-100 p-2 rounded-lg text-ocean-600 group-hover:bg-white group-hover:text-ocean-700 transition-colors">
-                                                    <i data-lucide="file-text" className="w-5 h-5"></i>
+                                                    <Icon name="file-text" className="w-5 h-5" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="text-sm font-medium text-graystone-900 truncate">{doc}</div>
                                                     <div className="text-xs text-graystone-500">SharePoint</div>
                                                 </div>
-                                                <i data-lucide="download" className="w-4 h-4 text-graystone-400 group-hover:text-ocean-600"></i>
+                                                <Icon name="download" className="w-4 h-4 text-graystone-400 group-hover:text-ocean-600" />
                                             </div>
                                         ))}
                                     </div>
@@ -6430,7 +6459,7 @@
                                             )}
                                             title="Add subtask"
                                         >
-                                            <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
+                                            <Icon name="plus" className="w-5 h-5 text-ocean-600" />
                                         </button>
                                         <button
                                             onClick={() => {
@@ -6445,7 +6474,7 @@
                                             )}
                                             title="View subtask details"
                                         >
-                                            <i data-lucide="info" className="w-5 h-5 text-ocean-600"></i>
+                                            <Icon name="info" className="w-5 h-5 text-ocean-600" />
                                         </button>
                                     </div>
                                 </div>
@@ -6501,7 +6530,7 @@
                                                             className="p-1 rounded-full hover:bg-ocean-50 transition-colors"
                                                             title="Open subtask"
                                                         >
-                                                            <i data-lucide="external-link" className="w-4 h-4 text-ocean-700"></i>
+                                                            <Icon name="external-link" className="w-4 h-4 text-ocean-700" />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -6510,14 +6539,14 @@
                                     </div>
                                 ) : (
                                     <div className="text-center py-8 text-graystone-500 bg-graystone-50 rounded-xl border border-dashed border-graystone-200">
-                                        <i data-lucide="list-checks" className="w-8 h-8 mx-auto mb-2 opacity-50" aria-hidden="true"></i>
+                                        <div className="flex justify-center mb-2 opacity-50"><Icon name="list-checks" className="w-8 h-8" /></div>
                                         <p className="text-sm mb-3">No subtasks yet</p>
                                         {canEdit && (
                                             <button
                                                 onClick={() => openSubtaskModal(entry.id)}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-ocean-500 text-white text-sm font-medium rounded-lg hover:bg-ocean-600 transition-colors"
                                             >
-                                                <i data-lucide="plus" className="w-4 h-4" aria-hidden="true"></i>
+                                                <Icon name="plus" className="w-4 h-4" />
                                                 Add Subtask
                                             </button>
                                         )}
@@ -6646,7 +6675,7 @@
                                 <div>
                                     <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">Timeline</div>
                                     <div className="flex items-center gap-2">
-                                        <i data-lucide="calendar-clock" className="w-4 h-4 text-ocean-500"></i>
+                                        <Icon name="calendar-clock" className="w-4 h-4 text-ocean-500" />
                                         <span className="text-sm font-medium text-graystone-900">
                                             {entry.timelineType === 'date' ? new Date(entry.timelineValue).toLocaleDateString() :
                                                 entry.timelineType === 'quarter' ? entry.timelineValue :
@@ -6667,7 +6696,7 @@
                                             onClick={() => setDependenciesModalOpen(true)}
                                             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
                                         >
-                                            <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
+                                            <Icon name="plus" className="w-5 h-5 text-ocean-600" />
                                         </button>
                                     )}
                                 </div>
@@ -6685,10 +6714,10 @@
                                                         : "bg-green-50 border-green-200"
                                                 )}>
                                                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                        <i data-lucide={isBlocked ? "circle-alert" : "circle-check"} className={cx(
+                                                        <Icon name={isBlocked ? "circle-alert" : "circle-check"} className={cx(
                                                             "w-4 h-4 shrink-0",
                                                             isBlocked ? "text-red-500" : "text-green-500"
-                                                        )}></i>
+                                                        )} />
                                                         <span className="text-sm font-medium text-graystone-900 truncate">{depEntry.title}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1">
@@ -6706,7 +6735,7 @@
                                                                 }}
                                                                 className="p-1 hover:bg-red-100 rounded transition-colors"
                                                             >
-                                                                <i data-lucide="x" className="w-3 h-3 text-graystone-500"></i>
+                                                                <Icon name="x" className="w-3 h-3 text-graystone-500" />
                                                             </button>
                                                         )}
                                                     </div>
@@ -6771,7 +6800,7 @@
                                             onClick={() => setCustomFieldsModalOpen(true)}
                                             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-ocean-50 transition-colors"
                                         >
-                                            <i data-lucide="plus" className="w-5 h-5 text-ocean-600"></i>
+                                            <Icon name="plus" className="w-5 h-5 text-ocean-600" />
                                         </button>
                                     )}
                                 </div>
@@ -6785,7 +6814,7 @@
                                                         {field.type === 'url' ? (
                                                             <a href={field.value} target="_blank" rel="noopener noreferrer" className="text-ocean-600 hover:underline flex items-center gap-1">
                                                                 <span className="truncate">{field.value}</span>
-                                                                <i data-lucide="external-link" className="w-3 h-3 shrink-0"></i>
+                                                                <Icon name="external-link" className="w-3 h-3 shrink-0" />
                                                             </a>
                                                         ) : field.type === 'date' ? (
                                                             new Date(field.value).toLocaleDateString()
@@ -6804,7 +6833,7 @@
                                                         }}
                                                         className="p-1 hover:bg-red-100 rounded transition-colors shrink-0"
                                                     >
-                                                        <i data-lucide="x" className="w-3 h-3 text-graystone-500"></i>
+                                                        <Icon name="x" className="w-3 h-3 text-graystone-500" />
                                                     </button>
                                                 )}
                                             </div>
@@ -6831,7 +6860,7 @@
                                             {uploadingFile ? (
                                                 <LoadingSpinner size="sm" />
                                             ) : (
-                                                <i data-lucide="paperclip" className="w-5 h-5 text-ocean-600" aria-hidden="true"></i>
+                                                <Icon name="paperclip" className="w-5 h-5 text-ocean-600" />
                                             )}
                                         </button>
                                     )}
@@ -6855,7 +6884,7 @@
                                                     className="flex items-center gap-3 flex-1 min-w-0 hover:text-ocean-600 transition-colors"
                                                 >
                                                     <div className="w-10 h-10 rounded-lg bg-ocean-100 flex items-center justify-center shrink-0">
-                                                        <i data-lucide={getFileIcon(attachment.type)} className="w-5 h-5 text-ocean-600"></i>
+                                                        <Icon name={getFileIcon(attachment.type)} className="w-5 h-5 text-ocean-600" />
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div className="text-sm font-medium text-graystone-900 truncate">{attachment.name}</div>
@@ -6867,7 +6896,7 @@
                                                         onClick={() => handleDeleteAttachment(attachment)}
                                                         className="p-2 hover:bg-red-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                                     >
-                                                        <i data-lucide="trash-2" className="w-4 h-4 text-red-500"></i>
+                                                        <Icon name="trash-2" className="w-4 h-4 text-red-500" />
                                                     </button>
                                                 )}
                                             </div>
@@ -6881,7 +6910,7 @@
                                         )}
                                         onClick={() => canEdit && attachmentInputRef.current?.click()}
                                     >
-                                        <i data-lucide="upload-cloud" className="w-8 h-8 text-graystone-300 mx-auto mb-2"></i>
+                                        <div className="flex justify-center mb-2"><Icon name="upload-cloud" className="w-8 h-8 text-graystone-300" /></div>
                                         <div>No attachments</div>
                                         {canEdit && <div className="text-xs text-ocean-500 mt-1">Click to upload</div>}
                                     </div>
@@ -6906,7 +6935,7 @@
                             {entry.analytics && (
                                 <div className="bg-gradient-to-br from-ocean-900 to-ocean-800 rounded-3xl p-6 text-white shadow-lg">
                                     <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                        <i data-lucide="bar-chart-2" className="w-5 h-5"></i>
+                                        <Icon name="bar-chart-2" className="w-5 h-5" />
                                         Analytics
                                     </h3>
                                     <div className="grid grid-cols-2 gap-4">
@@ -6941,7 +6970,7 @@
                                     className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
                                     aria-label="Close subtask details"
                                 >
-                                    <i data-lucide="x" className="w-5 h-5 text-white" aria-hidden="true"></i>
+                                    <Icon name="x" className="w-5 h-5 text-white" />
                                 </button>
                             </div>
                             <div className="space-y-3">
@@ -6993,7 +7022,7 @@
                                     className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
                                     aria-label="Close description editor"
                                 >
-                                    <i data-lucide="x" className="w-5 h-5 text-white" aria-hidden="true"></i>
+                                    <Icon name="x" className="w-5 h-5 text-white" />
                                 </button>
                             </div>
                             <p className="text-sm text-graystone-600 mb-3">Keep this concise—the first few lines appear in the task preview.</p>
@@ -7045,7 +7074,7 @@
                                     className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
                                     aria-label="Close documents manager"
                                 >
-                                    <i data-lucide="x" className="w-5 h-5 text-white" aria-hidden="true"></i>
+                                    <Icon name="x" className="w-5 h-5 text-white" />
                                 </button>
                             </div>
                             <p className="text-sm text-graystone-600 mb-3">Drop in SharePoint links or filenames so the team can find assets fast.</p>
@@ -7095,14 +7124,14 @@
                                             className="flex items-center justify-between rounded-xl border border-graystone-200 px-3 py-2 shadow-sm"
                                         >
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <i data-lucide="file-text" className="w-4 h-4 text-ocean-600"></i>
+                                                <Icon name="file-text" className="w-4 h-4 text-ocean-600" />
                                                 <span className="text-sm text-graystone-800 truncate">{doc}</span>
                                             </div>
                                             <button
                                                 onClick={() => removeDocumentDraft(index)}
                                                 className="p-1 rounded-full hover:bg-graystone-100 transition-colors"
                                             >
-                                                <i data-lucide="trash-2" className="w-4 h-4 text-rose-500"></i>
+                                                <Icon name="trash-2" className="w-4 h-4 text-rose-500" />
                                             </button>
                                         </div>
                                     ))
@@ -7154,7 +7183,7 @@
                                     className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
                                     aria-label="Close dependencies dialog"
                                 >
-                                    <i data-lucide="x" className="w-5 h-5 text-white" aria-hidden="true"></i>
+                                    <Icon name="x" className="w-5 h-5 text-white" />
                                 </button>
                             </div>
                             <p className="text-sm text-graystone-600 mb-4">
@@ -7163,7 +7192,7 @@
 
                             {/* Search */}
                             <div className="relative mb-4">
-                                <i data-lucide="search" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-graystone-400"></i>
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2"><Icon name="search" className="w-4 h-4 text-graystone-400" /></span>
                                 <input
                                     type="text"
                                     placeholder="Search items..."
@@ -7208,7 +7237,7 @@
                                                     </span>
                                                 </div>
                                             </div>
-                                            <i data-lucide="plus" className="w-4 h-4 text-ocean-500 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                            <Icon name="plus" className="w-4 h-4 text-ocean-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </button>
                                     ))
                                 }
@@ -7262,7 +7291,7 @@
                                     className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
                                     aria-label="Close custom fields dialog"
                                 >
-                                    <i data-lucide="x" className="w-5 h-5 text-white" aria-hidden="true"></i>
+                                    <Icon name="x" className="w-5 h-5 text-white" />
                                 </button>
                             </div>
 
@@ -7903,7 +7932,7 @@
                                                         }}
                                                         className="text-xs text-ocean-600 hover:text-ocean-800 flex items-center gap-1"
                                                     >
-                                                        <i data-lucide="plus" className="w-3 h-3"></i>
+                                                        <Icon name="plus" className="w-3 h-3" />
                                                         Add Subtask
                                                     </button>
                                                 </div>
@@ -11298,7 +11327,7 @@
                                         <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5">
                                             <div className="flex items-center justify-between mb-3">
                                                 <h3 className="font-heading text-lg text-ocean-900 tracking-wide flex items-center gap-2">
-                                                    <i data-lucide="list-checks" className="w-5 h-5"></i>
+                                                    <Icon name="list-checks" className="w-5 h-5" />
                                                     Your subtasks
                                                 </h3>
                                                 <Badge variant="secondary">{openSubtasks.length} open</Badge>
@@ -11312,15 +11341,15 @@
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <span className="font-medium text-ocean-900 heading-font truncate">{subtask.title}</span>
-                                                            <i data-lucide="external-link" className="w-4 h-4 text-graystone-300 group-hover:text-ocean-500"></i>
+                                                            <Icon name="external-link" className="w-4 h-4 text-graystone-300 group-hover:text-ocean-500" />
                                                         </div>
                                                         <div className="text-xs text-graystone-600 mt-1 flex items-center gap-2">
-                                                            <i data-lucide="folder" className="w-3 h-3"></i>
+                                                            <Icon name="folder" className="w-3 h-3" />
                                                             <span className="truncate">{subtask.parentTitle}</span>
                                                         </div>
                                                         {subtask.deadline && (
                                                             <div className="text-xs text-ocean-700 mt-1 flex items-center gap-2">
-                                                                <i data-lucide="calendar" className="w-3 h-3"></i>
+                                                                <Icon name="calendar" className="w-3 h-3" />
                                                                 <span>{subtask.deadline}</span>
                                                             </div>
                                                         )}
@@ -11565,31 +11594,31 @@
                                                     <div className="flex items-center gap-3 text-xs text-graystone-600 flex-wrap">
                                                         {item.kind === "subtask" && item.parentTitle && (
                                                             <span className="flex items-center gap-1">
-                                                                <i data-lucide="folder" className="w-3 h-3"></i>
+                                                                <Icon name="folder" className="w-3 h-3" />
                                                                 {item.parentTitle}
                                                             </span>
                                                         )}
                                                         {item.owner && (
                                                             <span className="flex items-center gap-1">
-                                                                <i data-lucide="user" className="w-3 h-3"></i>
+                                                                <Icon name="user" className="w-3 h-3" />
                                                                 {item.owner}
                                                             </span>
                                                         )}
                                                         {item.team && (
                                                             <span className="flex items-center gap-1">
-                                                                <i data-lucide="users" className="w-3 h-3"></i>
+                                                                <Icon name="users" className="w-3 h-3" />
                                                                 {item.team}
                                                             </span>
                                                         )}
                                                         {(item.date || item.timelineValue) && (
                                                             <span className="flex items-center gap-1">
-                                                                <i data-lucide="calendar" className="w-3 h-3"></i>
+                                                                <Icon name="calendar" className="w-3 h-3" />
                                                                 {item.date || item.timelineValue}
                                                             </span>
                                                         )}
                                                         {item.deadline && (
                                                             <span className="flex items-center gap-1">
-                                                                <i data-lucide="calendar" className="w-3 h-3"></i>
+                                                                <Icon name="calendar" className="w-3 h-3" />
                                                                 {item.deadline}
                                                             </span>
                                                         )}
@@ -11634,7 +11663,7 @@
                                         className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
                                         aria-label="Close subtask form"
                                     >
-                                        <i data-lucide="x" className="w-5 h-5 text-white" aria-hidden="true"></i>
+                                        <Icon name="x" className="w-5 h-5 text-white" />
                                     </button>
                                 </div>
                                 <div className="space-y-4">
