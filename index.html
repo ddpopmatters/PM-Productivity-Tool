@@ -3163,6 +3163,7 @@
                     { key: 'D', description: 'Go to Dashboard' },
                     { key: 'P', description: 'Go to Your Projects' },
                     { key: 'T', description: 'Go to To-Do List' },
+                    { key: 'W', description: 'Go to Whiteboards' },
                 ]},
                 { category: 'Actions', items: [
                     { key: 'N', description: 'Create new item' },
@@ -5510,7 +5511,8 @@
                 { id: 'personal', label: 'Your Projects', icon: 'folder' },
                 // Manager Hub only visible to managers and admins
                 ...(userIsManager || userIsAdmin ? [{ id: 'manager-hub', label: 'Manager Hub', icon: 'briefcase' }] : []),
-                { id: 'todo', label: 'To-Do List', icon: 'check-square' }
+                { id: 'todo', label: 'To-Do List', icon: 'check-square' },
+                { id: 'whiteboards', label: 'Whiteboards', icon: 'layout' }
             ];
 
             const handleNavigation = (id) => {
@@ -8976,6 +8978,909 @@
             );
         }
 
+        // ============================================
+        // WHITEBOARD COMPONENTS
+        // ============================================
+
+        // Sticky note color palette
+        const STICKY_COLORS = [
+            { name: 'Yellow', bg: '#fef3c7', border: '#fbbf24' },
+            { name: 'Blue', bg: '#dbeafe', border: '#3b82f6' },
+            { name: 'Green', bg: '#dcfce7', border: '#22c55e' },
+            { name: 'Pink', bg: '#fce7f3', border: '#ec4899' },
+            { name: 'Purple', bg: '#f3e8ff', border: '#a855f7' },
+            { name: 'Orange', bg: '#ffedd5', border: '#f97316' },
+            { name: 'White', bg: '#ffffff', border: '#e5e7eb' }
+        ];
+
+        // Whiteboard API functions
+        const WHITEBOARD_API = {
+            fetchWhiteboards: async (userEmail) => {
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('whiteboards')
+                    .select('*')
+                    .or(`owner_email.eq.${userEmail},shared_with.cs.{${userEmail}}`)
+                    .eq('archived', false)
+                    .order('updated_at', { ascending: false });
+                if (error) {
+                    console.error('Error fetching whiteboards:', error);
+                    return [];
+                }
+                return data || [];
+            },
+
+            createWhiteboard: async (whiteboard) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('whiteboards')
+                    .insert([whiteboard])
+                    .select()
+                    .single();
+                if (error) {
+                    console.error('Error creating whiteboard:', error);
+                    return null;
+                }
+                return data;
+            },
+
+            updateWhiteboard: async (id, updates) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('whiteboards')
+                    .update({ ...updates, updated_at: new Date().toISOString() })
+                    .eq('id', id)
+                    .select()
+                    .single();
+                if (error) {
+                    console.error('Error updating whiteboard:', error);
+                    return null;
+                }
+                return data;
+            },
+
+            deleteWhiteboard: async (id) => {
+                if (!supabase) return false;
+                const { error } = await supabase
+                    .from('whiteboards')
+                    .delete()
+                    .eq('id', id);
+                if (error) {
+                    console.error('Error deleting whiteboard:', error);
+                    return false;
+                }
+                return true;
+            },
+
+            fetchElements: async (whiteboardId) => {
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('whiteboard_elements')
+                    .select('*')
+                    .eq('whiteboard_id', whiteboardId)
+                    .order('z_index', { ascending: true });
+                if (error) {
+                    console.error('Error fetching elements:', error);
+                    return [];
+                }
+                return data || [];
+            },
+
+            createElement: async (element) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('whiteboard_elements')
+                    .insert([element])
+                    .select()
+                    .single();
+                if (error) {
+                    console.error('Error creating element:', error);
+                    return null;
+                }
+                return data;
+            },
+
+            updateElement: async (id, updates) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('whiteboard_elements')
+                    .update({ ...updates, updated_at: new Date().toISOString() })
+                    .eq('id', id)
+                    .select()
+                    .single();
+                if (error) {
+                    console.error('Error updating element:', error);
+                    return null;
+                }
+                return data;
+            },
+
+            deleteElement: async (id) => {
+                if (!supabase) return false;
+                const { error } = await supabase
+                    .from('whiteboard_elements')
+                    .delete()
+                    .eq('id', id);
+                if (error) {
+                    console.error('Error deleting element:', error);
+                    return false;
+                }
+                return true;
+            },
+
+            subscribeToWhiteboard: (whiteboardId, onElementChange) => {
+                if (!supabase) return null;
+                const channel = supabase.channel(`whiteboard:${whiteboardId}`);
+                channel.on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'whiteboard_elements',
+                        filter: `whiteboard_id=eq.${whiteboardId}`
+                    },
+                    (payload) => {
+                        onElementChange(payload);
+                    }
+                );
+                channel.subscribe();
+                return channel;
+            }
+        };
+
+        // Whiteboards List View
+        function WhiteboardsView({
+            whiteboards,
+            setWhiteboards,
+            onOpenWhiteboard,
+            currentUser,
+            userEmail
+        }) {
+            const [showCreateModal, setShowCreateModal] = useState(false);
+            const [newTitle, setNewTitle] = useState('');
+            const [loading, setLoading] = useState(true);
+            const [filter, setFilter] = useState('all'); // 'all', 'mine', 'shared'
+
+            // Load whiteboards on mount
+            useEffect(() => {
+                const loadWhiteboards = async () => {
+                    setLoading(true);
+                    const data = await WHITEBOARD_API.fetchWhiteboards(userEmail);
+                    setWhiteboards(data);
+                    setLoading(false);
+                };
+                loadWhiteboards();
+            }, [userEmail]);
+
+            const handleCreate = async () => {
+                if (!newTitle.trim()) return;
+                const whiteboard = await WHITEBOARD_API.createWhiteboard({
+                    title: newTitle.trim(),
+                    owner_email: userEmail,
+                    owner_name: currentUser
+                });
+                if (whiteboard) {
+                    setWhiteboards(prev => [whiteboard, ...prev]);
+                    setShowCreateModal(false);
+                    setNewTitle('');
+                    onOpenWhiteboard(whiteboard.id);
+                }
+            };
+
+            const handleDelete = async (id, e) => {
+                e.stopPropagation();
+                if (!confirm('Are you sure you want to delete this whiteboard?')) return;
+                const success = await WHITEBOARD_API.deleteWhiteboard(id);
+                if (success) {
+                    setWhiteboards(prev => prev.filter(wb => wb.id !== id));
+                }
+            };
+
+            const filteredWhiteboards = whiteboards.filter(wb => {
+                if (filter === 'mine') return wb.owner_email === userEmail;
+                if (filter === 'shared') return wb.owner_email !== userEmail;
+                return true;
+            });
+
+            useEffect(() => {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }, [whiteboards, loading]);
+
+            return (
+                <div className="flex flex-col animate-in fade-in duration-500 space-y-6">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-graystone-900 dark:text-white">Whiteboards</h1>
+                            <p className="text-graystone-600 dark:text-graystone-400">Create and collaborate on visual boards</p>
+                        </div>
+                        <button
+                            onClick={() => setShowCreateModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors"
+                        >
+                            <i data-lucide="plus" className="w-4 h-4"></i>
+                            New Whiteboard
+                        </button>
+                    </div>
+
+                    {/* Filter Tabs */}
+                    <div className="flex gap-2 border-b border-graystone-200 dark:border-graystone-700">
+                        {[
+                            { id: 'all', label: 'All' },
+                            { id: 'mine', label: 'My Whiteboards' },
+                            { id: 'shared', label: 'Shared With Me' }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setFilter(tab.id)}
+                                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                                    filter === tab.id
+                                        ? 'border-ocean-600 text-ocean-600 dark:text-ocean-400'
+                                        : 'border-transparent text-graystone-600 hover:text-graystone-900 dark:text-graystone-400'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Whiteboard Grid */}
+                    {loading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ocean-600"></div>
+                        </div>
+                    ) : filteredWhiteboards.length === 0 ? (
+                        <div className="text-center py-12">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-graystone-100 dark:bg-graystone-800 mb-4">
+                                <i data-lucide="layout" className="w-8 h-8 text-graystone-400"></i>
+                            </div>
+                            <h3 className="text-lg font-medium text-graystone-900 dark:text-white mb-2">No whiteboards yet</h3>
+                            <p className="text-graystone-600 dark:text-graystone-400 mb-4">Create your first whiteboard to get started</p>
+                            <button
+                                onClick={() => setShowCreateModal(true)}
+                                className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors"
+                            >
+                                Create Whiteboard
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {filteredWhiteboards.map(whiteboard => (
+                                <div
+                                    key={whiteboard.id}
+                                    onClick={() => onOpenWhiteboard(whiteboard.id)}
+                                    className="bg-white dark:bg-graystone-800 rounded-xl border border-graystone-200 dark:border-graystone-700 p-4 cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all group"
+                                >
+                                    {/* Preview Area */}
+                                    <div className="aspect-video bg-graystone-50 dark:bg-graystone-900 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                                        <i data-lucide="layout" className="w-12 h-12 text-graystone-300 dark:text-graystone-600"></i>
+                                    </div>
+
+                                    {/* Info */}
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-medium text-graystone-900 dark:text-white truncate">{whiteboard.title}</h3>
+                                            <p className="text-sm text-graystone-500 dark:text-graystone-400">
+                                                {whiteboard.owner_email === userEmail ? 'You' : whiteboard.owner_name || 'Unknown'}
+                                            </p>
+                                            <p className="text-xs text-graystone-400 dark:text-graystone-500 mt-1">
+                                                Updated {new Date(whiteboard.updated_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+
+                                        {/* Actions */}
+                                        {whiteboard.owner_email === userEmail && (
+                                            <button
+                                                onClick={(e) => handleDelete(whiteboard.id, e)}
+                                                className="p-1 text-graystone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="Delete"
+                                            >
+                                                <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Shared Badge */}
+                                    {whiteboard.is_shared && (
+                                        <div className="mt-2 flex items-center gap-1 text-xs text-ocean-600 dark:text-ocean-400">
+                                            <i data-lucide="users" className="w-3 h-3"></i>
+                                            Shared
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Create Modal */}
+                    {showCreateModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
+                            <div className="bg-white dark:bg-graystone-800 rounded-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+                                <h2 className="text-xl font-bold text-graystone-900 dark:text-white mb-4">Create New Whiteboard</h2>
+                                <input
+                                    type="text"
+                                    value={newTitle}
+                                    onChange={(e) => setNewTitle(e.target.value)}
+                                    placeholder="Whiteboard name"
+                                    className="w-full px-4 py-2 border border-graystone-300 dark:border-graystone-600 rounded-lg bg-white dark:bg-graystone-900 text-graystone-900 dark:text-white focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
+                                    autoFocus
+                                    onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                                />
+                                <div className="flex justify-end gap-2 mt-4">
+                                    <button
+                                        onClick={() => setShowCreateModal(false)}
+                                        className="px-4 py-2 text-graystone-600 dark:text-graystone-400 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded-lg transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleCreate}
+                                        disabled={!newTitle.trim()}
+                                        className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors disabled:opacity-50"
+                                    >
+                                        Create
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Sticky Note Component
+        function StickyNote({
+            element,
+            isSelected,
+            onSelect,
+            onUpdate,
+            onDelete,
+            viewport
+        }) {
+            const [isEditing, setIsEditing] = useState(false);
+            const [title, setTitle] = useState(element.content?.title || '');
+            const [description, setDescription] = useState(element.content?.description || '');
+            const noteRef = useRef(null);
+
+            const handleDoubleClick = (e) => {
+                e.stopPropagation();
+                setIsEditing(true);
+            };
+
+            const handleBlur = () => {
+                setIsEditing(false);
+                if (title !== element.content?.title || description !== element.content?.description) {
+                    onUpdate(element.id, {
+                        content: { ...element.content, title, description }
+                    });
+                }
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') {
+                    setIsEditing(false);
+                }
+                e.stopPropagation();
+            };
+
+            return (
+                <div
+                    ref={noteRef}
+                    className={`absolute rounded-lg shadow-md cursor-move select-none ${isSelected ? 'ring-2 ring-ocean-500' : ''}`}
+                    style={{
+                        left: element.x,
+                        top: element.y,
+                        width: element.width,
+                        height: element.height,
+                        backgroundColor: element.background_color,
+                        borderColor: element.border_color,
+                        borderWidth: '2px',
+                        borderStyle: 'solid',
+                        zIndex: element.z_index
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(element.id);
+                    }}
+                    onDoubleClick={handleDoubleClick}
+                >
+                    <div className="p-3 h-full flex flex-col overflow-hidden">
+                        {isEditing ? (
+                            <>
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    onBlur={handleBlur}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="Title"
+                                    className="font-bold text-sm bg-transparent border-none outline-none w-full mb-1"
+                                    style={{ color: element.text_color }}
+                                    autoFocus
+                                />
+                                <textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    onBlur={handleBlur}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="Add notes..."
+                                    className="text-xs bg-transparent border-none outline-none w-full flex-1 resize-none"
+                                    style={{ color: element.text_color }}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <div className="font-bold text-sm truncate" style={{ color: element.text_color }}>
+                                    {title || 'Untitled'}
+                                </div>
+                                <div className="text-xs mt-1 flex-1 overflow-hidden" style={{ color: element.text_color }}>
+                                    {description || 'Double-click to edit'}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Resize handles when selected */}
+                    {isSelected && !isEditing && (
+                        <>
+                            <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-ocean-500 border border-white rounded-sm cursor-se-resize" />
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        // Whiteboard Canvas Component
+        function WhiteboardCanvas({
+            whiteboardId,
+            whiteboard,
+            onBack,
+            userEmail,
+            currentUser
+        }) {
+            const [elements, setElements] = useState([]);
+            const [selectedElementId, setSelectedElementId] = useState(null);
+            const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
+            const [activeTool, setActiveTool] = useState('select');
+            const [isPanning, setIsPanning] = useState(false);
+            const [dragStart, setDragStart] = useState(null);
+            const [resizeStart, setResizeStart] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [showColorPicker, setShowColorPicker] = useState(false);
+            const [showShareModal, setShowShareModal] = useState(false);
+            const [shareEmail, setShareEmail] = useState('');
+
+            const canvasRef = useRef(null);
+            const lastPanPosition = useRef({ x: 0, y: 0 });
+            const channelRef = useRef(null);
+
+            // Load elements on mount
+            useEffect(() => {
+                const loadElements = async () => {
+                    setLoading(true);
+                    const data = await WHITEBOARD_API.fetchElements(whiteboardId);
+                    setElements(data);
+                    setLoading(false);
+                };
+                loadElements();
+
+                // Subscribe to real-time changes
+                channelRef.current = WHITEBOARD_API.subscribeToWhiteboard(whiteboardId, (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        setElements(prev => [...prev, payload.new]);
+                    } else if (payload.eventType === 'UPDATE') {
+                        setElements(prev => prev.map(el => el.id === payload.new.id ? payload.new : el));
+                    } else if (payload.eventType === 'DELETE') {
+                        setElements(prev => prev.filter(el => el.id !== payload.old.id));
+                    }
+                });
+
+                return () => {
+                    if (channelRef.current) {
+                        supabase.removeChannel(channelRef.current);
+                    }
+                };
+            }, [whiteboardId]);
+
+            // Keyboard shortcuts
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                    if (e.key === 'Delete' || e.key === 'Backspace') {
+                        if (selectedElementId) {
+                            handleDeleteElement(selectedElementId);
+                        }
+                    } else if (e.key === 'Escape') {
+                        setSelectedElementId(null);
+                        setActiveTool('select');
+                    } else if (e.key === 'v' || e.key === 'V') {
+                        setActiveTool('select');
+                    } else if (e.key === 's' || e.key === 'S') {
+                        if (!e.metaKey && !e.ctrlKey) {
+                            setActiveTool('sticky');
+                        }
+                    }
+                };
+
+                document.addEventListener('keydown', handleKeyDown);
+                return () => document.removeEventListener('keydown', handleKeyDown);
+            }, [selectedElementId]);
+
+            // Create lucide icons
+            useEffect(() => {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }, [elements, loading, activeTool, showShareModal]);
+
+            const handleCanvasClick = async (e) => {
+                if (e.target !== canvasRef.current) return;
+
+                if (activeTool === 'sticky') {
+                    const rect = canvasRef.current.getBoundingClientRect();
+                    const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
+                    const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+
+                    const newElement = await WHITEBOARD_API.createElement({
+                        whiteboard_id: whiteboardId,
+                        element_type: 'sticky',
+                        x: x - 100, // Center the note
+                        y: y - 75,
+                        width: 200,
+                        height: 150,
+                        content: { title: '', description: '' },
+                        background_color: STICKY_COLORS[0].bg,
+                        border_color: STICKY_COLORS[0].border,
+                        text_color: '#1f2937',
+                        z_index: elements.length,
+                        created_by: userEmail
+                    });
+
+                    if (newElement) {
+                        setElements(prev => [...prev, newElement]);
+                        setSelectedElementId(newElement.id);
+                        setActiveTool('select');
+                    }
+                } else {
+                    setSelectedElementId(null);
+                }
+            };
+
+            const handleMouseDown = (e) => {
+                if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+                    setIsPanning(true);
+                    lastPanPosition.current = { x: e.clientX, y: e.clientY };
+                    e.preventDefault();
+                }
+            };
+
+            const handleMouseMove = (e) => {
+                if (isPanning) {
+                    const dx = e.clientX - lastPanPosition.current.x;
+                    const dy = e.clientY - lastPanPosition.current.y;
+                    setViewport(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
+                    lastPanPosition.current = { x: e.clientX, y: e.clientY };
+                } else if (dragStart) {
+                    const dx = (e.clientX - dragStart.mouseX) / viewport.zoom;
+                    const dy = (e.clientY - dragStart.mouseY) / viewport.zoom;
+                    setElements(prev => prev.map(el =>
+                        el.id === dragStart.elementId
+                            ? { ...el, x: dragStart.elementX + dx, y: dragStart.elementY + dy }
+                            : el
+                    ));
+                } else if (resizeStart) {
+                    const dx = (e.clientX - resizeStart.mouseX) / viewport.zoom;
+                    const dy = (e.clientY - resizeStart.mouseY) / viewport.zoom;
+                    setElements(prev => prev.map(el =>
+                        el.id === resizeStart.elementId
+                            ? {
+                                ...el,
+                                width: Math.max(100, resizeStart.width + dx),
+                                height: Math.max(80, resizeStart.height + dy)
+                            }
+                            : el
+                    ));
+                }
+            };
+
+            const handleMouseUp = async () => {
+                if (dragStart) {
+                    const element = elements.find(el => el.id === dragStart.elementId);
+                    if (element) {
+                        await WHITEBOARD_API.updateElement(element.id, { x: element.x, y: element.y });
+                    }
+                    setDragStart(null);
+                }
+                if (resizeStart) {
+                    const element = elements.find(el => el.id === resizeStart.elementId);
+                    if (element) {
+                        await WHITEBOARD_API.updateElement(element.id, { width: element.width, height: element.height });
+                    }
+                    setResizeStart(null);
+                }
+                setIsPanning(false);
+            };
+
+            const handleWheel = (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+                    setViewport(v => ({
+                        ...v,
+                        zoom: Math.max(0.25, Math.min(4, v.zoom * zoomDelta))
+                    }));
+                }
+            };
+
+            const handleElementMouseDown = (e, element) => {
+                if (activeTool !== 'select') return;
+                e.stopPropagation();
+                setSelectedElementId(element.id);
+                setDragStart({
+                    elementId: element.id,
+                    elementX: element.x,
+                    elementY: element.y,
+                    mouseX: e.clientX,
+                    mouseY: e.clientY
+                });
+            };
+
+            const handleResizeMouseDown = (e, element) => {
+                e.stopPropagation();
+                setResizeStart({
+                    elementId: element.id,
+                    width: element.width,
+                    height: element.height,
+                    mouseX: e.clientX,
+                    mouseY: e.clientY
+                });
+            };
+
+            const handleUpdateElement = async (id, updates) => {
+                setElements(prev => prev.map(el => el.id === id ? { ...el, ...updates } : el));
+                await WHITEBOARD_API.updateElement(id, updates);
+            };
+
+            const handleDeleteElement = async (id) => {
+                setElements(prev => prev.filter(el => el.id !== id));
+                setSelectedElementId(null);
+                await WHITEBOARD_API.deleteElement(id);
+            };
+
+            const handleChangeColor = async (color) => {
+                if (!selectedElementId) return;
+                await handleUpdateElement(selectedElementId, {
+                    background_color: color.bg,
+                    border_color: color.border
+                });
+                setShowColorPicker(false);
+            };
+
+            const handleShare = async () => {
+                if (!shareEmail.trim() || !whiteboard) return;
+                const updatedSharedWith = [...(whiteboard.shared_with || []), shareEmail.trim()];
+                await WHITEBOARD_API.updateWhiteboard(whiteboardId, {
+                    is_shared: true,
+                    shared_with: updatedSharedWith,
+                    share_mode: 'edit'
+                });
+                setShareEmail('');
+                setShowShareModal(false);
+            };
+
+            const selectedElement = elements.find(el => el.id === selectedElementId);
+
+            return (
+                <div className="flex flex-col h-full">
+                    {/* Toolbar */}
+                    <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-graystone-800 border-b border-graystone-200 dark:border-graystone-700">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={onBack}
+                                className="p-2 text-graystone-600 hover:bg-graystone-100 dark:text-graystone-400 dark:hover:bg-graystone-700 rounded-lg transition-colors"
+                            >
+                                <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            </button>
+                            <h2 className="font-semibold text-graystone-900 dark:text-white">{whiteboard?.title || 'Whiteboard'}</h2>
+                        </div>
+
+                        {/* Tools */}
+                        <div className="flex items-center gap-1 bg-graystone-100 dark:bg-graystone-700 rounded-lg p-1">
+                            <button
+                                onClick={() => setActiveTool('select')}
+                                className={`p-2 rounded-md transition-colors ${activeTool === 'select' ? 'bg-white dark:bg-graystone-600 shadow-sm' : 'hover:bg-graystone-200 dark:hover:bg-graystone-600'}`}
+                                title="Select (V)"
+                            >
+                                <i data-lucide="mouse-pointer-2" className="w-4 h-4"></i>
+                            </button>
+                            <button
+                                onClick={() => setActiveTool('sticky')}
+                                className={`p-2 rounded-md transition-colors ${activeTool === 'sticky' ? 'bg-white dark:bg-graystone-600 shadow-sm' : 'hover:bg-graystone-200 dark:hover:bg-graystone-600'}`}
+                                title="Sticky Note (S)"
+                            >
+                                <i data-lucide="sticky-note" className="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        {/* Right side tools */}
+                        <div className="flex items-center gap-2">
+                            {/* Color picker */}
+                            {selectedElement && (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowColorPicker(!showColorPicker)}
+                                        className="p-2 rounded-lg border border-graystone-300 dark:border-graystone-600"
+                                        style={{ backgroundColor: selectedElement.background_color }}
+                                    >
+                                        <i data-lucide="palette" className="w-4 h-4"></i>
+                                    </button>
+                                    {showColorPicker && (
+                                        <div className="absolute right-0 top-full mt-2 p-2 bg-white dark:bg-graystone-800 rounded-lg shadow-lg border border-graystone-200 dark:border-graystone-700 flex gap-1 z-50">
+                                            {STICKY_COLORS.map(color => (
+                                                <button
+                                                    key={color.name}
+                                                    onClick={() => handleChangeColor(color)}
+                                                    className="w-6 h-6 rounded-full border-2"
+                                                    style={{ backgroundColor: color.bg, borderColor: color.border }}
+                                                    title={color.name}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Zoom controls */}
+                            <div className="flex items-center gap-1 text-sm text-graystone-600 dark:text-graystone-400">
+                                <button
+                                    onClick={() => setViewport(v => ({ ...v, zoom: Math.max(0.25, v.zoom - 0.1) }))}
+                                    className="p-1 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded"
+                                >
+                                    <i data-lucide="minus" className="w-4 h-4"></i>
+                                </button>
+                                <span className="w-12 text-center">{Math.round(viewport.zoom * 100)}%</span>
+                                <button
+                                    onClick={() => setViewport(v => ({ ...v, zoom: Math.min(4, v.zoom + 0.1) }))}
+                                    className="p-1 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded"
+                                >
+                                    <i data-lucide="plus" className="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            {/* Share button */}
+                            <button
+                                onClick={() => setShowShareModal(true)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors text-sm"
+                            >
+                                <i data-lucide="share-2" className="w-4 h-4"></i>
+                                Share
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Canvas */}
+                    <div
+                        ref={canvasRef}
+                        className="flex-1 overflow-hidden bg-graystone-100 dark:bg-graystone-900 relative"
+                        style={{ cursor: isPanning ? 'grabbing' : (activeTool === 'sticky' ? 'crosshair' : 'default') }}
+                        onClick={handleCanvasClick}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                        onWheel={handleWheel}
+                    >
+                        {/* Grid background */}
+                        <div
+                            className="absolute inset-0 pointer-events-none"
+                            style={{
+                                backgroundImage: 'radial-gradient(circle, #d1d5db 1px, transparent 1px)',
+                                backgroundSize: `${20 * viewport.zoom}px ${20 * viewport.zoom}px`,
+                                backgroundPosition: `${viewport.x}px ${viewport.y}px`
+                            }}
+                        />
+
+                        {/* Canvas content */}
+                        <div
+                            className="absolute"
+                            style={{
+                                transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+                                transformOrigin: '0 0'
+                            }}
+                        >
+                            {loading ? (
+                                <div className="flex items-center justify-center w-screen h-screen">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ocean-600"></div>
+                                </div>
+                            ) : (
+                                elements.map(element => (
+                                    element.element_type === 'sticky' && (
+                                        <div
+                                            key={element.id}
+                                            onMouseDown={(e) => handleElementMouseDown(e, element)}
+                                        >
+                                            <StickyNote
+                                                element={element}
+                                                isSelected={selectedElementId === element.id}
+                                                onSelect={setSelectedElementId}
+                                                onUpdate={handleUpdateElement}
+                                                onDelete={handleDeleteElement}
+                                                viewport={viewport}
+                                            />
+                                            {selectedElementId === element.id && (
+                                                <div
+                                                    className="absolute w-3 h-3 bg-ocean-500 border border-white rounded-sm cursor-se-resize"
+                                                    style={{
+                                                        left: element.x + element.width - 6,
+                                                        top: element.y + element.height - 6,
+                                                        zIndex: element.z_index + 1
+                                                    }}
+                                                    onMouseDown={(e) => handleResizeMouseDown(e, element)}
+                                                />
+                                            )}
+                                        </div>
+                                    )
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Share Modal */}
+                    {showShareModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShareModal(false)}>
+                            <div className="bg-white dark:bg-graystone-800 rounded-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+                                <h2 className="text-xl font-bold text-graystone-900 dark:text-white mb-4">Share Whiteboard</h2>
+                                <p className="text-sm text-graystone-600 dark:text-graystone-400 mb-4">
+                                    Enter an email address to share this whiteboard with someone.
+                                </p>
+                                <input
+                                    type="email"
+                                    value={shareEmail}
+                                    onChange={(e) => setShareEmail(e.target.value)}
+                                    placeholder="email@example.com"
+                                    className="w-full px-4 py-2 border border-graystone-300 dark:border-graystone-600 rounded-lg bg-white dark:bg-graystone-900 text-graystone-900 dark:text-white focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleShare()}
+                                />
+
+                                {/* Current shared users */}
+                                {whiteboard?.shared_with?.length > 0 && (
+                                    <div className="mt-4">
+                                        <p className="text-sm font-medium text-graystone-700 dark:text-graystone-300 mb-2">Shared with:</p>
+                                        <div className="space-y-1">
+                                            {whiteboard.shared_with.map(email => (
+                                                <div key={email} className="flex items-center justify-between py-1 px-2 bg-graystone-50 dark:bg-graystone-700 rounded">
+                                                    <span className="text-sm text-graystone-600 dark:text-graystone-400">{email}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end gap-2 mt-4">
+                                    <button
+                                        onClick={() => setShowShareModal(false)}
+                                        className="px-4 py-2 text-graystone-600 dark:text-graystone-400 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded-lg transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleShare}
+                                        disabled={!shareEmail.trim()}
+                                        className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors disabled:opacity-50"
+                                    >
+                                        Share
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         // Main App
         function App() {
             // --- STATE REPLACEMENT START ---
@@ -9143,6 +10048,12 @@
                             if (!e.metaKey && !e.ctrlKey) {
                                 e.preventDefault();
                                 setCurrentView('todo');
+                            }
+                            break;
+                        case 'w':
+                            if (!e.metaKey && !e.ctrlKey) {
+                                e.preventDefault();
+                                setCurrentView('whiteboards');
                             }
                             break;
                         case 'b':
@@ -9528,6 +10439,10 @@
             const [showStatsModal, setShowStatsModal] = useState(false);
             const [statsModalTitle, setStatsModalTitle] = useState('');
             const [statsModalItems, setStatsModalItems] = useState([]);
+
+            // Whiteboard State
+            const [whiteboards, setWhiteboards] = useState([]);
+            const [currentWhiteboardId, setCurrentWhiteboardId] = useState(null);
 
             // Persist an entry back to the database (Supabase or SharePoint)
             const persistEntry = async (entry) => {
@@ -11198,6 +12113,29 @@
 
                     case "add-item":
                         return <AddItemForm onSubmit={handleAddItem} onBack={() => handleNavigate('dashboard')} availableTags={availableTags} />;
+
+                    case 'whiteboards':
+                        if (currentWhiteboardId) {
+                            const wb = whiteboards.find(w => w.id === currentWhiteboardId);
+                            return (
+                                <WhiteboardCanvas
+                                    whiteboardId={currentWhiteboardId}
+                                    whiteboard={wb}
+                                    onBack={() => setCurrentWhiteboardId(null)}
+                                    userEmail={userEmail}
+                                    currentUser={currentUser}
+                                />
+                            );
+                        }
+                        return (
+                            <WhiteboardsView
+                                whiteboards={whiteboards}
+                                setWhiteboards={setWhiteboards}
+                                onOpenWhiteboard={(id) => setCurrentWhiteboardId(id)}
+                                currentUser={currentUser}
+                                userEmail={userEmail}
+                            />
+                        );
 
                     case 'manager-hub':
                         // Only managers and admins can access Manager Hub
