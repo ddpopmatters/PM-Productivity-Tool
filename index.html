@@ -3162,7 +3162,6 @@
                 { category: 'Navigation', items: [
                     { key: 'D', description: 'Go to Dashboard' },
                     { key: 'P', description: 'Go to Your Projects' },
-                    { key: 'E', description: 'Go to Project Explorer' },
                     { key: 'T', description: 'Go to To-Do List' },
                 ]},
                 { category: 'Actions', items: [
@@ -5509,7 +5508,6 @@
             const menuItems = [
                 { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
                 { id: 'personal', label: 'Your Projects', icon: 'folder' },
-                { id: 'project-explorer', label: 'Project Explorer', icon: 'compass' },
                 // Manager Hub only visible to managers and admins
                 ...(userIsManager || userIsAdmin ? [{ id: 'manager-hub', label: 'Manager Hub', icon: 'briefcase' }] : []),
                 { id: 'todo', label: 'To-Do List', icon: 'check-square' }
@@ -5962,116 +5960,6 @@
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        // Project Explorer Component - Combines Teams, Org, and Calendar
-        function ProjectExplorer({
-            entries,
-            onOpen,
-            onUpdateStatus,
-            onBulkStatusChange,
-            onBulkDelete,
-            openSubtaskModal,
-            currentUser = "Guest",
-            searchQuery,
-            setSearchQuery,
-            filterTags,
-            setFilterTags,
-            filterUsers,
-            setFilterUsers,
-            filterTeams,
-            setFilterTeams,
-            availableTags,
-            filterEntries,
-            viewMode,
-            setViewMode,
-            showArchived,
-            setShowArchived
-        }) {
-            // Pagination state
-            const [currentPage, setCurrentPage] = useState(1);
-            const [itemsPerPage, setItemsPerPage] = useState(25);
-
-            // Get filtered entries
-            const filteredEntries = filterEntries(entries);
-
-            // Reset to page 1 when filters or view mode changes
-            useEffect(() => {
-                setCurrentPage(1);
-            }, [searchQuery, filterTags, filterUsers, filterTeams, viewMode]);
-
-            // Calculate pagination
-            const totalItems = filteredEntries.length;
-            const totalPages = Math.ceil(totalItems / itemsPerPage);
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-
-            // Paginated entries (for table/list views)
-            const paginatedEntries = filteredEntries.slice(startIndex, endIndex);
-
-            // Show pagination for table and list views
-            const showPagination = (viewMode === 'table' || viewMode === 'list') && totalItems > 25;
-
-            return (
-                <div className="flex flex-col animate-in fade-in duration-500 space-y-6">
-                    <FilterBar
-                        title="Project Explorer"
-                        subtitle="High-level view of all projects"
-                        searchQuery={searchQuery}
-                        setSearchQuery={setSearchQuery}
-                        filterTags={filterTags}
-                        setFilterTags={setFilterTags}
-                        filterUsers={filterUsers}
-                        setFilterUsers={setFilterUsers}
-                        filterTeams={filterTeams}
-                        setFilterTeams={setFilterTeams}
-                        availableTags={availableTags}
-                        viewMode={viewMode}
-                        setViewMode={setViewMode}
-                        showArchived={showArchived}
-                        setShowArchived={setShowArchived}
-                    />
-
-                    {viewMode === 'calendar' ? (
-                        <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-                            <CalendarScreen entries={filteredEntries} onBack={() => { }} openSubtaskModal={openSubtaskModal} onOpen={onOpen} isEmbedded={true} />
-                        </div>
-                    ) : (
-                        <div className="bg-white rounded-xl border border-ocean-100 shadow-sm overflow-hidden">
-                            <div className="p-6">
-                                {viewMode === 'kanban' && (
-                                    <KanbanBoard statuses={KANBAN_STATUSES} entries={filteredEntries} onUpdateStatus={onUpdateStatus} onOpen={onOpen} openSubtaskModal={openSubtaskModal} currentUser={currentUser} />
-                                )}
-                                {viewMode === 'table' && (
-                                    <TableView
-                                        entries={paginatedEntries}
-                                        onOpen={onOpen}
-                                        onBulkStatusChange={onBulkStatusChange}
-                                        onBulkDelete={onBulkDelete}
-                                    />
-                                )}
-                                {viewMode === 'list' && (
-                                    <ListView entries={paginatedEntries} onOpen={onOpen} />
-                                )}
-                                {viewMode === 'gantt' && (
-                                    <GanttView entries={filteredEntries} onOpen={onOpen} />
-                                )}
-                            </div>
-
-                            {showPagination && (
-                                <Pagination
-                                    currentPage={currentPage}
-                                    totalPages={totalPages}
-                                    totalItems={totalItems}
-                                    itemsPerPage={itemsPerPage}
-                                    onPageChange={setCurrentPage}
-                                    onItemsPerPageChange={setItemsPerPage}
-                                />
-                            )}
                         </div>
                     )}
                 </div>
@@ -9251,12 +9139,6 @@
                                 setCurrentView('personal');
                             }
                             break;
-                        case 'e':
-                            if (!e.metaKey && !e.ctrlKey) {
-                                e.preventDefault();
-                                setCurrentView('project-explorer');
-                            }
-                            break;
                         case 't':
                             if (!e.metaKey && !e.ctrlKey) {
                                 e.preventDefault();
@@ -11316,33 +11198,6 @@
 
                     case "add-item":
                         return <AddItemForm onSubmit={handleAddItem} onBack={() => handleNavigate('dashboard')} availableTags={availableTags} />;
-
-                    case 'project-explorer':
-                        return (
-                            <ProjectExplorer
-                                entries={entries}
-                                onOpen={handleOpenEntry}
-                                onUpdateStatus={handleUpdateStatus}
-                                onBulkStatusChange={handleBulkStatusChange}
-                                onBulkDelete={handleBulkDelete}
-                                openSubtaskModal={openSubtaskModal}
-                                currentUser={currentUser}
-                                searchQuery={searchQuery}
-                                setSearchQuery={setSearchQuery}
-                                filterTags={filterTags}
-                                setFilterTags={setFilterTags}
-                                filterUsers={filterUsers}
-                                setFilterUsers={setFilterUsers}
-                                filterTeams={filterTeams}
-                                setFilterTeams={setFilterTeams}
-                                availableTags={availableTags}
-                                filterEntries={filterEntries}
-                                viewMode={viewMode}
-                                setViewMode={setViewMode}
-                                showArchived={showArchived}
-                                setShowArchived={setShowArchived}
-                            />
-                        );
 
                     case 'manager-hub':
                         // Only managers and admins can access Manager Hub
