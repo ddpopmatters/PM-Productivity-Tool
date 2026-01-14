@@ -9674,9 +9674,9 @@
             const selectedElement = elements.find(el => el.id === selectedElementId);
 
             return (
-                <div className="flex flex-col h-full">
+                <div className="fixed inset-0 z-40 flex flex-col bg-white dark:bg-graystone-900">
                     {/* Toolbar */}
-                    <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-graystone-800 border-b border-graystone-200 dark:border-graystone-700">
+                    <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-graystone-800 border-b border-graystone-200 dark:border-graystone-700 shrink-0">
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={onBack}
