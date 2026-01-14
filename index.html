@@ -9764,8 +9764,11 @@
                     {/* Canvas */}
                     <div
                         ref={canvasRef}
-                        className="flex-1 overflow-hidden bg-graystone-100 dark:bg-graystone-900 relative"
-                        style={{ cursor: isPanning ? 'grabbing' : (activeTool === 'sticky' ? 'crosshair' : 'default') }}
+                        className="flex-1 min-h-0 overflow-hidden bg-graystone-100 dark:bg-graystone-900 relative"
+                        style={{
+                            cursor: isPanning ? 'grabbing' : (activeTool === 'sticky' ? 'crosshair' : 'default'),
+                            height: 'calc(100vh - 56px)'
+                        }}
                         onClick={handleCanvasClick}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
