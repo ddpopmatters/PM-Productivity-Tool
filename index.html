@@ -9343,24 +9343,36 @@
             const [title, setTitle] = useState(element.content?.title || '');
             const [description, setDescription] = useState(element.content?.description || '');
             const noteRef = useRef(null);
+            const editContainerRef = useRef(null);
 
             const handleDoubleClick = (e) => {
                 e.stopPropagation();
                 setIsEditing(true);
             };
 
-            const handleBlur = () => {
-                setIsEditing(false);
-                if (title !== element.content?.title || description !== element.content?.description) {
-                    onUpdate(element.id, {
-                        content: { ...element.content, title, description }
-                    });
-                }
+            const handleBlur = (e) => {
+                // Check if focus is moving to another element within the edit container
+                // Use setTimeout to allow the new focus target to be set
+                setTimeout(() => {
+                    if (editContainerRef.current && !editContainerRef.current.contains(document.activeElement)) {
+                        setIsEditing(false);
+                        if (title !== element.content?.title || description !== element.content?.description) {
+                            onUpdate(element.id, {
+                                content: { ...element.content, title, description }
+                            });
+                        }
+                    }
+                }, 0);
             };
 
             const handleKeyDown = (e) => {
                 if (e.key === 'Escape') {
                     setIsEditing(false);
+                    if (title !== element.content?.title || description !== element.content?.description) {
+                        onUpdate(element.id, {
+                            content: { ...element.content, title, description }
+                        });
+                    }
                 }
                 e.stopPropagation();
             };
@@ -9388,7 +9400,7 @@
                 >
                     <div className="p-3 h-full flex flex-col overflow-hidden">
                         {isEditing ? (
-                            <>
+                            <div ref={editContainerRef} className="flex flex-col h-full">
                                 <input
                                     type="text"
                                     value={title}
@@ -9409,7 +9421,7 @@
                                     className="text-xs bg-transparent border-none outline-none w-full flex-1 resize-none"
                                     style={{ color: element.text_color }}
                                 />
-                            </>
+                            </div>
                         ) : (
                             <>
                                 <div className="font-bold text-sm truncate" style={{ color: element.text_color }}>
