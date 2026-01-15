@@ -8993,6 +8993,31 @@
             { name: 'White', bg: '#ffffff', border: '#e5e7eb' }
         ];
 
+        // Text formatting options
+        const TEXT_SIZES = [
+            { name: 'Small', title: '12px', body: '10px' },
+            { name: 'Medium', title: '14px', body: '12px' },
+            { name: 'Large', title: '18px', body: '14px' },
+            { name: 'X-Large', title: '24px', body: '18px' }
+        ];
+
+        const TEXT_COLORS = [
+            { name: 'Dark', color: '#1f2937' },
+            { name: 'Gray', color: '#6b7280' },
+            { name: 'Blue', color: '#1d4ed8' },
+            { name: 'Green', color: '#15803d' },
+            { name: 'Red', color: '#dc2626' },
+            { name: 'Purple', color: '#7c3aed' },
+            { name: 'White', color: '#ffffff' }
+        ];
+
+        const FONT_FAMILIES = [
+            { name: 'Sans', value: 'system-ui, -apple-system, sans-serif' },
+            { name: 'Serif', value: 'Georgia, serif' },
+            { name: 'Mono', value: 'ui-monospace, monospace' },
+            { name: 'Handwritten', value: 'Comic Sans MS, cursive' }
+        ];
+
         // Whiteboard API functions
         const WHITEBOARD_API = {
             fetchWhiteboards: async (userEmail) => {
@@ -9330,7 +9355,7 @@
             );
         }
 
-        // Sticky Note Component
+        // Sticky Note Component with text formatting
         function StickyNote({
             element,
             isSelected,
@@ -9342,8 +9367,18 @@
             const [isEditing, setIsEditing] = useState(false);
             const [title, setTitle] = useState(element.content?.title || '');
             const [description, setDescription] = useState(element.content?.description || '');
+            const [showFormatting, setShowFormatting] = useState(false);
             const noteRef = useRef(null);
             const editContainerRef = useRef(null);
+
+            // Text formatting from content
+            const fontSize = element.content?.fontSize || 'Medium';
+            const fontFamily = element.content?.fontFamily || FONT_FAMILIES[0].value;
+            const isBold = element.content?.bold || false;
+            const isItalic = element.content?.italic || false;
+            const textColor = element.text_color || '#1f2937';
+
+            const sizeConfig = TEXT_SIZES.find(s => s.name === fontSize) || TEXT_SIZES[1];
 
             const handleDoubleClick = (e) => {
                 e.stopPropagation();
@@ -9351,11 +9386,10 @@
             };
 
             const handleBlur = (e) => {
-                // Check if focus is moving to another element within the edit container
-                // Use setTimeout to allow the new focus target to be set
                 setTimeout(() => {
                     if (editContainerRef.current && !editContainerRef.current.contains(document.activeElement)) {
                         setIsEditing(false);
+                        setShowFormatting(false);
                         if (title !== element.content?.title || description !== element.content?.description) {
                             onUpdate(element.id, {
                                 content: { ...element.content, title, description }
@@ -9368,6 +9402,7 @@
             const handleKeyDown = (e) => {
                 if (e.key === 'Escape') {
                     setIsEditing(false);
+                    setShowFormatting(false);
                     if (title !== element.content?.title || description !== element.content?.description) {
                         onUpdate(element.id, {
                             content: { ...element.content, title, description }
@@ -9375,6 +9410,15 @@
                     }
                 }
                 e.stopPropagation();
+            };
+
+            const updateFormatting = (updates) => {
+                const newContent = { ...element.content, ...updates };
+                onUpdate(element.id, { content: newContent });
+            };
+
+            const updateTextColor = (color) => {
+                onUpdate(element.id, { text_color: color });
             };
 
             return (
@@ -9401,6 +9445,73 @@
                     <div className="p-3 h-full flex flex-col overflow-hidden">
                         {isEditing ? (
                             <div ref={editContainerRef} className="flex flex-col h-full">
+                                {/* Formatting toolbar */}
+                                <div className="flex items-center gap-1 mb-2 pb-2 border-b border-graystone-300 flex-wrap">
+                                    {/* Font size dropdown */}
+                                    <select
+                                        value={fontSize}
+                                        onChange={(e) => updateFormatting({ fontSize: e.target.value })}
+                                        className="text-xs px-1 py-0.5 rounded border border-graystone-300 bg-white"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {TEXT_SIZES.map(size => (
+                                            <option key={size.name} value={size.name}>{size.name}</option>
+                                        ))}
+                                    </select>
+
+                                    {/* Font family dropdown */}
+                                    <select
+                                        value={fontFamily}
+                                        onChange={(e) => updateFormatting({ fontFamily: e.target.value })}
+                                        className="text-xs px-1 py-0.5 rounded border border-graystone-300 bg-white"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {FONT_FAMILIES.map(font => (
+                                            <option key={font.name} value={font.value}>{font.name}</option>
+                                        ))}
+                                    </select>
+
+                                    {/* Bold button */}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); updateFormatting({ bold: !isBold }); }}
+                                        className={`w-6 h-6 text-xs font-bold rounded ${isBold ? 'bg-ocean-500 text-white' : 'bg-graystone-100 hover:bg-graystone-200'}`}
+                                    >
+                                        B
+                                    </button>
+
+                                    {/* Italic button */}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); updateFormatting({ italic: !isItalic }); }}
+                                        className={`w-6 h-6 text-xs italic rounded ${isItalic ? 'bg-ocean-500 text-white' : 'bg-graystone-100 hover:bg-graystone-200'}`}
+                                    >
+                                        I
+                                    </button>
+
+                                    {/* Text color */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setShowFormatting(!showFormatting); }}
+                                            className="w-6 h-6 text-xs rounded bg-graystone-100 hover:bg-graystone-200 flex items-center justify-center"
+                                            title="Text color"
+                                        >
+                                            <span style={{ color: textColor }}>A</span>
+                                        </button>
+                                        {showFormatting && (
+                                            <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg p-2 flex gap-1 z-50">
+                                                {TEXT_COLORS.map(c => (
+                                                    <button
+                                                        key={c.name}
+                                                        onClick={(e) => { e.stopPropagation(); updateTextColor(c.color); setShowFormatting(false); }}
+                                                        className="w-5 h-5 rounded-full border border-graystone-300"
+                                                        style={{ backgroundColor: c.color }}
+                                                        title={c.name}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <input
                                     type="text"
                                     value={title}
@@ -9408,8 +9519,14 @@
                                     onBlur={handleBlur}
                                     onKeyDown={handleKeyDown}
                                     placeholder="Title"
-                                    className="font-bold text-sm bg-transparent border-none outline-none w-full mb-1"
-                                    style={{ color: element.text_color }}
+                                    className="bg-transparent border-none outline-none w-full mb-1"
+                                    style={{
+                                        color: textColor,
+                                        fontSize: sizeConfig.title,
+                                        fontFamily: fontFamily,
+                                        fontWeight: isBold ? 'bold' : 'normal',
+                                        fontStyle: isItalic ? 'italic' : 'normal'
+                                    }}
                                     autoFocus
                                 />
                                 <textarea
@@ -9418,16 +9535,40 @@
                                     onBlur={handleBlur}
                                     onKeyDown={handleKeyDown}
                                     placeholder="Add notes..."
-                                    className="text-xs bg-transparent border-none outline-none w-full flex-1 resize-none"
-                                    style={{ color: element.text_color }}
+                                    className="bg-transparent border-none outline-none w-full flex-1 resize-none"
+                                    style={{
+                                        color: textColor,
+                                        fontSize: sizeConfig.body,
+                                        fontFamily: fontFamily,
+                                        fontWeight: isBold ? 'bold' : 'normal',
+                                        fontStyle: isItalic ? 'italic' : 'normal'
+                                    }}
                                 />
                             </div>
                         ) : (
                             <>
-                                <div className="font-bold text-sm truncate" style={{ color: element.text_color }}>
+                                <div
+                                    className="truncate"
+                                    style={{
+                                        color: textColor,
+                                        fontSize: sizeConfig.title,
+                                        fontFamily: fontFamily,
+                                        fontWeight: isBold ? 'bold' : 'bold',
+                                        fontStyle: isItalic ? 'italic' : 'normal'
+                                    }}
+                                >
                                     {title || 'Untitled'}
                                 </div>
-                                <div className="text-xs mt-1 flex-1 overflow-hidden" style={{ color: element.text_color }}>
+                                <div
+                                    className="mt-1 flex-1 overflow-hidden whitespace-pre-wrap"
+                                    style={{
+                                        color: textColor,
+                                        fontSize: sizeConfig.body,
+                                        fontFamily: fontFamily,
+                                        fontWeight: isBold ? 'bold' : 'normal',
+                                        fontStyle: isItalic ? 'italic' : 'normal'
+                                    }}
+                                >
                                     {description || 'Double-click to edit'}
                                 </div>
                             </>
@@ -9439,6 +9580,173 @@
                         <>
                             <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-ocean-500 border border-white rounded-sm cursor-se-resize" />
                         </>
+                    )}
+                </div>
+            );
+        }
+
+        // Full-screen Whiteboard Element (larger canvas area)
+        function WhiteboardElement({
+            element,
+            isSelected,
+            onSelect,
+            onUpdate,
+            onDelete,
+            viewport
+        }) {
+            const [isEditing, setIsEditing] = useState(false);
+            const [title, setTitle] = useState(element.content?.title || 'Whiteboard');
+            const canvasRef = useRef(null);
+            const [isDrawing, setIsDrawing] = useState(false);
+            const [paths, setPaths] = useState(element.content?.paths || []);
+            const [currentPath, setCurrentPath] = useState([]);
+            const [brushColor, setBrushColor] = useState(element.content?.brushColor || '#1f2937');
+            const [brushSize, setBrushSize] = useState(element.content?.brushSize || 2);
+
+            const handleMouseDown = (e) => {
+                if (!isEditing) return;
+                e.stopPropagation();
+                const rect = canvasRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                setIsDrawing(true);
+                setCurrentPath([{ x, y }]);
+            };
+
+            const handleMouseMove = (e) => {
+                if (!isDrawing || !isEditing) return;
+                const rect = canvasRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                setCurrentPath(prev => [...prev, { x, y }]);
+            };
+
+            const handleMouseUp = () => {
+                if (!isDrawing) return;
+                setIsDrawing(false);
+                if (currentPath.length > 1) {
+                    const newPaths = [...paths, { points: currentPath, color: brushColor, size: brushSize }];
+                    setPaths(newPaths);
+                    onUpdate(element.id, {
+                        content: { ...element.content, paths: newPaths, brushColor, brushSize }
+                    });
+                }
+                setCurrentPath([]);
+            };
+
+            const clearCanvas = () => {
+                setPaths([]);
+                onUpdate(element.id, {
+                    content: { ...element.content, paths: [] }
+                });
+            };
+
+            const renderPaths = () => {
+                return paths.map((path, i) => (
+                    <polyline
+                        key={i}
+                        points={path.points.map(p => `${p.x},${p.y}`).join(' ')}
+                        fill="none"
+                        stroke={path.color}
+                        strokeWidth={path.size}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                ));
+            };
+
+            return (
+                <div
+                    className={`absolute rounded-lg shadow-lg cursor-move select-none ${isSelected ? 'ring-2 ring-ocean-500' : ''}`}
+                    style={{
+                        left: element.x,
+                        top: element.y,
+                        width: element.width,
+                        height: element.height,
+                        backgroundColor: element.background_color || '#ffffff',
+                        borderColor: element.border_color || '#e5e7eb',
+                        borderWidth: '2px',
+                        borderStyle: 'solid',
+                        zIndex: element.z_index
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(element.id);
+                    }}
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditing(true);
+                    }}
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-graystone-200 bg-graystone-50 rounded-t-lg">
+                        <span className="text-sm font-medium text-graystone-700">{title}</span>
+                        {isEditing && (
+                            <div className="flex items-center gap-2">
+                                {/* Brush color */}
+                                <input
+                                    type="color"
+                                    value={brushColor}
+                                    onChange={(e) => setBrushColor(e.target.value)}
+                                    className="w-6 h-6 cursor-pointer"
+                                    title="Brush color"
+                                />
+                                {/* Brush size */}
+                                <select
+                                    value={brushSize}
+                                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                                    className="text-xs px-1 py-0.5 rounded border border-graystone-300"
+                                >
+                                    <option value={1}>Thin</option>
+                                    <option value={2}>Medium</option>
+                                    <option value={4}>Thick</option>
+                                    <option value={8}>Bold</option>
+                                </select>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); clearCanvas(); }}
+                                    className="text-xs px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200"
+                                >
+                                    Clear
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setIsEditing(false); }}
+                                    className="text-xs px-2 py-1 bg-ocean-100 text-ocean-600 rounded hover:bg-ocean-200"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Drawing canvas */}
+                    <svg
+                        ref={canvasRef}
+                        className="w-full h-full"
+                        style={{
+                            cursor: isEditing ? 'crosshair' : 'move',
+                            height: 'calc(100% - 40px)'
+                        }}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                    >
+                        {renderPaths()}
+                        {currentPath.length > 0 && (
+                            <polyline
+                                points={currentPath.map(p => `${p.x},${p.y}`).join(' ')}
+                                fill="none"
+                                stroke={brushColor}
+                                strokeWidth={brushSize}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        )}
+                    </svg>
+
+                    {/* Resize handles when selected */}
+                    {isSelected && !isEditing && (
+                        <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-ocean-500 border border-white rounded-sm cursor-se-resize" />
                     )}
                 </div>
             );
@@ -9531,21 +9839,22 @@
             const handleCanvasClick = async (e) => {
                 if (e.target !== canvasRef.current) return;
 
-                if (activeTool === 'sticky') {
+                if (activeTool === 'sticky' || activeTool === 'whiteboard') {
                     const rect = canvasRef.current.getBoundingClientRect();
                     const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
                     const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
 
+                    const isWhiteboard = activeTool === 'whiteboard';
                     const newElement = await WHITEBOARD_API.createElement({
                         whiteboard_id: whiteboardId,
-                        element_type: 'sticky',
-                        x: x - 100, // Center the note
-                        y: y - 75,
-                        width: 200,
-                        height: 150,
-                        content: { title: '', description: '' },
-                        background_color: STICKY_COLORS[0].bg,
-                        border_color: STICKY_COLORS[0].border,
+                        element_type: isWhiteboard ? 'whiteboard' : 'sticky',
+                        x: isWhiteboard ? x - 200 : x - 100, // Center the element
+                        y: isWhiteboard ? y - 150 : y - 75,
+                        width: isWhiteboard ? 400 : 200,
+                        height: isWhiteboard ? 300 : 150,
+                        content: isWhiteboard ? { title: 'Drawing Board', paths: [] } : { title: '', description: '' },
+                        background_color: isWhiteboard ? '#ffffff' : STICKY_COLORS[0].bg,
+                        border_color: isWhiteboard ? '#e5e7eb' : STICKY_COLORS[0].border,
                         text_color: '#1f2937',
                         z_index: elements.length,
                         created_by: userEmail
@@ -9715,6 +10024,13 @@
                             >
                                 <i data-lucide="sticky-note" className="w-4 h-4"></i>
                             </button>
+                            <button
+                                onClick={() => setActiveTool('whiteboard')}
+                                className={`p-2 rounded-md transition-colors ${activeTool === 'whiteboard' ? 'bg-white dark:bg-graystone-600 shadow-sm' : 'hover:bg-graystone-200 dark:hover:bg-graystone-600'}`}
+                                title="Drawing Board (D)"
+                            >
+                                <i data-lucide="pen-tool" className="w-4 h-4"></i>
+                            </button>
                         </div>
 
                         {/* Right side tools */}
@@ -9778,7 +10094,7 @@
                         ref={canvasRef}
                         className="flex-1 min-h-0 overflow-hidden bg-graystone-100 dark:bg-graystone-900 relative"
                         style={{
-                            cursor: isPanning ? 'grabbing' : (activeTool === 'sticky' ? 'crosshair' : 'default'),
+                            cursor: isPanning ? 'grabbing' : ((activeTool === 'sticky' || activeTool === 'whiteboard') ? 'crosshair' : 'default'),
                             height: 'calc(100vh - 56px)'
                         }}
                         onClick={handleCanvasClick}
@@ -9812,11 +10128,11 @@
                                 </div>
                             ) : (
                                 elements.map(element => (
-                                    element.element_type === 'sticky' && (
-                                        <div
-                                            key={element.id}
-                                            onMouseDown={(e) => handleElementMouseDown(e, element)}
-                                        >
+                                    <div
+                                        key={element.id}
+                                        onMouseDown={(e) => handleElementMouseDown(e, element)}
+                                    >
+                                        {element.element_type === 'sticky' && (
                                             <StickyNote
                                                 element={element}
                                                 isSelected={selectedElementId === element.id}
@@ -9825,19 +10141,29 @@
                                                 onDelete={handleDeleteElement}
                                                 viewport={viewport}
                                             />
-                                            {selectedElementId === element.id && (
-                                                <div
-                                                    className="absolute w-3 h-3 bg-ocean-500 border border-white rounded-sm cursor-se-resize"
-                                                    style={{
-                                                        left: element.x + element.width - 6,
-                                                        top: element.y + element.height - 6,
-                                                        zIndex: element.z_index + 1
-                                                    }}
-                                                    onMouseDown={(e) => handleResizeMouseDown(e, element)}
-                                                />
-                                            )}
-                                        </div>
-                                    )
+                                        )}
+                                        {element.element_type === 'whiteboard' && (
+                                            <WhiteboardElement
+                                                element={element}
+                                                isSelected={selectedElementId === element.id}
+                                                onSelect={setSelectedElementId}
+                                                onUpdate={handleUpdateElement}
+                                                onDelete={handleDeleteElement}
+                                                viewport={viewport}
+                                            />
+                                        )}
+                                        {selectedElementId === element.id && (
+                                            <div
+                                                className="absolute w-3 h-3 bg-ocean-500 border border-white rounded-sm cursor-se-resize"
+                                                style={{
+                                                    left: element.x + element.width - 6,
+                                                    top: element.y + element.height - 6,
+                                                    zIndex: element.z_index + 1
+                                                }}
+                                                onMouseDown={(e) => handleResizeMouseDown(e, element)}
+                                            />
+                                        )}
+                                    </div>
                                 ))
                             )}
                         </div>
