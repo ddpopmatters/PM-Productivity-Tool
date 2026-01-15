@@ -9789,7 +9789,13 @@
                 // Subscribe to real-time changes
                 channelRef.current = WHITEBOARD_API.subscribeToWhiteboard(whiteboardId, (payload) => {
                     if (payload.eventType === 'INSERT') {
-                        setElements(prev => [...prev, payload.new]);
+                        // Only add if not already present (prevents duplicates from local + realtime)
+                        setElements(prev => {
+                            if (prev.some(el => el.id === payload.new.id)) {
+                                return prev;
+                            }
+                            return [...prev, payload.new];
+                        });
                     } else if (payload.eventType === 'UPDATE') {
                         setElements(prev => prev.map(el => el.id === payload.new.id ? payload.new : el));
                     } else if (payload.eventType === 'DELETE') {
