@@ -5512,7 +5512,8 @@
                 // Manager Hub only visible to managers and admins
                 ...(userIsManager || userIsAdmin ? [{ id: 'manager-hub', label: 'Manager Hub', icon: 'briefcase' }] : []),
                 { id: 'todo', label: 'To-Do List', icon: 'check-square' },
-                { id: 'whiteboards', label: 'Whiteboards', icon: 'layout' }
+                { id: 'whiteboards', label: 'Whiteboards', icon: 'layout' },
+                { id: 'productivity-tools', label: 'Productivity Tools', icon: 'wrench' }
             ];
 
             const handleNavigation = (id) => {
@@ -10228,6 +10229,1537 @@
             );
         }
 
+        // ============================================
+        // PRODUCTIVITY TOOLS COMPONENTS
+        // ============================================
+
+        // Productivity Tools API (for database-persisted tools)
+        const PRODUCTIVITY_API = {
+            // Habits
+            fetchHabits: async (userEmail) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return [];
+                try {
+                    const { data, error } = await supabase
+                        .from('habits')
+                        .select('*')
+                        .eq('user_email', userEmail)
+                        .eq('archived', false)
+                        .order('created_at', { ascending: true });
+                    if (error) throw error;
+                    return data || [];
+                } catch (err) {
+                    console.error('Error fetching habits:', err);
+                    return [];
+                }
+            },
+            createHabit: async (habit) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return null;
+                try {
+                    const { data, error } = await supabase
+                        .from('habits')
+                        .insert([habit])
+                        .select()
+                        .single();
+                    if (error) throw error;
+                    return data;
+                } catch (err) {
+                    console.error('Error creating habit:', err);
+                    return null;
+                }
+            },
+            deleteHabit: async (id) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return false;
+                try {
+                    const { error } = await supabase
+                        .from('habits')
+                        .delete()
+                        .eq('id', id);
+                    if (error) throw error;
+                    return true;
+                } catch (err) {
+                    console.error('Error deleting habit:', err);
+                    return false;
+                }
+            },
+            // Habit Completions
+            fetchCompletions: async (habitIds, startDate, endDate) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase || !habitIds.length) return [];
+                try {
+                    const { data, error } = await supabase
+                        .from('habit_completions')
+                        .select('*')
+                        .in('habit_id', habitIds)
+                        .gte('completed_date', startDate)
+                        .lte('completed_date', endDate);
+                    if (error) throw error;
+                    return data || [];
+                } catch (err) {
+                    console.error('Error fetching completions:', err);
+                    return [];
+                }
+            },
+            toggleCompletion: async (habitId, date) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return null;
+                try {
+                    // Check if completion exists
+                    const { data: existing } = await supabase
+                        .from('habit_completions')
+                        .select('id')
+                        .eq('habit_id', habitId)
+                        .eq('completed_date', date)
+                        .single();
+
+                    if (existing) {
+                        // Remove completion
+                        await supabase
+                            .from('habit_completions')
+                            .delete()
+                            .eq('id', existing.id);
+                        return { action: 'removed' };
+                    } else {
+                        // Add completion
+                        const { data, error } = await supabase
+                            .from('habit_completions')
+                            .insert([{ habit_id: habitId, completed_date: date }])
+                            .select()
+                            .single();
+                        if (error) throw error;
+                        return { action: 'added', data };
+                    }
+                } catch (err) {
+                    console.error('Error toggling completion:', err);
+                    return null;
+                }
+            },
+            // Matrix Tasks
+            fetchMatrixTasks: async (userEmail) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return [];
+                try {
+                    const { data, error } = await supabase
+                        .from('matrix_tasks')
+                        .select('*')
+                        .eq('user_email', userEmail)
+                        .order('created_at', { ascending: true });
+                    if (error) throw error;
+                    return data || [];
+                } catch (err) {
+                    console.error('Error fetching matrix tasks:', err);
+                    return [];
+                }
+            },
+            createMatrixTask: async (task) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return null;
+                try {
+                    const { data, error } = await supabase
+                        .from('matrix_tasks')
+                        .insert([task])
+                        .select()
+                        .single();
+                    if (error) throw error;
+                    return data;
+                } catch (err) {
+                    console.error('Error creating matrix task:', err);
+                    return null;
+                }
+            },
+            updateMatrixTask: async (id, updates) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return null;
+                try {
+                    const { data, error } = await supabase
+                        .from('matrix_tasks')
+                        .update({ ...updates, updated_at: new Date().toISOString() })
+                        .eq('id', id)
+                        .select()
+                        .single();
+                    if (error) throw error;
+                    return data;
+                } catch (err) {
+                    console.error('Error updating matrix task:', err);
+                    return null;
+                }
+            },
+            deleteMatrixTask: async (id) => {
+                if (!SUPABASE_CONFIG.ENABLED || !supabase) return false;
+                try {
+                    const { error } = await supabase
+                        .from('matrix_tasks')
+                        .delete()
+                        .eq('id', id);
+                    if (error) throw error;
+                    return true;
+                } catch (err) {
+                    console.error('Error deleting matrix task:', err);
+                    return false;
+                }
+            }
+        };
+
+        // Audio beep for timer notifications
+        function playBeep() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (err) {
+                console.log('Audio not supported');
+            }
+        }
+
+        // Pomodoro Timer Component
+        function PomodoroTimer({ onBack }) {
+            const [settings, setSettings] = useState({ work: 25, break: 5, longBreak: 15 });
+            const [mode, setMode] = useState('work'); // 'work', 'break', 'longBreak'
+            const [timeLeft, setTimeLeft] = useState(settings.work * 60);
+            const [isRunning, setIsRunning] = useState(false);
+            const [sessionsCompleted, setSessionsCompleted] = useState(0);
+            const [showSettings, setShowSettings] = useState(false);
+
+            useEffect(() => {
+                let interval = null;
+                if (isRunning && timeLeft > 0) {
+                    interval = setInterval(() => {
+                        setTimeLeft(t => t - 1);
+                    }, 1000);
+                } else if (timeLeft === 0 && isRunning) {
+                    playBeep();
+                    setIsRunning(false);
+
+                    if (mode === 'work') {
+                        const newSessions = sessionsCompleted + 1;
+                        setSessionsCompleted(newSessions);
+                        if (newSessions % 4 === 0) {
+                            setMode('longBreak');
+                            setTimeLeft(settings.longBreak * 60);
+                        } else {
+                            setMode('break');
+                            setTimeLeft(settings.break * 60);
+                        }
+                    } else {
+                        setMode('work');
+                        setTimeLeft(settings.work * 60);
+                    }
+                }
+                return () => clearInterval(interval);
+            }, [isRunning, timeLeft, mode, sessionsCompleted, settings]);
+
+            const formatTime = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            const reset = () => {
+                setIsRunning(false);
+                setMode('work');
+                setTimeLeft(settings.work * 60);
+            };
+
+            const getModeColor = () => {
+                switch (mode) {
+                    case 'work': return 'text-red-600';
+                    case 'break': return 'text-green-600';
+                    case 'longBreak': return 'text-blue-600';
+                    default: return 'text-graystone-600';
+                }
+            };
+
+            const getModeLabel = () => {
+                switch (mode) {
+                    case 'work': return 'Work Time';
+                    case 'break': return 'Short Break';
+                    case 'longBreak': return 'Long Break';
+                    default: return '';
+                }
+            };
+
+            return (
+                <div className="p-6 max-w-lg mx-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                        <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-graystone-100 rounded-lg">
+                            <i data-lucide="settings" className="w-5 h-5 text-graystone-600"></i>
+                        </button>
+                    </div>
+
+                    <div className="text-center">
+                        <h1 className="text-2xl font-bold text-ocean-900 mb-8">Pomodoro Timer</h1>
+
+                        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+                            <div className={`text-7xl font-mono font-bold mb-4 ${getModeColor()}`}>
+                                {formatTime(timeLeft)}
+                            </div>
+                            <div className={`text-lg font-medium ${getModeColor()}`}>
+                                {getModeLabel()}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-center gap-4 mb-8">
+                            <button
+                                onClick={() => setIsRunning(!isRunning)}
+                                className={`px-8 py-3 rounded-lg font-medium text-white transition-colors ${
+                                    isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'
+                                }`}
+                            >
+                                {isRunning ? 'Pause' : 'Start'}
+                            </button>
+                            <button
+                                onClick={reset}
+                                className="px-8 py-3 rounded-lg font-medium bg-graystone-200 hover:bg-graystone-300 transition-colors"
+                            >
+                                Reset
+                            </button>
+                        </div>
+
+                        <div className="flex justify-center items-center gap-2">
+                            <span className="text-graystone-600">Sessions:</span>
+                            <div className="flex gap-1">
+                                {[...Array(4)].map((_, i) => (
+                                    <span key={i} className="text-2xl">
+                                        {i < (sessionsCompleted % 4) || (sessionsCompleted > 0 && sessionsCompleted % 4 === 0 && i < 4) ? '🍅' : '⚪'}
+                                    </span>
+                                ))}
+                            </div>
+                            <span className="text-graystone-500 ml-2">({sessionsCompleted} total)</span>
+                        </div>
+                    </div>
+
+                    {/* Settings Modal */}
+                    {showSettings && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4">
+                                <h3 className="text-lg font-bold text-ocean-900 mb-4">Timer Settings</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">
+                                            Work Duration (minutes)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={settings.work}
+                                            onChange={(e) => setSettings(s => ({ ...s, work: parseInt(e.target.value) || 25 }))}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            min="1"
+                                            max="60"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">
+                                            Short Break (minutes)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={settings.break}
+                                            onChange={(e) => setSettings(s => ({ ...s, break: parseInt(e.target.value) || 5 }))}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            min="1"
+                                            max="30"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">
+                                            Long Break (minutes)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={settings.longBreak}
+                                            onChange={(e) => setSettings(s => ({ ...s, longBreak: parseInt(e.target.value) || 15 }))}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            min="1"
+                                            max="60"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <button
+                                        onClick={() => setShowSettings(false)}
+                                        className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            reset();
+                                            setShowSettings(false);
+                                        }}
+                                        className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
+                                    >
+                                        Apply & Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Stopwatch & Timer Component
+        function StopwatchTimer({ onBack }) {
+            const [mode, setMode] = useState('stopwatch'); // 'stopwatch' or 'timer'
+
+            // Stopwatch state
+            const [stopwatchTime, setStopwatchTime] = useState(0);
+            const [stopwatchRunning, setStopwatchRunning] = useState(false);
+            const [laps, setLaps] = useState([]);
+
+            // Timer state
+            const [timerInput, setTimerInput] = useState({ minutes: 5, seconds: 0 });
+            const [timerTime, setTimerTime] = useState(0);
+            const [timerRunning, setTimerRunning] = useState(false);
+
+            // Stopwatch effect
+            useEffect(() => {
+                let interval = null;
+                if (stopwatchRunning) {
+                    interval = setInterval(() => {
+                        setStopwatchTime(t => t + 10);
+                    }, 10);
+                }
+                return () => clearInterval(interval);
+            }, [stopwatchRunning]);
+
+            // Timer effect
+            useEffect(() => {
+                let interval = null;
+                if (timerRunning && timerTime > 0) {
+                    interval = setInterval(() => {
+                        setTimerTime(t => t - 1000);
+                    }, 1000);
+                } else if (timerTime === 0 && timerRunning) {
+                    playBeep();
+                    setTimerRunning(false);
+                }
+                return () => clearInterval(interval);
+            }, [timerRunning, timerTime]);
+
+            const formatStopwatch = (ms) => {
+                const minutes = Math.floor(ms / 60000);
+                const seconds = Math.floor((ms % 60000) / 1000);
+                const centiseconds = Math.floor((ms % 1000) / 10);
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+            };
+
+            const formatTimer = (ms) => {
+                const minutes = Math.floor(ms / 60000);
+                const seconds = Math.floor((ms % 60000) / 1000);
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            };
+
+            const addLap = () => {
+                setLaps(prev => [stopwatchTime, ...prev]);
+            };
+
+            const resetStopwatch = () => {
+                setStopwatchRunning(false);
+                setStopwatchTime(0);
+                setLaps([]);
+            };
+
+            const startTimer = () => {
+                const totalMs = (timerInput.minutes * 60 + timerInput.seconds) * 1000;
+                if (totalMs > 0) {
+                    setTimerTime(totalMs);
+                    setTimerRunning(true);
+                }
+            };
+
+            const resetTimer = () => {
+                setTimerRunning(false);
+                setTimerTime(0);
+            };
+
+            return (
+                <div className="p-6 max-w-lg mx-auto">
+                    <div className="flex items-center mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-6 text-center">Stopwatch & Timer</h1>
+
+                    {/* Tab Toggle */}
+                    <div className="flex bg-graystone-100 rounded-lg p-1 mb-6">
+                        <button
+                            onClick={() => setMode('stopwatch')}
+                            className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+                                mode === 'stopwatch' ? 'bg-white shadow text-ocean-600' : 'text-graystone-600'
+                            }`}
+                        >
+                            Stopwatch
+                        </button>
+                        <button
+                            onClick={() => setMode('timer')}
+                            className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+                                mode === 'timer' ? 'bg-white shadow text-ocean-600' : 'text-graystone-600'
+                            }`}
+                        >
+                            Timer
+                        </button>
+                    </div>
+
+                    {mode === 'stopwatch' ? (
+                        <div className="text-center">
+                            <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+                                <div className="text-5xl font-mono font-bold text-ocean-900">
+                                    {formatStopwatch(stopwatchTime)}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-center gap-4 mb-6">
+                                <button
+                                    onClick={() => setStopwatchRunning(!stopwatchRunning)}
+                                    className={`px-6 py-3 rounded-lg font-medium text-white transition-colors ${
+                                        stopwatchRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'
+                                    }`}
+                                >
+                                    {stopwatchRunning ? 'Stop' : 'Start'}
+                                </button>
+                                <button
+                                    onClick={addLap}
+                                    disabled={!stopwatchRunning}
+                                    className="px-6 py-3 rounded-lg font-medium bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 transition-colors"
+                                >
+                                    Lap
+                                </button>
+                                <button
+                                    onClick={resetStopwatch}
+                                    className="px-6 py-3 rounded-lg font-medium bg-graystone-200 hover:bg-graystone-300 transition-colors"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+
+                            {laps.length > 0 && (
+                                <div className="bg-white rounded-lg shadow p-4 max-h-48 overflow-y-auto">
+                                    <h3 className="text-sm font-medium text-graystone-600 mb-2">Laps</h3>
+                                    {laps.map((lap, index) => (
+                                        <div key={index} className="flex justify-between py-1 border-b border-graystone-100 last:border-0">
+                                            <span className="text-graystone-500">Lap {laps.length - index}</span>
+                                            <span className="font-mono">{formatStopwatch(lap)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="text-center">
+                            {!timerRunning && timerTime === 0 ? (
+                                <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+                                    <div className="flex justify-center items-center gap-2">
+                                        <input
+                                            type="number"
+                                            value={timerInput.minutes}
+                                            onChange={(e) => setTimerInput(t => ({ ...t, minutes: parseInt(e.target.value) || 0 }))}
+                                            className="w-20 text-4xl font-mono text-center border-b-2 border-ocean-300 focus:border-ocean-500 outline-none"
+                                            min="0"
+                                            max="99"
+                                        />
+                                        <span className="text-4xl font-mono">:</span>
+                                        <input
+                                            type="number"
+                                            value={timerInput.seconds}
+                                            onChange={(e) => setTimerInput(t => ({ ...t, seconds: Math.min(59, parseInt(e.target.value) || 0) }))}
+                                            className="w-20 text-4xl font-mono text-center border-b-2 border-ocean-300 focus:border-ocean-500 outline-none"
+                                            min="0"
+                                            max="59"
+                                        />
+                                    </div>
+                                    <p className="text-graystone-500 mt-2">minutes : seconds</p>
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+                                    <div className={`text-6xl font-mono font-bold ${timerTime <= 10000 ? 'text-red-600' : 'text-ocean-900'}`}>
+                                        {formatTimer(timerTime)}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-center gap-4">
+                                {!timerRunning && timerTime === 0 ? (
+                                    <button
+                                        onClick={startTimer}
+                                        className="px-8 py-3 rounded-lg font-medium bg-green-500 hover:bg-green-600 text-white transition-colors"
+                                    >
+                                        Start
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={() => setTimerRunning(!timerRunning)}
+                                            className={`px-6 py-3 rounded-lg font-medium text-white transition-colors ${
+                                                timerRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'
+                                            }`}
+                                        >
+                                            {timerRunning ? 'Pause' : 'Resume'}
+                                        </button>
+                                        <button
+                                            onClick={resetTimer}
+                                            className="px-6 py-3 rounded-lg font-medium bg-graystone-200 hover:bg-graystone-300 transition-colors"
+                                        >
+                                            Reset
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Quick Notes Component
+        function QuickNotes({ onBack }) {
+            const [notes, setNotes] = useState('');
+
+            const handleClear = () => {
+                if (notes.trim() && confirm('Clear all notes?')) {
+                    setNotes('');
+                }
+            };
+
+            return (
+                <div className="p-6 max-w-2xl mx-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                        <button
+                            onClick={handleClear}
+                            disabled={!notes.trim()}
+                            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50 disabled:hover:bg-transparent"
+                        >
+                            Clear
+                        </button>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-6">Quick Notes</h1>
+
+                    <div className="bg-white rounded-xl shadow-lg p-4">
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Start typing your notes here...&#10;&#10;Tips:&#10;• Use this for quick thoughts and scratch work&#10;• Notes are session-only (not saved)&#10;• Great for temporary calculations or drafts"
+                            className="w-full h-96 resize-none outline-none text-graystone-800 placeholder:text-graystone-400"
+                        />
+                        <div className="flex justify-between items-center pt-3 border-t border-graystone-100">
+                            <span className="text-sm text-graystone-500">
+                                {notes.length} characters
+                            </span>
+                            <span className="text-xs text-graystone-400">
+                                Session only - not saved
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Speed Reader (RSVP) Component
+        function SpeedReader({ onBack }) {
+            const [text, setText] = useState('');
+            const [words, setWords] = useState([]);
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [wpm, setWpm] = useState(300);
+            const [isPlaying, setIsPlaying] = useState(false);
+
+            const wpmOptions = [100, 200, 300, 400, 500, 600, 800, 1000];
+
+            useEffect(() => {
+                // Parse text into words when text changes
+                const parsed = text.trim().split(/\s+/).filter(w => w.length > 0);
+                setWords(parsed);
+                setCurrentIndex(0);
+                setIsPlaying(false);
+            }, [text]);
+
+            useEffect(() => {
+                let interval = null;
+                if (isPlaying && currentIndex < words.length) {
+                    const delay = 60000 / wpm;
+                    interval = setInterval(() => {
+                        setCurrentIndex(i => {
+                            if (i >= words.length - 1) {
+                                setIsPlaying(false);
+                                return i;
+                            }
+                            return i + 1;
+                        });
+                    }, delay);
+                }
+                return () => clearInterval(interval);
+            }, [isPlaying, wpm, words.length, currentIndex]);
+
+            // Keyboard shortcuts
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.target.tagName === 'TEXTAREA') return;
+
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        if (words.length > 0) setIsPlaying(p => !p);
+                    } else if (e.code === 'ArrowLeft') {
+                        e.preventDefault();
+                        const currentWpmIndex = wpmOptions.indexOf(wpm);
+                        if (currentWpmIndex > 0) setWpm(wpmOptions[currentWpmIndex - 1]);
+                    } else if (e.code === 'ArrowRight') {
+                        e.preventDefault();
+                        const currentWpmIndex = wpmOptions.indexOf(wpm);
+                        if (currentWpmIndex < wpmOptions.length - 1) setWpm(wpmOptions[currentWpmIndex + 1]);
+                    }
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [wpm, words.length]);
+
+            // Get focal point index (ORP at ~35% of word length)
+            const getFocalIndex = (word) => Math.floor(word.length * 0.35);
+
+            const renderWord = (word) => {
+                if (!word) return null;
+                const focalIndex = getFocalIndex(word);
+                const before = word.slice(0, focalIndex);
+                const focal = word[focalIndex];
+                const after = word.slice(focalIndex + 1);
+
+                return (
+                    <span className="text-5xl font-mono tracking-wide">
+                        <span className="text-graystone-800">{before}</span>
+                        <span className="text-red-600 font-bold">{focal}</span>
+                        <span className="text-graystone-800">{after}</span>
+                    </span>
+                );
+            };
+
+            const reset = () => {
+                setCurrentIndex(0);
+                setIsPlaying(false);
+            };
+
+            const stepBack = () => {
+                setCurrentIndex(i => Math.max(0, i - 1));
+            };
+
+            const stepForward = () => {
+                setCurrentIndex(i => Math.min(words.length - 1, i + 1));
+            };
+
+            const progress = words.length > 0 ? ((currentIndex + 1) / words.length) * 100 : 0;
+
+            return (
+                <div className="p-6 max-w-2xl mx-auto">
+                    <div className="flex items-center mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-6">Speed Reader</h1>
+
+                    {/* Word Display */}
+                    <div className="bg-graystone-900 rounded-xl p-8 mb-6 min-h-[160px] flex flex-col items-center justify-center">
+                        {words.length > 0 ? (
+                            <>
+                                <div className="relative">
+                                    {/* Focal point indicator line */}
+                                    <div className="absolute left-1/2 -top-2 w-0.5 h-2 bg-red-500/50"></div>
+                                    {renderWord(words[currentIndex])}
+                                    <div className="absolute left-1/2 -bottom-2 w-0.5 h-2 bg-red-500/50"></div>
+                                </div>
+                                <div className="mt-4 text-graystone-400 text-sm">
+                                    {wpm} wpm
+                                </div>
+                            </>
+                        ) : (
+                            <span className="text-graystone-500 text-xl">Paste text below to begin</span>
+                        )}
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex justify-center gap-3 mb-6">
+                        <button
+                            onClick={stepBack}
+                            disabled={words.length === 0 || currentIndex === 0}
+                            className="p-3 bg-graystone-200 hover:bg-graystone-300 rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                            <i data-lucide="skip-back" className="w-5 h-5"></i>
+                        </button>
+                        <button
+                            onClick={() => setIsPlaying(!isPlaying)}
+                            disabled={words.length === 0}
+                            className={`px-8 py-3 rounded-lg font-medium text-white transition-colors ${
+                                isPlaying ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'
+                            } disabled:opacity-50`}
+                        >
+                            {isPlaying ? 'Pause' : 'Play'}
+                        </button>
+                        <button
+                            onClick={stepForward}
+                            disabled={words.length === 0 || currentIndex >= words.length - 1}
+                            className="p-3 bg-graystone-200 hover:bg-graystone-300 rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                            <i data-lucide="skip-forward" className="w-5 h-5"></i>
+                        </button>
+                        <button
+                            onClick={reset}
+                            disabled={words.length === 0}
+                            className="p-3 bg-graystone-200 hover:bg-graystone-300 rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                            <i data-lucide="rotate-ccw" className="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    {/* Speed Selection */}
+                    <div className="mb-6">
+                        <div className="text-sm text-graystone-600 mb-2 text-center">Speed (WPM)</div>
+                        <div className="flex flex-wrap justify-center gap-2">
+                            {wpmOptions.map(speed => (
+                                <button
+                                    key={speed}
+                                    onClick={() => setWpm(speed)}
+                                    className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-colors ${
+                                        wpm === speed
+                                            ? 'bg-ocean-600 text-white'
+                                            : 'bg-graystone-100 hover:bg-graystone-200 text-graystone-700'
+                                    }`}
+                                >
+                                    {speed}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Progress */}
+                    {words.length > 0 && (
+                        <div className="mb-6">
+                            <div className="flex justify-between text-sm text-graystone-600 mb-1">
+                                <span>Word {currentIndex + 1} of {words.length}</span>
+                                <span>{Math.round(progress)}%</span>
+                            </div>
+                            <div className="h-2 bg-graystone-200 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-ocean-500 transition-all duration-100"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Text Input */}
+                    <div className="bg-white rounded-xl shadow-lg p-4">
+                        <textarea
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            placeholder="Paste or type your text here..."
+                            className="w-full h-32 resize-none outline-none text-graystone-800 placeholder:text-graystone-400"
+                        />
+                        <div className="flex justify-between items-center pt-3 border-t border-graystone-100 text-xs text-graystone-500">
+                            <span>Space = Play/Pause, Arrow keys = Speed</span>
+                            <span>{words.length} words</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Habit Tracker Component
+        function HabitTracker({ onBack, userEmail, habits, setHabits }) {
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [newHabitName, setNewHabitName] = useState('');
+            const [newHabitColor, setNewHabitColor] = useState('#22c55e');
+            const [completions, setCompletions] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            const habitColors = ['#22c55e', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4'];
+
+            // Get last 7 days
+            const getLast7Days = () => {
+                const days = [];
+                for (let i = 6; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    days.push(date.toISOString().split('T')[0]);
+                }
+                return days;
+            };
+
+            const days = getLast7Days();
+            const dayLabels = days.map(d => {
+                const date = new Date(d);
+                return date.toLocaleDateString('en-US', { weekday: 'short' });
+            });
+
+            // Load habits and completions
+            useEffect(() => {
+                const loadData = async () => {
+                    setLoading(true);
+                    const habitData = await PRODUCTIVITY_API.fetchHabits(userEmail);
+                    setHabits(habitData);
+
+                    if (habitData.length > 0) {
+                        const habitIds = habitData.map(h => h.id);
+                        const completionData = await PRODUCTIVITY_API.fetchCompletions(
+                            habitIds,
+                            days[0],
+                            days[days.length - 1]
+                        );
+                        setCompletions(completionData);
+                    }
+                    setLoading(false);
+                };
+                loadData();
+            }, [userEmail]);
+
+            const handleAddHabit = async () => {
+                if (!newHabitName.trim()) return;
+                const habit = await PRODUCTIVITY_API.createHabit({
+                    user_email: userEmail,
+                    name: newHabitName.trim(),
+                    color: newHabitColor
+                });
+                if (habit) {
+                    setHabits(prev => [...prev, habit]);
+                    setShowAddModal(false);
+                    setNewHabitName('');
+                }
+            };
+
+            const handleDeleteHabit = async (habitId) => {
+                if (!confirm('Delete this habit?')) return;
+                const success = await PRODUCTIVITY_API.deleteHabit(habitId);
+                if (success) {
+                    setHabits(prev => prev.filter(h => h.id !== habitId));
+                    setCompletions(prev => prev.filter(c => c.habit_id !== habitId));
+                }
+            };
+
+            const handleToggleCompletion = async (habitId, date) => {
+                const result = await PRODUCTIVITY_API.toggleCompletion(habitId, date);
+                if (result) {
+                    if (result.action === 'added') {
+                        setCompletions(prev => [...prev, result.data]);
+                    } else {
+                        setCompletions(prev => prev.filter(c =>
+                            !(c.habit_id === habitId && c.completed_date === date)
+                        ));
+                    }
+                }
+            };
+
+            const isCompleted = (habitId, date) => {
+                return completions.some(c => c.habit_id === habitId && c.completed_date === date);
+            };
+
+            const getStreak = (habitId) => {
+                let streak = 0;
+                const today = new Date().toISOString().split('T')[0];
+                let checkDate = today;
+
+                while (true) {
+                    if (completions.some(c => c.habit_id === habitId && c.completed_date === checkDate)) {
+                        streak++;
+                        const date = new Date(checkDate);
+                        date.setDate(date.getDate() - 1);
+                        checkDate = date.toISOString().split('T')[0];
+                    } else {
+                        break;
+                    }
+                }
+                return streak;
+            };
+
+            if (loading) {
+                return (
+                    <div className="p-6 flex items-center justify-center">
+                        <div className="animate-spin h-8 w-8 border-4 border-ocean-500 border-t-transparent rounded-full"></div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="p-6 max-w-3xl mx-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
+                        >
+                            <i data-lucide="plus" className="w-4 h-4"></i>
+                            Add Habit
+                        </button>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-6">Habit Tracker</h1>
+
+                    {habits.length === 0 ? (
+                        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+                            <i data-lucide="check-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4"></i>
+                            <p className="text-graystone-600 mb-4">No habits yet. Start building better habits!</p>
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
+                            >
+                                Add Your First Habit
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-graystone-200">
+                                            <th className="text-left p-4 font-medium text-graystone-600">Habit</th>
+                                            {dayLabels.map((day, i) => (
+                                                <th key={i} className="p-4 font-medium text-graystone-600 text-center w-14">
+                                                    {day}
+                                                </th>
+                                            ))}
+                                            <th className="p-4 font-medium text-graystone-600 text-center w-16">Streak</th>
+                                            <th className="p-4 w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {habits.map(habit => (
+                                            <tr key={habit.id} className="border-b border-graystone-100 last:border-0">
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            className="w-3 h-3 rounded-full"
+                                                            style={{ backgroundColor: habit.color }}
+                                                        />
+                                                        <span className="font-medium text-graystone-800">{habit.name}</span>
+                                                    </div>
+                                                </td>
+                                                {days.map((day, i) => (
+                                                    <td key={i} className="p-4 text-center">
+                                                        <button
+                                                            onClick={() => handleToggleCompletion(habit.id, day)}
+                                                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                                                                isCompleted(habit.id, day)
+                                                                    ? 'text-white'
+                                                                    : 'bg-graystone-100 hover:bg-graystone-200 text-graystone-400'
+                                                            }`}
+                                                            style={isCompleted(habit.id, day) ? { backgroundColor: habit.color } : {}}
+                                                        >
+                                                            {isCompleted(habit.id, day) && (
+                                                                <i data-lucide="check" className="w-4 h-4"></i>
+                                                            )}
+                                                        </button>
+                                                    </td>
+                                                ))}
+                                                <td className="p-4 text-center">
+                                                    {getStreak(habit.id) > 0 && (
+                                                        <span className="inline-flex items-center gap-1 text-orange-500 font-medium">
+                                                            <span>🔥</span>
+                                                            {getStreak(habit.id)}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4">
+                                                    <button
+                                                        onClick={() => handleDeleteHabit(habit.id)}
+                                                        className="text-graystone-400 hover:text-red-500"
+                                                    >
+                                                        <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Add Habit Modal */}
+                    {showAddModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4">
+                                <h3 className="text-lg font-bold text-ocean-900 mb-4">Add New Habit</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">
+                                            Habit Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={newHabitName}
+                                            onChange={(e) => setNewHabitName(e.target.value)}
+                                            placeholder="e.g., Exercise, Read, Meditate"
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-2">
+                                            Color
+                                        </label>
+                                        <div className="flex gap-2">
+                                            {habitColors.map(color => (
+                                                <button
+                                                    key={color}
+                                                    onClick={() => setNewHabitColor(color)}
+                                                    className={`w-8 h-8 rounded-full transition-transform ${
+                                                        newHabitColor === color ? 'ring-2 ring-offset-2 ring-ocean-500 scale-110' : ''
+                                                    }`}
+                                                    style={{ backgroundColor: color }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <button
+                                        onClick={() => {
+                                            setShowAddModal(false);
+                                            setNewHabitName('');
+                                        }}
+                                        className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleAddHabit}
+                                        disabled={!newHabitName.trim()}
+                                        className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 disabled:opacity-50"
+                                    >
+                                        Add Habit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Eisenhower Matrix Component
+        function EisenhowerMatrix({ onBack, userEmail, matrixTasks, setMatrixTasks }) {
+            const [newTask, setNewTask] = useState({ do: '', schedule: '', delegate: '', eliminate: '' });
+            const [loading, setLoading] = useState(true);
+            const [draggedTask, setDraggedTask] = useState(null);
+
+            const quadrants = [
+                { id: 'do', title: 'Do First', subtitle: 'Urgent & Important', color: 'red', icon: 'alert-circle' },
+                { id: 'schedule', title: 'Schedule', subtitle: 'Not Urgent & Important', color: 'amber', icon: 'calendar' },
+                { id: 'delegate', title: 'Delegate', subtitle: 'Urgent & Not Important', color: 'blue', icon: 'users' },
+                { id: 'eliminate', title: 'Eliminate', subtitle: 'Not Urgent & Not Important', color: 'graystone', icon: 'trash-2' }
+            ];
+
+            // Load tasks
+            useEffect(() => {
+                const loadTasks = async () => {
+                    setLoading(true);
+                    const tasks = await PRODUCTIVITY_API.fetchMatrixTasks(userEmail);
+                    setMatrixTasks(tasks);
+                    setLoading(false);
+                };
+                loadTasks();
+            }, [userEmail]);
+
+            const handleAddTask = async (quadrant) => {
+                const title = newTask[quadrant];
+                if (!title.trim()) return;
+
+                const task = await PRODUCTIVITY_API.createMatrixTask({
+                    user_email: userEmail,
+                    title: title.trim(),
+                    quadrant
+                });
+
+                if (task) {
+                    setMatrixTasks(prev => [...prev, task]);
+                    setNewTask(prev => ({ ...prev, [quadrant]: '' }));
+                }
+            };
+
+            const handleToggleComplete = async (task) => {
+                const updated = await PRODUCTIVITY_API.updateMatrixTask(task.id, {
+                    completed: !task.completed
+                });
+                if (updated) {
+                    setMatrixTasks(prev => prev.map(t => t.id === task.id ? updated : t));
+                }
+            };
+
+            const handleDeleteTask = async (taskId) => {
+                const success = await PRODUCTIVITY_API.deleteMatrixTask(taskId);
+                if (success) {
+                    setMatrixTasks(prev => prev.filter(t => t.id !== taskId));
+                }
+            };
+
+            const handleDragStart = (e, task) => {
+                setDraggedTask(task);
+                e.dataTransfer.effectAllowed = 'move';
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            };
+
+            const handleDrop = async (e, quadrant) => {
+                e.preventDefault();
+                if (draggedTask && draggedTask.quadrant !== quadrant) {
+                    const updated = await PRODUCTIVITY_API.updateMatrixTask(draggedTask.id, {
+                        quadrant
+                    });
+                    if (updated) {
+                        setMatrixTasks(prev => prev.map(t => t.id === draggedTask.id ? updated : t));
+                    }
+                }
+                setDraggedTask(null);
+            };
+
+            const clearCompleted = async () => {
+                const completedTasks = matrixTasks.filter(t => t.completed);
+                for (const task of completedTasks) {
+                    await PRODUCTIVITY_API.deleteMatrixTask(task.id);
+                }
+                setMatrixTasks(prev => prev.filter(t => !t.completed));
+            };
+
+            const getQuadrantColor = (quadrant, type) => {
+                const colors = {
+                    do: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600', header: 'bg-red-100' },
+                    schedule: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-600', header: 'bg-amber-100' },
+                    delegate: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', header: 'bg-blue-100' },
+                    eliminate: { bg: 'bg-graystone-50', border: 'border-graystone-200', text: 'text-graystone-600', header: 'bg-graystone-100' }
+                };
+                return colors[quadrant][type];
+            };
+
+            if (loading) {
+                return (
+                    <div className="p-6 flex items-center justify-center">
+                        <div className="animate-spin h-8 w-8 border-4 border-ocean-500 border-t-transparent rounded-full"></div>
+                    </div>
+                );
+            }
+
+            const completedCount = matrixTasks.filter(t => t.completed).length;
+
+            return (
+                <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                        {completedCount > 0 && (
+                            <button
+                                onClick={clearCompleted}
+                                className="text-sm text-graystone-500 hover:text-red-500"
+                            >
+                                Clear {completedCount} completed
+                            </button>
+                        )}
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-2">Eisenhower Matrix</h1>
+                    <p className="text-graystone-600 mb-6">Prioritize tasks by urgency and importance</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {quadrants.map(q => {
+                            const tasks = matrixTasks.filter(t => t.quadrant === q.id);
+                            return (
+                                <div
+                                    key={q.id}
+                                    className={`rounded-xl border-2 ${getQuadrantColor(q.id, 'border')} ${getQuadrantColor(q.id, 'bg')} overflow-hidden`}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, q.id)}
+                                >
+                                    <div className={`p-3 ${getQuadrantColor(q.id, 'header')}`}>
+                                        <div className="flex items-center gap-2">
+                                            <i data-lucide={q.icon} className={`w-5 h-5 ${getQuadrantColor(q.id, 'text')}`}></i>
+                                            <div>
+                                                <h3 className={`font-bold ${getQuadrantColor(q.id, 'text')}`}>{q.title}</h3>
+                                                <p className="text-xs text-graystone-500">{q.subtitle}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3 min-h-[150px]">
+                                        <div className="space-y-2 mb-3">
+                                            {tasks.map(task => (
+                                                <div
+                                                    key={task.id}
+                                                    draggable
+                                                    onDragStart={(e) => handleDragStart(e, task)}
+                                                    className={`flex items-center gap-2 p-2 bg-white rounded-lg shadow-sm cursor-move group ${
+                                                        task.completed ? 'opacity-60' : ''
+                                                    }`}
+                                                >
+                                                    <button
+                                                        onClick={() => handleToggleComplete(task)}
+                                                        className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                                                            task.completed
+                                                                ? 'bg-green-500 border-green-500 text-white'
+                                                                : 'border-graystone-300 hover:border-green-500'
+                                                        }`}
+                                                    >
+                                                        {task.completed && <i data-lucide="check" className="w-3 h-3"></i>}
+                                                    </button>
+                                                    <span className={`flex-1 text-sm ${task.completed ? 'line-through text-graystone-400' : 'text-graystone-700'}`}>
+                                                        {task.title}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleDeleteTask(task.id)}
+                                                        className="opacity-0 group-hover:opacity-100 text-graystone-400 hover:text-red-500"
+                                                    >
+                                                        <i data-lucide="x" className="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={newTask[q.id]}
+                                                onChange={(e) => setNewTask(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleAddTask(q.id)}
+                                                placeholder="Add task..."
+                                                className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg bg-white"
+                                            />
+                                            <button
+                                                onClick={() => handleAddTask(q.id)}
+                                                disabled={!newTask[q.id].trim()}
+                                                className="px-3 py-2 bg-white border border-graystone-200 rounded-lg hover:bg-graystone-50 disabled:opacity-50"
+                                            >
+                                                <i data-lucide="plus" className="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // Daily Planner Component
+        function DailyPlanner({ onBack }) {
+            const [tasks, setTasks] = useState({});
+            const [editingSlot, setEditingSlot] = useState(null);
+            const [editText, setEditText] = useState('');
+
+            const today = new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+
+            // Generate time slots from 6am to 9pm
+            const timeSlots = [];
+            for (let hour = 6; hour <= 21; hour++) {
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const displayHour = hour > 12 ? hour - 12 : hour;
+                timeSlots.push({
+                    key: hour,
+                    label: `${displayHour}:00 ${ampm}`
+                });
+            }
+
+            const handleSlotClick = (slotKey) => {
+                setEditingSlot(slotKey);
+                setEditText(tasks[slotKey] || '');
+            };
+
+            const handleSave = () => {
+                if (editingSlot !== null) {
+                    setTasks(prev => ({
+                        ...prev,
+                        [editingSlot]: editText.trim()
+                    }));
+                    setEditingSlot(null);
+                    setEditText('');
+                }
+            };
+
+            const handleClear = (slotKey, e) => {
+                e.stopPropagation();
+                setTasks(prev => {
+                    const newTasks = { ...prev };
+                    delete newTasks[slotKey];
+                    return newTasks;
+                });
+            };
+
+            return (
+                <div className="p-6 max-w-2xl mx-auto">
+                    <div className="flex items-center mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-2">Daily Planner</h1>
+                    <p className="text-graystone-600 mb-6">{today}</p>
+
+                    <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                        {timeSlots.map(slot => (
+                            <div
+                                key={slot.key}
+                                onClick={() => handleSlotClick(slot.key)}
+                                className={`flex items-center border-b border-graystone-100 last:border-0 cursor-pointer hover:bg-graystone-50 transition-colors ${
+                                    tasks[slot.key] ? 'bg-ocean-50' : ''
+                                }`}
+                            >
+                                <div className="w-24 p-4 text-sm font-medium text-graystone-500 border-r border-graystone-100">
+                                    {slot.label}
+                                </div>
+                                <div className="flex-1 p-4 min-h-[56px] flex items-center">
+                                    {editingSlot === slot.key ? (
+                                        <div className="flex-1 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="text"
+                                                value={editText}
+                                                onChange={(e) => setEditText(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                                                placeholder="What's planned?"
+                                                className="flex-1 px-3 py-1 border rounded-lg text-sm"
+                                                autoFocus
+                                            />
+                                            <button
+                                                onClick={handleSave}
+                                                className="px-3 py-1 bg-ocean-600 text-white text-sm rounded-lg hover:bg-ocean-700"
+                                            >
+                                                Save
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingSlot(null)}
+                                                className="px-3 py-1 text-graystone-500 text-sm hover:bg-graystone-100 rounded-lg"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    ) : tasks[slot.key] ? (
+                                        <div className="flex-1 flex items-center justify-between group">
+                                            <span className="text-graystone-800">{tasks[slot.key]}</span>
+                                            <button
+                                                onClick={(e) => handleClear(slot.key, e)}
+                                                className="opacity-0 group-hover:opacity-100 text-graystone-400 hover:text-red-500 p-1"
+                                            >
+                                                <i data-lucide="x" className="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <span className="text-graystone-400 text-sm">Click to add task</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <p className="text-center text-xs text-graystone-400 mt-4">
+                        Session only - your daily plan resets when you refresh
+                    </p>
+                </div>
+            );
+        }
+
+        // Main Productivity Tools Dashboard
+        function ProductivityToolsView({ userEmail, habits, setHabits, matrixTasks, setMatrixTasks }) {
+            const [activeTool, setActiveTool] = useState(null);
+
+            const tools = [
+                { id: 'pomodoro', name: 'Pomodoro Timer', description: 'Focus with 25/5 work-break cycles', icon: 'timer', bgColor: 'bg-red-50', iconColor: 'text-red-500', borderColor: 'border-red-200' },
+                { id: 'stopwatch', name: 'Stopwatch & Timer', description: 'Track time or set countdowns', icon: 'clock', bgColor: 'bg-blue-50', iconColor: 'text-blue-500', borderColor: 'border-blue-200' },
+                { id: 'notes', name: 'Quick Notes', description: 'Temporary scratchpad for ideas', icon: 'sticky-note', bgColor: 'bg-amber-50', iconColor: 'text-amber-500', borderColor: 'border-amber-200' },
+                { id: 'speedreader', name: 'Speed Reader', description: 'RSVP reading at up to 1000 WPM', icon: 'book-open', bgColor: 'bg-pink-50', iconColor: 'text-pink-500', borderColor: 'border-pink-200' },
+                { id: 'habits', name: 'Habit Tracker', description: 'Build streaks with daily habits', icon: 'check-circle', bgColor: 'bg-green-50', iconColor: 'text-green-500', borderColor: 'border-green-200' },
+                { id: 'matrix', name: 'Eisenhower Matrix', description: 'Prioritize by urgency & importance', icon: 'grid-3x3', bgColor: 'bg-purple-50', iconColor: 'text-purple-500', borderColor: 'border-purple-200' },
+                { id: 'planner', name: 'Daily Planner', description: 'Time-block your day', icon: 'calendar-days', bgColor: 'bg-ocean-50', iconColor: 'text-ocean-500', borderColor: 'border-ocean-200' }
+            ];
+
+            const handleBack = () => setActiveTool(null);
+
+            // Render active tool
+            if (activeTool) {
+                switch (activeTool) {
+                    case 'pomodoro':
+                        return <PomodoroTimer onBack={handleBack} />;
+                    case 'stopwatch':
+                        return <StopwatchTimer onBack={handleBack} />;
+                    case 'notes':
+                        return <QuickNotes onBack={handleBack} />;
+                    case 'speedreader':
+                        return <SpeedReader onBack={handleBack} />;
+                    case 'habits':
+                        return <HabitTracker onBack={handleBack} userEmail={userEmail} habits={habits} setHabits={setHabits} />;
+                    case 'matrix':
+                        return <EisenhowerMatrix onBack={handleBack} userEmail={userEmail} matrixTasks={matrixTasks} setMatrixTasks={setMatrixTasks} />;
+                    case 'planner':
+                        return <DailyPlanner onBack={handleBack} />;
+                    default:
+                        return null;
+                }
+            }
+
+            return (
+                <div className="p-6">
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-2">Productivity Tools</h1>
+                    <p className="text-graystone-600 mb-6">Choose a tool to boost your productivity</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {tools.map(tool => (
+                            <button
+                                key={tool.id}
+                                onClick={() => setActiveTool(tool.id)}
+                                className={`p-6 rounded-xl border-2 ${tool.bgColor} ${tool.borderColor} text-left hover:shadow-lg transition-all hover:scale-[1.02] group`}
+                            >
+                                <div className="flex items-start gap-4">
+                                    <div className={`p-3 rounded-xl bg-white shadow-sm ${tool.iconColor}`}>
+                                        <i data-lucide={tool.icon} className="w-6 h-6"></i>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-graystone-800 group-hover:text-ocean-700 transition-colors">
+                                            {tool.name}
+                                        </h3>
+                                        <p className="text-sm text-graystone-600 mt-1">{tool.description}</p>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="mt-8 p-4 bg-graystone-50 rounded-lg border border-graystone-200">
+                        <h3 className="font-medium text-graystone-700 mb-2">Storage Info</h3>
+                        <div className="text-sm text-graystone-600 space-y-1">
+                            <p><span className="font-medium">Session-only:</span> Pomodoro Timer, Stopwatch, Quick Notes, Speed Reader, Daily Planner</p>
+                            <p><span className="font-medium">Saved to database:</span> Habit Tracker, Eisenhower Matrix</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         // Main App
         function App() {
             // --- STATE REPLACEMENT START ---
@@ -10790,6 +12322,10 @@
             // Whiteboard State
             const [whiteboards, setWhiteboards] = useState([]);
             const [currentWhiteboardId, setCurrentWhiteboardId] = useState(null);
+
+            // Productivity Tools State
+            const [habits, setHabits] = useState([]);
+            const [matrixTasks, setMatrixTasks] = useState([]);
 
             // Persist an entry back to the database (Supabase or SharePoint)
             const persistEntry = async (entry) => {
@@ -12481,6 +14017,17 @@
                                 onOpenWhiteboard={(id) => setCurrentWhiteboardId(id)}
                                 currentUser={currentUser}
                                 userEmail={userEmail}
+                            />
+                        );
+
+                    case 'productivity-tools':
+                        return (
+                            <ProductivityToolsView
+                                userEmail={userEmail}
+                                habits={habits}
+                                setHabits={setHabits}
+                                matrixTasks={matrixTasks}
+                                setMatrixTasks={setMatrixTasks}
                             />
                         );
 
