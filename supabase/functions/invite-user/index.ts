@@ -1,18 +1,48 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+// Security: Restrict CORS to only allowed origins
+const APP_URL = Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
+const ALLOWED_ORIGINS = [
+  'https://ddpopmatters.github.io',
+  APP_URL
+]
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed =>
+    origin === allowed || origin.startsWith(allowed)
+  ) ? origin : ALLOWED_ORIGINS[0]
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  }
 }
 
+// Request size limit (prevent memory exhaustion)
+const MAX_REQUEST_SIZE = 10 * 1024 // 10KB
+
 Deno.serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    // Security: Check content length to prevent memory exhaustion
+    const contentLength = req.headers.get('content-length')
+    if (contentLength && parseInt(contentLength) > MAX_REQUEST_SIZE) {
+      return new Response(
+        JSON.stringify({ error: 'Request too large' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get the authorization header
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -23,17 +53,13 @@ Deno.serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '')
-    console.log('Token received, length:', token.length)
 
     // Create admin client with service role key
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    console.log('SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET')
-    console.log('SERVICE_ROLE_KEY:', serviceRoleKey ? 'SET (length: ' + serviceRoleKey.length + ')' : 'NOT SET')
-
     if (!supabaseUrl || !serviceRoleKey) {
-      console.error('Missing environment variables')
+      // Don't log specifics about missing config in production
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,17 +73,12 @@ Deno.serve(async (req) => {
     )
 
     // Verify the calling user's token and check if they're admin
-    console.log('Verifying user token...')
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
 
-    if (authError) {
-      console.error('Auth error:', authError.message)
-    }
-    console.log('User:', user ? user.email : 'null')
-
     if (authError || !user) {
+      // Don't expose internal error details to client
       return new Response(
-        JSON.stringify({ error: 'Invalid or expired token', details: authError?.message }),
+        JSON.stringify({ error: 'Invalid or expired token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

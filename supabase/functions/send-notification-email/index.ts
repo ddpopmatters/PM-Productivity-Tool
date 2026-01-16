@@ -25,8 +25,13 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
   }
 }
+
+// Request size limit (prevent memory exhaustion)
+const MAX_REQUEST_SIZE = 50 * 1024 // 50KB for emails with content
 
 // HTML escaping function to prevent XSS/injection attacks
 function escapeHtml(text: string | undefined | null): string {
@@ -187,6 +192,15 @@ serve(async (req) => {
   }
 
   try {
+    // Security: Check content length to prevent memory exhaustion
+    const contentLength = req.headers.get('content-length')
+    if (contentLength && parseInt(contentLength) > MAX_REQUEST_SIZE) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Request too large' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 413 }
+      )
+    }
+
     // ============================================
     // AUTHENTICATION CHECK (security fix)
     // ============================================
