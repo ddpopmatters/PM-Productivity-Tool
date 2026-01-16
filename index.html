@@ -3167,8 +3167,9 @@
                 ]},
                 { category: 'Actions', items: [
                     { key: '⌘/Ctrl + K', description: 'Quick Add (from anywhere)' },
+                    { key: '⌘/Ctrl + ⇧ + F', description: 'Global Search' },
                     { key: 'N', description: 'Create new item' },
-                    { key: '/', description: 'Focus search' },
+                    { key: '/', description: 'Focus search in current view' },
                     { key: 'B', description: 'Toggle notifications' },
                 ]},
                 { category: 'General', items: [
@@ -10416,6 +10417,11 @@
             const [showExportMenu, setShowExportMenu] = useState(false);
             const [isExporting, setIsExporting] = useState(false);
 
+            // Undo/Redo history
+            const [history, setHistory] = useState([]);
+            const [historyIndex, setHistoryIndex] = useState(-1);
+            const isUndoRedoAction = useRef(false);
+
             const canvasRef = useRef(null);
             const contentRef = useRef(null);
             const lastPanPosition = useRef({ x: 0, y: 0 });
@@ -10461,6 +10467,20 @@
                 const handleKeyDown = (e) => {
                     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+                    // Undo: Ctrl/Cmd + Z
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleUndo();
+                        return;
+                    }
+
+                    // Redo: Ctrl/Cmd + Y or Ctrl/Cmd + Shift + Z
+                    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                        e.preventDefault();
+                        handleRedo();
+                        return;
+                    }
+
                     if (e.key === 'Delete' || e.key === 'Backspace') {
                         if (selectedElementId) {
                             handleDeleteElement(selectedElementId);
@@ -10491,7 +10511,7 @@
 
                 document.addEventListener('keydown', handleKeyDown);
                 return () => document.removeEventListener('keydown', handleKeyDown);
-            }, [selectedElementId]);
+            }, [selectedElementId, historyIndex, history]);
 
             // Create lucide icons
             useEffect(() => {
@@ -10499,6 +10519,67 @@
                     lucide.createIcons();
                 }
             }, [elements, loading, activeTool, showShareModal]);
+
+            // Track element changes for undo/redo (only after initial load)
+            useEffect(() => {
+                if (loading) return;
+                if (isUndoRedoAction.current) {
+                    isUndoRedoAction.current = false;
+                    return;
+                }
+
+                // Create a snapshot of current elements
+                const snapshot = JSON.stringify(elements);
+
+                // Don't add to history if it's the same as the current state
+                if (history[historyIndex] === snapshot) return;
+
+                // Remove any future history when new action is performed
+                const newHistory = history.slice(0, historyIndex + 1);
+                newHistory.push(snapshot);
+
+                // Keep history size reasonable (max 50 states)
+                if (newHistory.length > 50) {
+                    newHistory.shift();
+                    setHistory(newHistory);
+                    setHistoryIndex(newHistory.length - 1);
+                } else {
+                    setHistory(newHistory);
+                    setHistoryIndex(newHistory.length - 1);
+                }
+            }, [elements, loading]);
+
+            // Undo function
+            const handleUndo = () => {
+                if (historyIndex <= 0) return;
+
+                const newIndex = historyIndex - 1;
+                const previousState = JSON.parse(history[newIndex]);
+
+                isUndoRedoAction.current = true;
+                setElements(previousState);
+                setHistoryIndex(newIndex);
+                setSelectedElementId(null);
+
+                // Sync with database - delete elements not in previous state and restore old ones
+                // For simplicity, we just update local state; full db sync would require more logic
+            };
+
+            // Redo function
+            const handleRedo = () => {
+                if (historyIndex >= history.length - 1) return;
+
+                const newIndex = historyIndex + 1;
+                const nextState = JSON.parse(history[newIndex]);
+
+                isUndoRedoAction.current = true;
+                setElements(nextState);
+                setHistoryIndex(newIndex);
+                setSelectedElementId(null);
+            };
+
+            const canUndo = historyIndex > 0;
+            const canRedo = historyIndex < history.length - 1;
 
             // Handle image upload
             const handleImageUpload = async (file) => {
@@ -11028,6 +11109,26 @@
                                     )}
                                 </div>
                             )}
+
+                            {/* Undo/Redo buttons */}
+                            <div className="flex items-center border-r border-graystone-300 dark:border-graystone-600 pr-2 mr-2">
+                                <button
+                                    onClick={handleUndo}
+                                    disabled={!canUndo}
+                                    className="p-2 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Undo (Ctrl+Z)"
+                                >
+                                    <i data-lucide="undo-2" className="w-4 h-4 text-graystone-600 dark:text-graystone-400"></i>
+                                </button>
+                                <button
+                                    onClick={handleRedo}
+                                    disabled={!canRedo}
+                                    className="p-2 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Redo (Ctrl+Y)"
+                                >
+                                    <i data-lucide="redo-2" className="w-4 h-4 text-graystone-600 dark:text-graystone-400"></i>
+                                </button>
+                            </div>
 
                             {/* Zoom controls */}
                             <div className="flex items-center gap-1 text-sm text-graystone-600 dark:text-graystone-400">
@@ -14669,6 +14770,245 @@
             );
         }
 
+        // Global Search Modal Component (Ctrl/Cmd+Shift+F)
+        function GlobalSearchModal({ show, onClose, entries, whiteboards, onSelectItem, onSelectWhiteboard }) {
+            const [query, setQuery] = useState('');
+            const [results, setResults] = useState({ items: [], whiteboards: [] });
+            const [selectedIndex, setSelectedIndex] = useState(0);
+            const inputRef = useRef(null);
+
+            // Focus input when modal opens
+            useEffect(() => {
+                if (show && inputRef.current) {
+                    setTimeout(() => inputRef.current.focus(), 50);
+                }
+                if (!show) {
+                    setQuery('');
+                    setResults({ items: [], whiteboards: [] });
+                    setSelectedIndex(0);
+                }
+            }, [show]);
+
+            // Search function
+            useEffect(() => {
+                if (!query.trim()) {
+                    setResults({ items: [], whiteboards: [] });
+                    setSelectedIndex(0);
+                    return;
+                }
+
+                const searchTerm = query.toLowerCase().trim();
+
+                // Search workflow items (title, caption, owner, tags)
+                const matchedItems = entries.filter(item => {
+                    const titleMatch = item.title?.toLowerCase().includes(searchTerm);
+                    const captionMatch = item.caption?.toLowerCase().includes(searchTerm);
+                    const ownerMatch = item.owner?.toLowerCase().includes(searchTerm);
+                    const tagsMatch = item.tags?.some(tag => tag.toLowerCase().includes(searchTerm));
+                    const teamMatch = item.team?.toLowerCase().includes(searchTerm);
+                    return titleMatch || captionMatch || ownerMatch || tagsMatch || teamMatch;
+                }).slice(0, 5); // Limit to 5 items
+
+                // Search whiteboards (title, description)
+                const matchedWhiteboards = whiteboards.filter(wb => {
+                    const titleMatch = wb.title?.toLowerCase().includes(searchTerm);
+                    const descMatch = wb.description?.toLowerCase().includes(searchTerm);
+                    return titleMatch || descMatch;
+                }).slice(0, 3); // Limit to 3 whiteboards
+
+                setResults({ items: matchedItems, whiteboards: matchedWhiteboards });
+                setSelectedIndex(0);
+            }, [query, entries, whiteboards]);
+
+            const totalResults = results.items.length + results.whiteboards.length;
+
+            // Keyboard navigation
+            const handleKeyDown = (e) => {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedIndex(prev => Math.min(prev + 1, totalResults - 1));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedIndex(prev => Math.max(prev - 1, 0));
+                } else if (e.key === 'Enter' && totalResults > 0) {
+                    e.preventDefault();
+                    // Select the item at selectedIndex
+                    if (selectedIndex < results.items.length) {
+                        onSelectItem(results.items[selectedIndex]);
+                    } else {
+                        const wbIndex = selectedIndex - results.items.length;
+                        onSelectWhiteboard(results.whiteboards[wbIndex]);
+                    }
+                    onClose();
+                }
+            };
+
+            if (!show) return null;
+
+            const getStatusColor = (status) => {
+                const colors = {
+                    'Done': 'bg-green-100 text-green-700',
+                    'In Progress': 'bg-blue-100 text-blue-700',
+                    'Ready for Review': 'bg-purple-100 text-purple-700',
+                    'Draft': 'bg-yellow-100 text-yellow-700',
+                    'Idea': 'bg-graystone-100 text-graystone-600'
+                };
+                return colors[status] || 'bg-graystone-100 text-graystone-600';
+            };
+
+            return (
+                <div className="fixed inset-0 flex items-start justify-center pt-[10vh] bg-black/40 z-50">
+                    <div className="fixed inset-0" onClick={onClose} />
+                    <div className="relative bg-white dark:bg-graystone-800 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                        {/* Header */}
+                        <div className="flex items-center gap-3 px-4 py-3 border-b border-graystone-100 dark:border-graystone-700 bg-graystone-50 dark:bg-graystone-900">
+                            <i data-lucide="search" className="w-5 h-5 text-graystone-400"></i>
+                            <div className="flex items-center gap-1 px-2 py-1 bg-graystone-200 dark:bg-graystone-700 rounded text-xs text-graystone-600 dark:text-graystone-300">
+                                <span className="font-mono">{navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}</span>
+                                <span>+</span>
+                                <span className="font-mono">⇧</span>
+                                <span>+</span>
+                                <span className="font-mono">F</span>
+                            </div>
+                            <span className="text-sm text-graystone-600 dark:text-graystone-300">Global Search</span>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="p-4 border-b border-graystone-100 dark:border-graystone-700">
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Search projects, whiteboards, people..."
+                                className="w-full text-lg px-0 py-2 border-0 outline-none placeholder:text-graystone-400 bg-transparent dark:text-white"
+                                autoComplete="off"
+                            />
+                        </div>
+
+                        {/* Results */}
+                        <div className="max-h-[50vh] overflow-y-auto">
+                            {query.trim() && totalResults === 0 && (
+                                <div className="p-8 text-center text-graystone-500">
+                                    <i data-lucide="search-x" className="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                                    <p>No results found for "{query}"</p>
+                                </div>
+                            )}
+
+                            {/* Workflow Items Results */}
+                            {results.items.length > 0 && (
+                                <div className="p-2">
+                                    <div className="px-3 py-2 text-xs font-medium text-graystone-500 uppercase">Projects & Tasks</div>
+                                    {results.items.map((item, index) => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => { onSelectItem(item); onClose(); }}
+                                            className={cx(
+                                                "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors",
+                                                selectedIndex === index
+                                                    ? "bg-ocean-50 dark:bg-ocean-900/30"
+                                                    : "hover:bg-graystone-50 dark:hover:bg-graystone-700"
+                                            )}
+                                        >
+                                            <div className="w-10 h-10 bg-ocean-100 dark:bg-ocean-900 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                <i data-lucide="folder" className="w-5 h-5 text-ocean-600"></i>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-ocean-900 dark:text-white truncate">{item.title}</div>
+                                                <div className="text-sm text-graystone-500 truncate">
+                                                    {item.owner} {item.team && `• ${item.team}`}
+                                                </div>
+                                            </div>
+                                            <span className={cx("px-2 py-1 text-xs rounded-full flex-shrink-0", getStatusColor(item.workflowStatus))}>
+                                                {item.workflowStatus}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Whiteboards Results */}
+                            {results.whiteboards.length > 0 && (
+                                <div className="p-2 border-t border-graystone-100 dark:border-graystone-700">
+                                    <div className="px-3 py-2 text-xs font-medium text-graystone-500 uppercase">Whiteboards</div>
+                                    {results.whiteboards.map((wb, index) => {
+                                        const resultIndex = results.items.length + index;
+                                        return (
+                                            <button
+                                                key={wb.id}
+                                                onClick={() => { onSelectWhiteboard(wb); onClose(); }}
+                                                className={cx(
+                                                    "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors",
+                                                    selectedIndex === resultIndex
+                                                        ? "bg-ocean-50 dark:bg-ocean-900/30"
+                                                        : "hover:bg-graystone-50 dark:hover:bg-graystone-700"
+                                                )}
+                                            >
+                                                <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                    <i data-lucide="presentation" className="w-5 h-5 text-purple-600"></i>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-ocean-900 dark:text-white truncate">{wb.title}</div>
+                                                    <div className="text-sm text-graystone-500 truncate">
+                                                        {wb.description || 'Whiteboard'}
+                                                    </div>
+                                                </div>
+                                                <i data-lucide="arrow-right" className="w-4 h-4 text-graystone-400 flex-shrink-0"></i>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Quick Tips when empty */}
+                            {!query.trim() && (
+                                <div className="p-6">
+                                    <div className="text-sm text-graystone-500 mb-4">Quick Tips</div>
+                                    <div className="space-y-3 text-sm">
+                                        <div className="flex items-center gap-3 text-graystone-600 dark:text-graystone-300">
+                                            <i data-lucide="folder" className="w-4 h-4 text-ocean-500"></i>
+                                            <span>Search by project name, description, or owner</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-graystone-600 dark:text-graystone-300">
+                                            <i data-lucide="presentation" className="w-4 h-4 text-purple-500"></i>
+                                            <span>Find whiteboards by title</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-graystone-600 dark:text-graystone-300">
+                                            <i data-lucide="tag" className="w-4 h-4 text-green-500"></i>
+                                            <span>Search by tags like "Priority" or "Report"</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-graystone-600 dark:text-graystone-300">
+                                            <i data-lucide="users" className="w-4 h-4 text-amber-500"></i>
+                                            <span>Search by team name</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between px-4 py-3 border-t border-graystone-100 dark:border-graystone-700 bg-graystone-50 dark:bg-graystone-900 text-xs text-graystone-500">
+                            <div className="flex items-center gap-4">
+                                <span className="flex items-center gap-1">
+                                    <kbd className="px-1.5 py-0.5 bg-graystone-200 dark:bg-graystone-700 rounded">↑↓</kbd> Navigate
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <kbd className="px-1.5 py-0.5 bg-graystone-200 dark:bg-graystone-700 rounded">Enter</kbd> Select
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <kbd className="px-1.5 py-0.5 bg-graystone-200 dark:bg-graystone-700 rounded">Esc</kbd> Close
+                                </span>
+                            </div>
+                            {totalResults > 0 && (
+                                <span>{totalResults} result{totalResults !== 1 ? 's' : ''}</span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         // Quick Add Modal Component (Ctrl/Cmd+K)
         function QuickAddModal({ show, onClose, onAddTodo, onAddProject, currentUser }) {
             const [title, setTitle] = useState('');
@@ -14937,6 +15277,13 @@
                         return;
                     }
 
+                    // Ctrl/Cmd+Shift+F opens Global Search from anywhere
+                    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+                        e.preventDefault();
+                        setShowGlobalSearch(true);
+                        return;
+                    }
+
                     // Don't trigger shortcuts when typing in inputs
                     const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
                     const isEditing = document.activeElement.contentEditable === 'true';
@@ -14963,6 +15310,7 @@
                             setShowAddItemModal(false);
                             setShowPdfExportModal(false);
                             setShowQuickAdd(false);
+                            setShowGlobalSearch(false);
                             break;
                         case 'n':
                             if (!e.metaKey && !e.ctrlKey) {
@@ -15430,6 +15778,9 @@
             // Quick Add Modal State (Ctrl/Cmd+K)
             const [showQuickAdd, setShowQuickAdd] = useState(false);
 
+            // Global Search Modal State (Ctrl/Cmd+Shift+F)
+            const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+
             // Stats Modal (Personal view)
             const [showStatsModal, setShowStatsModal] = useState(false);
             const [statsModalTitle, setStatsModalTitle] = useState('');
@@ -15492,7 +15843,7 @@
                     }
                 }, 50);
                 return () => clearTimeout(timer);
-            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal, showNotificationsPanel, notifications, entries, loading, authChecked, authUser, darkMode]);
+            }, [currentView, viewMode, showSubtaskModal, showAddItemModal, showStatsModal, showNotificationsPanel, showGlobalSearch, notifications, entries, loading, authChecked, authUser, darkMode]);
 
             const openSubtaskModal = (entryId) => {
                 setModalEntryId(entryId);
@@ -17925,6 +18276,22 @@
                         onAddTodo={handleAddTodo}
                         onAddProject={handleAddItem}
                         currentUser={currentUser}
+                    />
+
+                    {/* Global Search Modal (Ctrl/Cmd+Shift+F) */}
+                    <GlobalSearchModal
+                        show={showGlobalSearch}
+                        onClose={() => setShowGlobalSearch(false)}
+                        entries={entries}
+                        whiteboards={whiteboards}
+                        onSelectItem={(item) => {
+                            setEditingItemId(item.id);
+                            setCurrentView('dashboard');
+                        }}
+                        onSelectWhiteboard={(wb) => {
+                            setCurrentWhiteboardId(wb.id);
+                            setCurrentView('whiteboards');
+                        }}
                     />
 
                     {/* PDF Export Modal */}
