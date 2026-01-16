@@ -3166,6 +3166,7 @@
                     { key: 'W', description: 'Go to Whiteboards' },
                 ]},
                 { category: 'Actions', items: [
+                    { key: '⌘/Ctrl + K', description: 'Quick Add (from anywhere)' },
                     { key: 'N', description: 'Create new item' },
                     { key: '/', description: 'Focus search' },
                     { key: 'B', description: 'Toggle notifications' },
@@ -6002,6 +6003,13 @@
             const [commentText, setCommentText] = useState("");
             const [mentionQuery, setMentionQuery] = useState("");
             const [mentionOptions, setMentionOptions] = useState([]);
+            // Description @Mentions state
+            const [descMentionQuery, setDescMentionQuery] = useState("");
+            const [descMentionOptions, setDescMentionOptions] = useState([]);
+            // Handoff Notes state
+            const [showHandoffForm, setShowHandoffForm] = useState(false);
+            const [handoffContent, setHandoffContent] = useState("");
+            const [handoffRecipient, setHandoffRecipient] = useState("");
 
             useEffect(() => {
                 setDescriptionDraft(getCaption());
@@ -6009,6 +6017,11 @@
                 setCommentText("");
                 setMentionQuery("");
                 setMentionOptions([]);
+                setDescMentionQuery("");
+                setDescMentionOptions([]);
+                setShowHandoffForm(false);
+                setHandoffContent("");
+                setHandoffRecipient("");
             }, [entry]);
 
             useEffect(() => {
@@ -6019,11 +6032,118 @@
 
             if (!entry) return null;
 
+            // Description @Mentions functions
+            const updateDescMentionOptions = (value) => {
+                const match = value.match(/@([a-z0-9\s]*)$/i);
+                if (match) {
+                    const query = match[1].trim().toLowerCase();
+                    setDescMentionQuery(query);
+                    const pool = Array.from(new Set([...(entry.collaborators || []), entry.owner, ...USERS])).filter(Boolean);
+                    const options = pool.filter((name) => name.toLowerCase().includes(query));
+                    setDescMentionOptions(options.slice(0, 6));
+                } else {
+                    setDescMentionQuery("");
+                    setDescMentionOptions([]);
+                }
+            };
+
+            const handleDescriptionChange = (e) => {
+                const value = e.target.value;
+                setDescriptionDraft(value);
+                updateDescMentionOptions(value);
+            };
+
+            const handleDescMentionPick = (name) => {
+                setDescriptionDraft((prev) => {
+                    const replacement = `@${name}`;
+                    return prev.replace(/@([a-z0-9\s]*)$/i, `${replacement} `);
+                });
+                setDescMentionQuery("");
+                setDescMentionOptions([]);
+            };
+
             const handleDescriptionSave = () => {
                 if (onUpdateEntry) {
                     onUpdateEntry(entry.id, { caption: descriptionDraft });
                 }
+
+                // Extract mentioned users and send them notifications
+                const mentionMatches = descriptionDraft.match(/@([A-Za-z\s]+?)(?=\s|$|@)/g);
+                if (mentionMatches) {
+                    const mentionedNames = mentionMatches.map(m => m.slice(1).trim());
+                    mentionedNames.forEach(name => {
+                        const profile = userProfilesCache.find(p =>
+                            p.name.toLowerCase() === name.toLowerCase()
+                        );
+                        if (profile && profile.email) {
+                            sendNotificationEmail(
+                                profile.email,
+                                profile.name,
+                                'mention',
+                                entry.title,
+                                entry.id,
+                                { comment: descriptionDraft.substring(0, 200) }
+                            );
+                        }
+                    });
+                }
+
+                setDescMentionQuery("");
+                setDescMentionOptions([]);
                 setDescriptionModalOpen(false);
+            };
+
+            // Handoff Notes functions
+            const addHandoffNote = () => {
+                if (!handoffContent.trim() || !handoffRecipient.trim()) return;
+
+                const newNote = {
+                    id: `hn${Date.now()}`,
+                    author: currentUser,
+                    forWhom: handoffRecipient,
+                    content: handoffContent.trim(),
+                    timestamp: new Date().toISOString(),
+                    acknowledged: false
+                };
+
+                const existingNotes = entry.handoff_notes || [];
+                onUpdateEntry(entry.id, { handoff_notes: [...existingNotes, newNote] });
+
+                // Send notification to the recipient
+                const profile = userProfilesCache.find(p =>
+                    p.name.toLowerCase() === handoffRecipient.toLowerCase()
+                );
+                if (profile && profile.email) {
+                    sendNotificationEmail(
+                        profile.email,
+                        profile.name,
+                        'comment',
+                        entry.title,
+                        entry.id,
+                        { comment: `Handoff note from ${currentUser}: ${handoffContent.substring(0, 150)}...` }
+                    );
+                }
+
+                setHandoffContent("");
+                setHandoffRecipient("");
+                setShowHandoffForm(false);
+            };
+
+            const acknowledgeHandoffNote = (noteId) => {
+                const existingNotes = entry.handoff_notes || [];
+                const updatedNotes = existingNotes.map(note =>
+                    note.id === noteId
+                        ? { ...note, acknowledged: true, acknowledgedBy: currentUser, acknowledgedAt: new Date().toISOString() }
+                        : note
+                );
+                onUpdateEntry(entry.id, { handoff_notes: updatedNotes });
+            };
+
+            const deleteHandoffNote = (noteId) => {
+                if (!confirm('Delete this handoff note?')) return;
+                const existingNotes = entry.handoff_notes || [];
+                const updatedNotes = existingNotes.filter(note => note.id !== noteId);
+                onUpdateEntry(entry.id, { handoff_notes: updatedNotes });
             };
 
             const handleDocumentsSave = () => {
@@ -6602,6 +6722,151 @@
                                     </form>
                                 </div>
                             </div>
+
+                            {/* Handoff Notes */}
+                            <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2">
+                                        <Icon name="repeat" className="w-5 h-5 text-purple-500" />
+                                        Handoff Notes
+                                    </h3>
+                                    {canEdit && !showHandoffForm && (
+                                        <button
+                                            onClick={() => setShowHandoffForm(true)}
+                                            className="px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors flex items-center gap-1.5"
+                                        >
+                                            <Icon name="plus" className="w-4 h-4" />
+                                            Add Note
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Add Handoff Form */}
+                                {showHandoffForm && (
+                                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Handing off to *</label>
+                                                <select
+                                                    value={handoffRecipient}
+                                                    onChange={(e) => setHandoffRecipient(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100 bg-white"
+                                                >
+                                                    <option value="">Select recipient...</option>
+                                                    {Array.from(new Set([...(entry.collaborators || []), entry.owner, ...USERS])).filter(Boolean).map(name => (
+                                                        <option key={name} value={name}>{name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Note *</label>
+                                                <textarea
+                                                    value={handoffContent}
+                                                    onChange={(e) => setHandoffContent(e.target.value)}
+                                                    placeholder="What should they know? Include context, next steps, blockers..."
+                                                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100 bg-white min-h-[100px]"
+                                                />
+                                            </div>
+                                            <div className="flex justify-end gap-2 pt-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setShowHandoffForm(false);
+                                                        setHandoffContent("");
+                                                        setHandoffRecipient("");
+                                                    }}
+                                                    className="px-3 py-1.5 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={addHandoffNote}
+                                                    disabled={!handoffContent.trim() || !handoffRecipient.trim()}
+                                                    className="px-4 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Add Handoff Note
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Existing Handoff Notes */}
+                                {(entry.handoff_notes && entry.handoff_notes.length > 0) ? (
+                                    <div className="space-y-3">
+                                        {entry.handoff_notes.slice().reverse().map((note) => (
+                                            <div
+                                                key={note.id}
+                                                className={cx(
+                                                    "p-4 rounded-xl border",
+                                                    note.acknowledged
+                                                        ? "bg-graystone-50 border-graystone-200"
+                                                        : "bg-purple-50 border-purple-200"
+                                                )}
+                                            >
+                                                <div className="flex items-start justify-between gap-3 mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-bold">
+                                                            {note.author ? note.author.charAt(0) : 'U'}
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-bold text-graystone-900">{note.author}</div>
+                                                            <div className="text-xs text-graystone-500">
+                                                                <Icon name="arrow-right" className="w-3 h-3 inline mr-1" />
+                                                                {note.forWhom}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs text-graystone-500">
+                                                            {note.timestamp ? new Date(note.timestamp).toLocaleDateString() : ''}
+                                                        </span>
+                                                        {note.acknowledged && (
+                                                            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full flex items-center gap-1">
+                                                                <Icon name="check" className="w-3 h-3" />
+                                                                Acknowledged
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <p className="text-sm text-graystone-700 whitespace-pre-wrap mb-3">{note.content}</p>
+                                                <div className="flex items-center justify-between">
+                                                    {!note.acknowledged && note.forWhom?.toLowerCase() === currentUser?.toLowerCase() && (
+                                                        <button
+                                                            onClick={() => acknowledgeHandoffNote(note.id)}
+                                                            className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                                                        >
+                                                            <Icon name="check" className="w-3 h-3" />
+                                                            Acknowledge
+                                                        </button>
+                                                    )}
+                                                    {note.acknowledged && note.acknowledgedBy && (
+                                                        <span className="text-xs text-graystone-500">
+                                                            Acknowledged by {note.acknowledgedBy} on {new Date(note.acknowledgedAt).toLocaleDateString()}
+                                                        </span>
+                                                    )}
+                                                    {!note.acknowledged && note.forWhom?.toLowerCase() !== currentUser?.toLowerCase() && (
+                                                        <span className="text-xs text-purple-600 font-medium">Awaiting acknowledgement</span>
+                                                    )}
+                                                    {note.author?.toLowerCase() === currentUser?.toLowerCase() && (
+                                                        <button
+                                                            onClick={() => deleteHandoffNote(note.id)}
+                                                            className="text-xs text-graystone-400 hover:text-red-500 transition-colors"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-graystone-500 text-center py-6">
+                                        <Icon name="repeat" className="w-8 h-8 mx-auto mb-2 text-graystone-300" />
+                                        <p>No handoff notes yet.</p>
+                                        <p className="text-xs mt-1">Add notes to share context when handing over work.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Sidebar */}
@@ -7099,14 +7364,39 @@
                                     <Icon name="x" className="w-5 h-5 text-white" />
                                 </button>
                             </div>
-                            <p className="text-sm text-graystone-600 mb-3">Keep this concise—the first few lines appear in the task preview.</p>
-                            <textarea
-                                value={descriptionDraft}
-                                onChange={(e) => setDescriptionDraft(e.target.value)}
-                                className="w-full rounded-xl border border-graystone-200 px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200"
-                                rows="5"
-                                placeholder="Add a short description..."
-                            />
+                            <p className="text-sm text-graystone-600 mb-3">Keep this concise—the first few lines appear in the task preview. Use @name to mention someone.</p>
+                            <div className="relative">
+                                <textarea
+                                    value={descriptionDraft}
+                                    onChange={handleDescriptionChange}
+                                    className="w-full rounded-xl border border-graystone-200 px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200"
+                                    rows="5"
+                                    placeholder="Add a short description... Use @ to mention someone"
+                                />
+                                {descMentionOptions.length > 0 && (
+                                    <div className="absolute left-0 right-0 mt-1 rounded-xl border border-ocean-200 bg-white shadow-xl z-10 overflow-hidden">
+                                        <div className="px-3 py-2 bg-ocean-50 border-b border-ocean-100">
+                                            <span className="text-xs font-medium text-ocean-700">Mention someone</span>
+                                        </div>
+                                        {descMentionOptions.map((name, idx) => (
+                                            <button
+                                                type="button"
+                                                key={name}
+                                                onClick={() => handleDescMentionPick(name)}
+                                                className={cx(
+                                                    "w-full text-left px-3 py-2.5 text-sm text-graystone-800 hover:bg-ocean-50 flex items-center gap-3 transition-colors",
+                                                    idx === 0 && "bg-ocean-50/50"
+                                                )}
+                                            >
+                                                <span className="w-8 h-8 rounded-full bg-ocean-100 text-ocean-700 flex items-center justify-center text-sm font-bold">
+                                                    {name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                </span>
+                                                <span className="font-medium">{name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex justify-end gap-3 mt-4">
                                 <button
                                     onClick={() => {
@@ -8235,11 +8525,18 @@
             viewMode,
             setViewMode,
             showArchived,
-            setShowArchived
+            setShowArchived,
+            savedFilters = [],
+            onSaveFilter,
+            onApplyFilter,
+            onDeleteFilter
         }) {
             const [showFilters, setShowFilters] = useState(false);
             const [showTags, setShowTags] = useState(false);
             const [showViewMenu, setShowViewMenu] = useState(false);
+            const [showSavedFilters, setShowSavedFilters] = useState(false);
+            const [showSaveModal, setShowSaveModal] = useState(false);
+            const [newFilterName, setNewFilterName] = useState('');
 
             const toggleFilter = (item, currentList, setList) => {
                 if (currentList.includes(item)) {
@@ -8398,6 +8695,117 @@
                                     </div>
                                 )}
                             </div>
+
+                            {/* Saved Filters Dropdown */}
+                            {onSaveFilter && (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => { setShowSavedFilters(!showSavedFilters); setShowFilters(false); setShowTags(false); setShowViewMenu(false); }}
+                                        className={cx(
+                                            "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
+                                            showSavedFilters
+                                                ? "bg-white text-ocean-700 border-white shadow-sm"
+                                                : "bg-black/20 text-white border-white/10 hover:bg-white/10"
+                                        )}
+                                    >
+                                        <i data-lucide="bookmark" className="w-4 h-4"></i>
+                                        Saved
+                                        {savedFilters.length > 0 && (
+                                            <span className="bg-ocean-600 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-1">
+                                                {savedFilters.length}
+                                            </span>
+                                        )}
+                                    </button>
+
+                                    {showSavedFilters && (
+                                        <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-xs font-bold text-graystone-500 uppercase">Saved Filters</h4>
+                                                {(searchQuery || filterTags.length > 0 || filterUsers.length > 0 || filterTeams.length > 0) && (
+                                                    <button
+                                                        onClick={() => { setShowSaveModal(true); setShowSavedFilters(false); }}
+                                                        className="text-xs text-ocean-600 hover:text-ocean-700 font-medium flex items-center gap-1"
+                                                    >
+                                                        <i data-lucide="plus" className="w-3 h-3"></i>
+                                                        Save Current
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {savedFilters.length === 0 ? (
+                                                <p className="text-xs text-graystone-400 italic py-2">
+                                                    No saved filters yet. Apply filters and click "Save Current" to save them.
+                                                </p>
+                                            ) : (
+                                                <div className="space-y-1 max-h-60 overflow-y-auto">
+                                                    {savedFilters.map(filter => (
+                                                        <div key={filter.id} className="flex items-center justify-between p-2 hover:bg-ocean-50 rounded-lg group">
+                                                            <button
+                                                                onClick={() => { onApplyFilter(filter); setShowSavedFilters(false); }}
+                                                                className="flex-1 text-left text-sm text-ocean-900 font-medium"
+                                                            >
+                                                                {filter.name}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => onDeleteFilter(filter.id)}
+                                                                className="opacity-0 group-hover:opacity-100 p-1 text-graystone-400 hover:text-red-500"
+                                                            >
+                                                                <i data-lucide="trash-2" className="w-3 h-3"></i>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Save Filter Modal */}
+                            {showSaveModal && (
+                                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+                                    <div className="fixed inset-0" onClick={() => setShowSaveModal(false)} />
+                                    <div className="relative bg-white rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl">
+                                        <h3 className="text-lg font-bold text-ocean-900 mb-4">Save Current Filter</h3>
+                                        <input
+                                            type="text"
+                                            value={newFilterName}
+                                            onChange={(e) => setNewFilterName(e.target.value)}
+                                            placeholder="Filter name (e.g., 'My High Priority')"
+                                            className="w-full px-3 py-2 border border-graystone-300 rounded-lg mb-4"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newFilterName.trim()) {
+                                                    onSaveFilter(newFilterName);
+                                                    setNewFilterName('');
+                                                    setShowSaveModal(false);
+                                                }
+                                            }}
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => setShowSaveModal(false)}
+                                                className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (newFilterName.trim()) {
+                                                        onSaveFilter(newFilterName);
+                                                        setNewFilterName('');
+                                                        setShowSaveModal(false);
+                                                    }
+                                                }}
+                                                disabled={!newFilterName.trim()}
+                                                className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 disabled:opacity-50"
+                                            >
+                                                Save Filter
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* View Switcher Dropdown */}
                             <div className="relative">
@@ -9586,6 +9994,102 @@
             );
         }
 
+        // Text Box Element Component
+        function TextBoxElement({ element, isSelected, onSelect, onUpdate, onDelete }) {
+            const [isEditing, setIsEditing] = useState(false);
+            const [text, setText] = useState(element.content?.text || '');
+            const textareaRef = useRef(null);
+
+            useEffect(() => {
+                setText(element.content?.text || '');
+            }, [element.content?.text]);
+
+            useEffect(() => {
+                if (isEditing && textareaRef.current) {
+                    textareaRef.current.focus();
+                    textareaRef.current.select();
+                }
+            }, [isEditing]);
+
+            const handleDoubleClick = () => {
+                setIsEditing(true);
+            };
+
+            const handleBlur = () => {
+                setIsEditing(false);
+                if (text !== element.content?.text) {
+                    onUpdate(element.id, {
+                        content: { ...element.content, text }
+                    });
+                }
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') {
+                    setIsEditing(false);
+                    setText(element.content?.text || '');
+                }
+            };
+
+            const content = element.content || {};
+            const fontSize = content.fontSize || '16px';
+            const fontFamily = content.fontFamily || 'system-ui, -apple-system, sans-serif';
+            const fontWeight = content.fontWeight || 'normal';
+            const fontStyle = content.fontStyle || 'normal';
+
+            return (
+                <div
+                    className={`absolute cursor-move ${isSelected ? 'ring-2 ring-ocean-500 ring-offset-2' : ''}`}
+                    style={{
+                        left: element.x,
+                        top: element.y,
+                        width: element.width,
+                        minHeight: element.height,
+                        zIndex: element.z_index || 0,
+                        color: element.text_color || '#1f2937'
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(element.id);
+                    }}
+                    onDoubleClick={handleDoubleClick}
+                >
+                    {isEditing ? (
+                        <textarea
+                            ref={textareaRef}
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            onBlur={handleBlur}
+                            onKeyDown={handleKeyDown}
+                            className="w-full h-full bg-transparent border-none outline-none resize-none"
+                            style={{
+                                fontSize,
+                                fontFamily,
+                                fontWeight,
+                                fontStyle,
+                                color: element.text_color || '#1f2937',
+                                minHeight: element.height
+                            }}
+                        />
+                    ) : (
+                        <div
+                            className="w-full h-full whitespace-pre-wrap break-words"
+                            style={{
+                                fontSize,
+                                fontFamily,
+                                fontWeight,
+                                fontStyle,
+                                minHeight: element.height,
+                                padding: '4px'
+                            }}
+                        >
+                            {text || 'Double-click to edit'}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         // Full-screen Whiteboard Element (larger canvas area)
         function WhiteboardElement({
             element,
@@ -9829,6 +10333,14 @@
                         if (!e.metaKey && !e.ctrlKey) {
                             setActiveTool('sticky');
                         }
+                    } else if (e.key === 'd' || e.key === 'D') {
+                        if (!e.metaKey && !e.ctrlKey) {
+                            setActiveTool('whiteboard');
+                        }
+                    } else if (e.key === 't' || e.key === 'T') {
+                        if (!e.metaKey && !e.ctrlKey) {
+                            setActiveTool('text');
+                        }
                     }
                 };
 
@@ -9846,22 +10358,50 @@
             const handleCanvasClick = async (e) => {
                 if (e.target !== canvasRef.current) return;
 
-                if (activeTool === 'sticky' || activeTool === 'whiteboard') {
+                if (activeTool === 'sticky' || activeTool === 'whiteboard' || activeTool === 'text') {
                     const rect = canvasRef.current.getBoundingClientRect();
                     const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
                     const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
 
-                    const isWhiteboard = activeTool === 'whiteboard';
+                    let elementConfig;
+                    if (activeTool === 'whiteboard') {
+                        elementConfig = {
+                            element_type: 'whiteboard',
+                            x: x - 200,
+                            y: y - 150,
+                            width: 400,
+                            height: 300,
+                            content: { title: 'Drawing Board', paths: [] },
+                            background_color: '#ffffff',
+                            border_color: '#e5e7eb'
+                        };
+                    } else if (activeTool === 'text') {
+                        elementConfig = {
+                            element_type: 'text',
+                            x: x - 100,
+                            y: y - 20,
+                            width: 200,
+                            height: 40,
+                            content: { text: 'Double-click to edit', fontSize: '16px', fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 'normal', fontStyle: 'normal' },
+                            background_color: 'transparent',
+                            border_color: 'transparent'
+                        };
+                    } else {
+                        elementConfig = {
+                            element_type: 'sticky',
+                            x: x - 100,
+                            y: y - 75,
+                            width: 200,
+                            height: 150,
+                            content: { title: '', description: '' },
+                            background_color: STICKY_COLORS[0].bg,
+                            border_color: STICKY_COLORS[0].border
+                        };
+                    }
+
                     const newElement = await WHITEBOARD_API.createElement({
                         whiteboard_id: whiteboardId,
-                        element_type: isWhiteboard ? 'whiteboard' : 'sticky',
-                        x: isWhiteboard ? x - 200 : x - 100, // Center the element
-                        y: isWhiteboard ? y - 150 : y - 75,
-                        width: isWhiteboard ? 400 : 200,
-                        height: isWhiteboard ? 300 : 150,
-                        content: isWhiteboard ? { title: 'Drawing Board', paths: [] } : { title: '', description: '' },
-                        background_color: isWhiteboard ? '#ffffff' : STICKY_COLORS[0].bg,
-                        border_color: isWhiteboard ? '#e5e7eb' : STICKY_COLORS[0].border,
+                        ...elementConfig,
                         text_color: '#1f2937',
                         z_index: elements.length,
                         created_by: userEmail
@@ -10038,6 +10578,13 @@
                             >
                                 <i data-lucide="pen-tool" className="w-4 h-4"></i>
                             </button>
+                            <button
+                                onClick={() => setActiveTool('text')}
+                                className={`p-2 rounded-md transition-colors ${activeTool === 'text' ? 'bg-white dark:bg-graystone-600 shadow-sm' : 'hover:bg-graystone-200 dark:hover:bg-graystone-600'}`}
+                                title="Text Box (T)"
+                            >
+                                <i data-lucide="type" className="w-4 h-4"></i>
+                            </button>
                         </div>
 
                         {/* Right side tools */}
@@ -10101,7 +10648,7 @@
                         ref={canvasRef}
                         className="flex-1 min-h-0 overflow-hidden bg-graystone-100 dark:bg-graystone-900 relative"
                         style={{
-                            cursor: isPanning ? 'grabbing' : ((activeTool === 'sticky' || activeTool === 'whiteboard') ? 'crosshair' : 'default'),
+                            cursor: isPanning ? 'grabbing' : ((activeTool === 'sticky' || activeTool === 'whiteboard' || activeTool === 'text') ? 'crosshair' : 'default'),
                             height: 'calc(100vh - 56px)'
                         }}
                         onClick={handleCanvasClick}
@@ -10157,6 +10704,15 @@
                                                 onUpdate={handleUpdateElement}
                                                 onDelete={handleDeleteElement}
                                                 viewport={viewport}
+                                            />
+                                        )}
+                                        {element.element_type === 'text' && (
+                                            <TextBoxElement
+                                                element={element}
+                                                isSelected={selectedElementId === element.id}
+                                                onSelect={setSelectedElementId}
+                                                onUpdate={handleUpdateElement}
+                                                onDelete={handleDeleteElement}
                                             />
                                         )}
                                         {selectedElementId === element.id && (
@@ -10878,8 +11434,22 @@
             const [currentIndex, setCurrentIndex] = useState(0);
             const [wpm, setWpm] = useState(300);
             const [isPlaying, setIsPlaying] = useState(false);
+            const [showHistory, setShowHistory] = useState(false);
+            const [history, setHistory] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('speedReaderHistory');
+                    return saved ? JSON.parse(saved) : [];
+                } catch {
+                    return [];
+                }
+            });
 
             const wpmOptions = [100, 200, 300, 400, 500, 600, 800, 1000];
+
+            // Save history to localStorage
+            useEffect(() => {
+                localStorage.setItem('speedReaderHistory', JSON.stringify(history));
+            }, [history]);
 
             useEffect(() => {
                 // Parse text into words when text changes
@@ -10961,18 +11531,141 @@
                 setCurrentIndex(i => Math.min(words.length - 1, i + 1));
             };
 
+            // History management functions
+            const saveToHistory = () => {
+                if (!text.trim() || words.length < 10) return;
+
+                const preview = text.substring(0, 100).replace(/\s+/g, ' ').trim();
+                const title = preview.length < text.length ? `${preview}...` : preview;
+
+                const entry = {
+                    id: `sr${Date.now()}`,
+                    text: text,
+                    title: title,
+                    wordCount: words.length,
+                    lastPosition: currentIndex,
+                    progress: Math.round(((currentIndex + 1) / words.length) * 100),
+                    wpm: wpm,
+                    savedAt: new Date().toISOString()
+                };
+
+                // Update existing or add new
+                setHistory(prev => {
+                    const existingIndex = prev.findIndex(h => h.text === text);
+                    if (existingIndex >= 0) {
+                        const updated = [...prev];
+                        updated[existingIndex] = { ...entry, id: prev[existingIndex].id };
+                        return updated;
+                    }
+                    return [entry, ...prev].slice(0, 10); // Keep last 10
+                });
+            };
+
+            const loadFromHistory = (entry) => {
+                setText(entry.text);
+                setWpm(entry.wpm || 300);
+                setShowHistory(false);
+                // Position will be set after text effect processes
+                setTimeout(() => {
+                    setCurrentIndex(entry.lastPosition || 0);
+                }, 100);
+            };
+
+            const deleteFromHistory = (id) => {
+                setHistory(prev => prev.filter(h => h.id !== id));
+            };
+
+            const clearHistory = () => {
+                if (confirm('Clear all reading history?')) {
+                    setHistory([]);
+                }
+            };
+
+            // Auto-save progress when pausing or completing
+            useEffect(() => {
+                if (!isPlaying && text.trim() && words.length >= 10 && currentIndex > 0) {
+                    saveToHistory();
+                }
+            }, [isPlaying]);
+
             const progress = words.length > 0 ? ((currentIndex + 1) / words.length) * 100 : 0;
 
             return (
                 <div className="p-6 max-w-2xl mx-auto">
-                    <div className="flex items-center mb-6">
+                    <div className="flex items-center justify-between mb-6">
                         <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
                             <i data-lucide="arrow-left" className="w-5 h-5"></i>
                             Back
                         </button>
+                        <button
+                            onClick={() => setShowHistory(!showHistory)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                showHistory ? 'bg-pink-100 text-pink-700' : 'text-graystone-600 hover:bg-graystone-100'
+                            }`}
+                        >
+                            <i data-lucide="history" className="w-4 h-4"></i>
+                            History ({history.length})
+                        </button>
                     </div>
 
                     <h1 className="text-2xl font-bold text-ocean-900 mb-6">Speed Reader</h1>
+
+                    {/* History Panel */}
+                    {showHistory && (
+                        <div className="bg-pink-50 border border-pink-200 rounded-xl p-4 mb-6">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-bold text-pink-900">Reading History</h3>
+                                {history.length > 0 && (
+                                    <button
+                                        onClick={clearHistory}
+                                        className="text-xs text-pink-600 hover:text-pink-700"
+                                    >
+                                        Clear All
+                                    </button>
+                                )}
+                            </div>
+                            {history.length > 0 ? (
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                    {history.map(entry => (
+                                        <div
+                                            key={entry.id}
+                                            className="bg-white rounded-lg p-3 border border-pink-100 hover:border-pink-300 transition-colors group"
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm text-graystone-800 truncate">{entry.title}</p>
+                                                    <div className="flex items-center gap-3 mt-1 text-xs text-graystone-500">
+                                                        <span>{entry.wordCount} words</span>
+                                                        <span>{entry.progress}% read</span>
+                                                        <span>{entry.wpm} wpm</span>
+                                                    </div>
+                                                    <div className="w-full h-1 bg-graystone-200 rounded-full mt-2 overflow-hidden">
+                                                        <div className="h-full bg-pink-400" style={{ width: `${entry.progress}%` }}></div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => loadFromHistory(entry)}
+                                                        className="px-2 py-1 text-xs bg-pink-600 text-white rounded hover:bg-pink-700 transition-colors"
+                                                    >
+                                                        {entry.progress < 100 ? 'Resume' : 'Re-read'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteFromHistory(entry.id)}
+                                                        className="p-1 text-graystone-400 hover:text-red-500 transition-colors"
+                                                    >
+                                                        <i data-lucide="x" className="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-pink-600 text-center py-4">No reading history yet. Start reading to save progress!</p>
+                            )}
+                        </div>
+                    )}
 
                     {/* Word Display */}
                     <div className="bg-graystone-900 rounded-xl p-8 mb-6 min-h-[160px] flex flex-col items-center justify-center">
@@ -11561,6 +12254,334 @@
             );
         }
 
+        // Bookmark Manager Component
+        function BookmarkManager({ onBack }) {
+            const [bookmarks, setBookmarks] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('bookmarkManager');
+                    return saved ? JSON.parse(saved) : [];
+                } catch {
+                    return [];
+                }
+            });
+            const [categories, setCategories] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('bookmarkCategories');
+                    return saved ? JSON.parse(saved) : ['General', 'Work', 'Learning', 'Tools'];
+                } catch {
+                    return ['General', 'Work', 'Learning', 'Tools'];
+                }
+            });
+            const [showAddForm, setShowAddForm] = useState(false);
+            const [showAddCategory, setShowAddCategory] = useState(false);
+            const [newUrl, setNewUrl] = useState('');
+            const [newTitle, setNewTitle] = useState('');
+            const [newCategory, setNewCategory] = useState('General');
+            const [newCategoryName, setNewCategoryName] = useState('');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [activeCategory, setActiveCategory] = useState('All');
+            const [editingId, setEditingId] = useState(null);
+
+            useEffect(() => {
+                localStorage.setItem('bookmarkManager', JSON.stringify(bookmarks));
+            }, [bookmarks]);
+
+            useEffect(() => {
+                localStorage.setItem('bookmarkCategories', JSON.stringify(categories));
+            }, [categories]);
+
+            useEffect(() => {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            });
+
+            const addBookmark = () => {
+                if (!newUrl.trim()) return;
+                const bookmark = {
+                    id: `bm${Date.now()}`,
+                    url: newUrl.trim().startsWith('http') ? newUrl.trim() : `https://${newUrl.trim()}`,
+                    title: newTitle.trim() || new URL(newUrl.trim().startsWith('http') ? newUrl.trim() : `https://${newUrl.trim()}`).hostname,
+                    category: newCategory,
+                    createdAt: new Date().toISOString(),
+                    favicon: `https://www.google.com/s2/favicons?domain=${newUrl.trim().replace(/^https?:\/\//, '').split('/')[0]}&sz=32`
+                };
+                if (editingId) {
+                    setBookmarks(prev => prev.map(b => b.id === editingId ? { ...bookmark, id: editingId } : b));
+                    setEditingId(null);
+                } else {
+                    setBookmarks(prev => [...prev, bookmark]);
+                }
+                setNewUrl('');
+                setNewTitle('');
+                setNewCategory('General');
+                setShowAddForm(false);
+            };
+
+            const deleteBookmark = (id) => {
+                setBookmarks(prev => prev.filter(b => b.id !== id));
+            };
+
+            const editBookmark = (bookmark) => {
+                setEditingId(bookmark.id);
+                setNewUrl(bookmark.url);
+                setNewTitle(bookmark.title);
+                setNewCategory(bookmark.category);
+                setShowAddForm(true);
+            };
+
+            const addCategory = () => {
+                if (!newCategoryName.trim() || categories.includes(newCategoryName.trim())) return;
+                setCategories(prev => [...prev, newCategoryName.trim()]);
+                setNewCategoryName('');
+                setShowAddCategory(false);
+            };
+
+            const deleteCategory = (cat) => {
+                if (cat === 'General') return;
+                setCategories(prev => prev.filter(c => c !== cat));
+                setBookmarks(prev => prev.map(b => b.category === cat ? { ...b, category: 'General' } : b));
+                if (activeCategory === cat) setActiveCategory('All');
+            };
+
+            const filteredBookmarks = bookmarks.filter(b => {
+                const matchesCategory = activeCategory === 'All' || b.category === activeCategory;
+                const matchesSearch = !searchQuery ||
+                    b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    b.url.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesCategory && matchesSearch;
+            });
+
+            const getCategoryCount = (cat) => bookmarks.filter(b => b.category === cat).length;
+
+            return (
+                <div className="p-6 max-w-5xl mx-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={onBack}
+                                className="p-2 hover:bg-graystone-100 rounded-lg transition-colors"
+                            >
+                                <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            </button>
+                            <div>
+                                <h1 className="text-2xl font-bold text-indigo-900">Bookmark Manager</h1>
+                                <p className="text-sm text-graystone-600">{bookmarks.length} bookmark{bookmarks.length !== 1 ? 's' : ''} saved</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => { setShowAddForm(true); setEditingId(null); setNewUrl(''); setNewTitle(''); }}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center gap-2"
+                        >
+                            <i data-lucide="plus" className="w-4 h-4"></i>
+                            Add Bookmark
+                        </button>
+                    </div>
+
+                    <div className="flex gap-6">
+                        {/* Sidebar - Categories */}
+                        <div className="w-48 shrink-0">
+                            <div className="bg-white rounded-xl border border-indigo-100 p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-bold text-graystone-700">Categories</h3>
+                                    <button
+                                        onClick={() => setShowAddCategory(true)}
+                                        className="p-1 hover:bg-indigo-50 rounded transition-colors text-indigo-600"
+                                        title="Add category"
+                                    >
+                                        <i data-lucide="plus" className="w-4 h-4"></i>
+                                    </button>
+                                </div>
+
+                                {showAddCategory && (
+                                    <div className="mb-3 p-2 bg-indigo-50 rounded-lg">
+                                        <input
+                                            type="text"
+                                            value={newCategoryName}
+                                            onChange={(e) => setNewCategoryName(e.target.value)}
+                                            placeholder="Category name"
+                                            className="w-full px-2 py-1 text-sm border border-indigo-200 rounded focus:outline-none focus:border-indigo-400"
+                                            onKeyDown={(e) => e.key === 'Enter' && addCategory()}
+                                        />
+                                        <div className="flex gap-1 mt-2">
+                                            <button onClick={addCategory} className="flex-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded">Add</button>
+                                            <button onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }} className="flex-1 px-2 py-1 bg-graystone-200 text-graystone-700 text-xs rounded">Cancel</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1">
+                                    <button
+                                        onClick={() => setActiveCategory('All')}
+                                        className={cx(
+                                            "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-between",
+                                            activeCategory === 'All' ? "bg-indigo-100 text-indigo-700" : "hover:bg-graystone-50 text-graystone-700"
+                                        )}
+                                    >
+                                        <span>All</span>
+                                        <span className="text-xs bg-graystone-200 px-2 py-0.5 rounded-full">{bookmarks.length}</span>
+                                    </button>
+                                    {categories.map(cat => (
+                                        <div key={cat} className="group relative">
+                                            <button
+                                                onClick={() => setActiveCategory(cat)}
+                                                className={cx(
+                                                    "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-between",
+                                                    activeCategory === cat ? "bg-indigo-100 text-indigo-700" : "hover:bg-graystone-50 text-graystone-700"
+                                                )}
+                                            >
+                                                <span>{cat}</span>
+                                                <span className="text-xs bg-graystone-200 px-2 py-0.5 rounded-full">{getCategoryCount(cat)}</span>
+                                            </button>
+                                            {cat !== 'General' && (
+                                                <button
+                                                    onClick={() => deleteCategory(cat)}
+                                                    className="absolute right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-red-500 transition-all"
+                                                    title="Delete category"
+                                                >
+                                                    <i data-lucide="x" className="w-3 h-3"></i>
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Main Content */}
+                        <div className="flex-1">
+                            {/* Search Bar */}
+                            <div className="mb-4">
+                                <div className="relative">
+                                    <i data-lucide="search" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-graystone-400"></i>
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Search bookmarks..."
+                                        className="w-full pl-10 pr-4 py-2 border border-graystone-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Add/Edit Form */}
+                            {showAddForm && (
+                                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4">
+                                    <h3 className="font-bold text-indigo-900 mb-3">{editingId ? 'Edit Bookmark' : 'Add Bookmark'}</h3>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">URL *</label>
+                                            <input
+                                                type="text"
+                                                value={newUrl}
+                                                onChange={(e) => setNewUrl(e.target.value)}
+                                                placeholder="https://example.com"
+                                                className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Title (optional)</label>
+                                            <input
+                                                type="text"
+                                                value={newTitle}
+                                                onChange={(e) => setNewTitle(e.target.value)}
+                                                placeholder="My Bookmark"
+                                                className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">Category</label>
+                                            <select
+                                                value={newCategory}
+                                                onChange={(e) => setNewCategory(e.target.value)}
+                                                className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                                            >
+                                                {categories.map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="flex gap-2 pt-2">
+                                            <button
+                                                onClick={() => { setShowAddForm(false); setEditingId(null); }}
+                                                className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={addBookmark}
+                                                disabled={!newUrl.trim()}
+                                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                            >
+                                                {editingId ? 'Save Changes' : 'Add Bookmark'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Bookmarks Grid */}
+                            {filteredBookmarks.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {filteredBookmarks.map(bookmark => (
+                                        <div
+                                            key={bookmark.id}
+                                            className="bg-white border border-graystone-200 rounded-xl p-4 hover:border-indigo-300 hover:shadow-sm transition-all group"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <img
+                                                    src={bookmark.favicon}
+                                                    alt=""
+                                                    className="w-8 h-8 rounded mt-0.5"
+                                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <a
+                                                        href={bookmark.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="font-medium text-graystone-900 hover:text-indigo-600 transition-colors block truncate"
+                                                    >
+                                                        {bookmark.title}
+                                                    </a>
+                                                    <p className="text-xs text-graystone-500 truncate">{bookmark.url}</p>
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">{bookmark.category}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => editBookmark(bookmark)}
+                                                        className="p-1.5 hover:bg-graystone-100 rounded transition-colors text-graystone-500"
+                                                        title="Edit"
+                                                    >
+                                                        <i data-lucide="edit-2" className="w-4 h-4"></i>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteBookmark(bookmark.id)}
+                                                        className="p-1.5 hover:bg-red-100 rounded transition-colors text-red-500"
+                                                        title="Delete"
+                                                    >
+                                                        <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 text-graystone-500">
+                                    <i data-lucide="bookmark" className="w-12 h-12 mx-auto mb-3 text-graystone-300"></i>
+                                    <p className="font-medium">{searchQuery ? 'No bookmarks match your search' : 'No bookmarks yet'}</p>
+                                    <p className="text-sm mt-1">Click "Add Bookmark" to save your first link</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         // Daily Planner Component
         function DailyPlanner({ onBack }) {
             const [tasks, setTasks] = useState({});
@@ -11693,6 +12714,7 @@
                 { id: 'stopwatch', name: 'Stopwatch & Timer', description: 'Track time or set countdowns', icon: 'clock', bgColor: 'bg-blue-50', iconColor: 'text-blue-500', borderColor: 'border-blue-200' },
                 { id: 'notes', name: 'Quick Notes', description: 'Temporary scratchpad for ideas', icon: 'sticky-note', bgColor: 'bg-amber-50', iconColor: 'text-amber-500', borderColor: 'border-amber-200' },
                 { id: 'speedreader', name: 'Speed Reader', description: 'RSVP reading at up to 1000 WPM', icon: 'book-open', bgColor: 'bg-pink-50', iconColor: 'text-pink-500', borderColor: 'border-pink-200' },
+                { id: 'bookmarks', name: 'Bookmark Manager', description: 'Save and organize useful links', icon: 'bookmark', bgColor: 'bg-indigo-50', iconColor: 'text-indigo-500', borderColor: 'border-indigo-200' },
                 { id: 'habits', name: 'Habit Tracker', description: 'Build streaks with daily habits', icon: 'check-circle', bgColor: 'bg-green-50', iconColor: 'text-green-500', borderColor: 'border-green-200' },
                 { id: 'matrix', name: 'Eisenhower Matrix', description: 'Prioritize by urgency & importance', icon: 'grid-3x3', bgColor: 'bg-purple-50', iconColor: 'text-purple-500', borderColor: 'border-purple-200' },
                 { id: 'planner', name: 'Daily Planner', description: 'Time-block your day', icon: 'calendar-days', bgColor: 'bg-ocean-50', iconColor: 'text-ocean-500', borderColor: 'border-ocean-200' }
@@ -11711,6 +12733,8 @@
                         return <QuickNotes onBack={handleBack} />;
                     case 'speedreader':
                         return <SpeedReader onBack={handleBack} />;
+                    case 'bookmarks':
+                        return <BookmarkManager onBack={handleBack} />;
                     case 'habits':
                         return <HabitTracker onBack={handleBack} userEmail={userEmail} habits={habits} setHabits={setHabits} />;
                     case 'matrix':
@@ -11753,8 +12777,156 @@
                         <h3 className="font-medium text-graystone-700 mb-2">Storage Info</h3>
                         <div className="text-sm text-graystone-600 space-y-1">
                             <p><span className="font-medium">Session-only:</span> Pomodoro Timer, Stopwatch, Quick Notes, Speed Reader, Daily Planner</p>
+                            <p><span className="font-medium">Saved locally:</span> Bookmark Manager</p>
                             <p><span className="font-medium">Saved to database:</span> Habit Tracker, Eisenhower Matrix</p>
                         </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Quick Add Modal Component (Ctrl/Cmd+K)
+        function QuickAddModal({ show, onClose, onAddTodo, onAddProject, currentUser }) {
+            const [title, setTitle] = useState('');
+            const [type, setType] = useState('todo'); // 'todo' or 'project'
+            const [dueDate, setDueDate] = useState('');
+            const [priority, setPriority] = useState('medium');
+            const inputRef = useRef(null);
+
+            useEffect(() => {
+                if (show && inputRef.current) {
+                    setTimeout(() => inputRef.current.focus(), 50);
+                }
+                if (!show) {
+                    setTitle('');
+                    setType('todo');
+                    setDueDate('');
+                    setPriority('medium');
+                }
+            }, [show]);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!title.trim()) return;
+
+                if (type === 'todo') {
+                    onAddTodo({
+                        text: title.trim(),
+                        completed: false,
+                        priority,
+                        dueDate: dueDate || null,
+                        createdAt: new Date().toISOString()
+                    });
+                } else {
+                    onAddProject({
+                        title: title.trim(),
+                        description: '',
+                        workflowStatus: 'Idea',
+                        owner: currentUser,
+                        date: dueDate || null,
+                        priority
+                    });
+                }
+                onClose();
+            };
+
+            if (!show) return null;
+
+            return (
+                <div className="fixed inset-0 flex items-start justify-center pt-[15vh] bg-black/40 z-50">
+                    <div className="fixed inset-0" onClick={onClose} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                        {/* Header */}
+                        <div className="flex items-center gap-3 px-4 py-3 border-b border-graystone-100 bg-graystone-50">
+                            <div className="flex items-center gap-1 px-2 py-1 bg-graystone-200 rounded text-xs text-graystone-600">
+                                <span className="font-mono">{navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}</span>
+                                <span>+</span>
+                                <span className="font-mono">K</span>
+                            </div>
+                            <span className="text-sm text-graystone-600">Quick Add</span>
+                        </div>
+
+                        <form onSubmit={handleSubmit}>
+                            {/* Main Input */}
+                            <div className="p-4">
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="What needs to be done?"
+                                    className="w-full text-lg px-0 py-2 border-0 outline-none placeholder:text-graystone-400"
+                                    autoComplete="off"
+                                />
+                            </div>
+
+                            {/* Options Row */}
+                            <div className="px-4 pb-4 flex flex-wrap items-center gap-3">
+                                {/* Type Toggle */}
+                                <div className="flex bg-graystone-100 rounded-lg p-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setType('todo')}
+                                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                                            type === 'todo' ? 'bg-white shadow text-ocean-600 font-medium' : 'text-graystone-600'
+                                        }`}
+                                    >
+                                        To-Do
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setType('project')}
+                                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                                            type === 'project' ? 'bg-white shadow text-ocean-600 font-medium' : 'text-graystone-600'
+                                        }`}
+                                    >
+                                        Project
+                                    </button>
+                                </div>
+
+                                {/* Priority */}
+                                <select
+                                    value={priority}
+                                    onChange={(e) => setPriority(e.target.value)}
+                                    className="px-3 py-1.5 text-sm bg-graystone-100 rounded-lg border-0 outline-none cursor-pointer"
+                                >
+                                    <option value="low">Low Priority</option>
+                                    <option value="medium">Medium Priority</option>
+                                    <option value="high">High Priority</option>
+                                </select>
+
+                                {/* Due Date */}
+                                <input
+                                    type="date"
+                                    value={dueDate}
+                                    onChange={(e) => setDueDate(e.target.value)}
+                                    className="px-3 py-1.5 text-sm bg-graystone-100 rounded-lg border-0 outline-none cursor-pointer"
+                                />
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-graystone-100 bg-graystone-50">
+                                <div className="text-xs text-graystone-500">
+                                    Press <kbd className="px-1.5 py-0.5 bg-graystone-200 rounded text-graystone-600">Enter</kbd> to create, <kbd className="px-1.5 py-0.5 bg-graystone-200 rounded text-graystone-600">Esc</kbd> to cancel
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="px-4 py-2 text-sm text-graystone-600 hover:bg-graystone-100 rounded-lg transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={!title.trim()}
+                                        className="px-4 py-2 text-sm bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors disabled:opacity-50"
+                                    >
+                                        Create {type === 'todo' ? 'To-Do' : 'Project'}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
                     </div>
                 </div>
             );
@@ -11874,6 +13046,13 @@
             // Keyboard shortcuts
             useEffect(() => {
                 const handleKeyDown = (e) => {
+                    // Ctrl/Cmd+K opens Quick Add from anywhere (even while typing)
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                        e.preventDefault();
+                        setShowQuickAdd(true);
+                        return;
+                    }
+
                     // Don't trigger shortcuts when typing in inputs
                     const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
                     const isEditing = document.activeElement.contentEditable === 'true';
@@ -11899,6 +13078,7 @@
                             setShowSubtaskModal(false);
                             setShowAddItemModal(false);
                             setShowPdfExportModal(false);
+                            setShowQuickAdd(false);
                             break;
                         case 'n':
                             if (!e.metaKey && !e.ctrlKey) {
@@ -12303,6 +13483,55 @@
             const [showArchived, setShowArchived] = useState(false);
             const [viewMode, setViewMode] = useState('kanban'); // 'kanban', 'table', 'list', 'gantt', 'mindmap'
 
+            // Saved Filters State
+            const [savedFilters, setSavedFilters] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('savedFilters');
+                    return saved ? JSON.parse(saved) : [];
+                } catch {
+                    return [];
+                }
+            });
+            const [showSavedFiltersMenu, setShowSavedFiltersMenu] = useState(false);
+
+            // Persist saved filters to localStorage
+            useEffect(() => {
+                localStorage.setItem('savedFilters', JSON.stringify(savedFilters));
+            }, [savedFilters]);
+
+            // Save current filter as new saved filter
+            const saveCurrentFilter = (name) => {
+                if (!name.trim()) return;
+                const newFilter = {
+                    id: Date.now(),
+                    name: name.trim(),
+                    searchQuery,
+                    filterTags: [...filterTags],
+                    filterUsers: [...filterUsers],
+                    filterTeams: [...filterTeams],
+                    showArchived
+                };
+                setSavedFilters(prev => [...prev, newFilter]);
+            };
+
+            // Apply a saved filter
+            const applySavedFilter = (filter) => {
+                setSearchQuery(filter.searchQuery || '');
+                setFilterTags(filter.filterTags || []);
+                setFilterUsers(filter.filterUsers || []);
+                setFilterTeams(filter.filterTeams || []);
+                setShowArchived(filter.showArchived || false);
+                setShowSavedFiltersMenu(false);
+            };
+
+            // Delete a saved filter
+            const deleteSavedFilter = (filterId) => {
+                setSavedFilters(prev => prev.filter(f => f.id !== filterId));
+            };
+
+            // Check if any filters are active
+            const hasActiveFilters = searchQuery || filterTags.length > 0 || filterUsers.length > 0 || filterTeams.length > 0 || showArchived;
+
             // Subtask Modal State
             const [showSubtaskModal, setShowSubtaskModal] = useState(false);
             const [modalEntryId, setModalEntryId] = useState(null);
@@ -12313,6 +13542,9 @@
 
             // Add Item Choice Modal State
             const [showAddItemModal, setShowAddItemModal] = useState(false);
+
+            // Quick Add Modal State (Ctrl/Cmd+K)
+            const [showQuickAdd, setShowQuickAdd] = useState(false);
 
             // Stats Modal (Personal view)
             const [showStatsModal, setShowStatsModal] = useState(false);
@@ -14801,6 +16033,15 @@
                             </div>
                         </div>
                     )}
+
+                    {/* Quick Add Modal (Ctrl/Cmd+K) */}
+                    <QuickAddModal
+                        show={showQuickAdd}
+                        onClose={() => setShowQuickAdd(false)}
+                        onAddTodo={handleAddTodo}
+                        onAddProject={handleAddItem}
+                        currentUser={currentUser}
+                    />
 
                     {/* PDF Export Modal */}
                     {showPdfExportModal && (
