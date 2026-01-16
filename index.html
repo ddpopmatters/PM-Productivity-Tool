@@ -10090,6 +10090,142 @@
             );
         }
 
+        // Image Element Component for Whiteboards
+        function ImageElement({ element, isSelected, onSelect, onUpdate, onDelete }) {
+            const content = element.content || {};
+            const imageUrl = content.url || '';
+            const altText = content.alt || 'Image';
+
+            return (
+                <div
+                    className={`absolute cursor-move ${isSelected ? 'ring-2 ring-ocean-500 ring-offset-2' : ''}`}
+                    style={{
+                        left: element.x,
+                        top: element.y,
+                        width: element.width,
+                        height: element.height,
+                        zIndex: element.z_index || 0
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(element.id);
+                    }}
+                >
+                    <img
+                        src={imageUrl}
+                        alt={altText}
+                        className="w-full h-full object-contain rounded-lg"
+                        style={{ pointerEvents: 'none' }}
+                        draggable={false}
+                    />
+                </div>
+            );
+        }
+
+        // Shape Element Component for Whiteboards
+        function ShapeElement({ element, isSelected, onSelect, onUpdate, onDelete }) {
+            const content = element.content || {};
+            const shapeType = content.shapeType || 'rectangle';
+            const fill = content.fill || '#93c5fd';
+            const stroke = content.stroke || '#3b82f6';
+            const strokeWidth = content.strokeWidth || 2;
+            const cornerRadius = content.cornerRadius || 0;
+
+            const renderShape = () => {
+                switch (shapeType) {
+                    case 'rectangle':
+                        return (
+                            <rect
+                                x={strokeWidth / 2}
+                                y={strokeWidth / 2}
+                                width={element.width - strokeWidth}
+                                height={element.height - strokeWidth}
+                                rx={cornerRadius}
+                                ry={cornerRadius}
+                                fill={fill}
+                                stroke={stroke}
+                                strokeWidth={strokeWidth}
+                            />
+                        );
+                    case 'circle':
+                        const cx = element.width / 2;
+                        const cy = element.height / 2;
+                        const rx = (element.width - strokeWidth) / 2;
+                        const ry = (element.height - strokeWidth) / 2;
+                        return (
+                            <ellipse
+                                cx={cx}
+                                cy={cy}
+                                rx={rx}
+                                ry={ry}
+                                fill={fill}
+                                stroke={stroke}
+                                strokeWidth={strokeWidth}
+                            />
+                        );
+                    case 'line':
+                        return (
+                            <line
+                                x1={strokeWidth}
+                                y1={element.height / 2}
+                                x2={element.width - strokeWidth}
+                                y2={element.height / 2}
+                                stroke={stroke}
+                                strokeWidth={strokeWidth}
+                                strokeLinecap="round"
+                            />
+                        );
+                    case 'arrow':
+                        const arrowSize = 12;
+                        const y = element.height / 2;
+                        return (
+                            <g>
+                                <line
+                                    x1={strokeWidth}
+                                    y1={y}
+                                    x2={element.width - arrowSize - strokeWidth}
+                                    y2={y}
+                                    stroke={stroke}
+                                    strokeWidth={strokeWidth}
+                                    strokeLinecap="round"
+                                />
+                                <polygon
+                                    points={`${element.width - strokeWidth},${y} ${element.width - arrowSize - strokeWidth},${y - arrowSize / 2} ${element.width - arrowSize - strokeWidth},${y + arrowSize / 2}`}
+                                    fill={stroke}
+                                />
+                            </g>
+                        );
+                    default:
+                        return null;
+                }
+            };
+
+            return (
+                <div
+                    className={`absolute cursor-move ${isSelected ? 'ring-2 ring-ocean-500 ring-offset-2' : ''}`}
+                    style={{
+                        left: element.x,
+                        top: element.y,
+                        width: element.width,
+                        height: element.height,
+                        zIndex: element.z_index || 0
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(element.id);
+                    }}
+                >
+                    <svg
+                        width={element.width}
+                        height={element.height}
+                        style={{ overflow: 'visible' }}
+                    >
+                        {renderShape()}
+                    </svg>
+                </div>
+            );
+        }
+
         // Full-screen Whiteboard Element (larger canvas area)
         function WhiteboardElement({
             element,
@@ -10276,10 +10412,15 @@
             const [showColorPicker, setShowColorPicker] = useState(false);
             const [showShareModal, setShowShareModal] = useState(false);
             const [shareEmail, setShareEmail] = useState('');
+            const [showShapesMenu, setShowShapesMenu] = useState(false);
+            const [showExportMenu, setShowExportMenu] = useState(false);
+            const [isExporting, setIsExporting] = useState(false);
 
             const canvasRef = useRef(null);
+            const contentRef = useRef(null);
             const lastPanPosition = useRef({ x: 0, y: 0 });
             const channelRef = useRef(null);
+            const imageInputRef = useRef(null);
 
             // Load elements on mount
             useEffect(() => {
@@ -10341,6 +10482,10 @@
                         if (!e.metaKey && !e.ctrlKey) {
                             setActiveTool('text');
                         }
+                    } else if (e.key === 'i' || e.key === 'I') {
+                        if (!e.metaKey && !e.ctrlKey) {
+                            imageInputRef.current?.click();
+                        }
                     }
                 };
 
@@ -10355,10 +10500,96 @@
                 }
             }, [elements, loading, activeTool, showShareModal]);
 
+            // Handle image upload
+            const handleImageUpload = async (file) => {
+                if (!file || !file.type.startsWith('image/')) return;
+
+                // Convert to base64 for storage (for simplicity; production would use Supabase Storage)
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const dataUrl = e.target.result;
+
+                    // Get image dimensions
+                    const img = new Image();
+                    img.onload = async () => {
+                        // Scale down if too large (max 600px width)
+                        let width = img.width;
+                        let height = img.height;
+                        const maxWidth = 600;
+                        if (width > maxWidth) {
+                            const ratio = maxWidth / width;
+                            width = maxWidth;
+                            height = height * ratio;
+                        }
+
+                        // Calculate center position on canvas
+                        const rect = canvasRef.current?.getBoundingClientRect();
+                        const centerX = rect ? (rect.width / 2 - viewport.x) / viewport.zoom - width / 2 : 100;
+                        const centerY = rect ? (rect.height / 2 - viewport.y) / viewport.zoom - height / 2 : 100;
+
+                        const newElement = await WHITEBOARD_API.createElement({
+                            whiteboard_id: whiteboardId,
+                            element_type: 'image',
+                            x: centerX,
+                            y: centerY,
+                            width: width,
+                            height: height,
+                            content: {
+                                url: dataUrl,
+                                alt: file.name,
+                                originalWidth: img.width,
+                                originalHeight: img.height
+                            },
+                            background_color: 'transparent',
+                            border_color: 'transparent',
+                            text_color: '#1f2937',
+                            z_index: elements.length,
+                            created_by: userEmail
+                        });
+
+                        if (newElement) {
+                            setElements(prev => [...prev, newElement]);
+                            setSelectedElementId(newElement.id);
+                        }
+                    };
+                    img.src = dataUrl;
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const handleImageInputChange = (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                    handleImageUpload(file);
+                    e.target.value = ''; // Reset input
+                }
+            };
+
+            // Handle paste event for images
+            useEffect(() => {
+                const handlePaste = (e) => {
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+
+                    for (const item of items) {
+                        if (item.type.startsWith('image/')) {
+                            e.preventDefault();
+                            const file = item.getAsFile();
+                            if (file) handleImageUpload(file);
+                            break;
+                        }
+                    }
+                };
+
+                document.addEventListener('paste', handlePaste);
+                return () => document.removeEventListener('paste', handlePaste);
+            }, [whiteboardId, elements.length, viewport]);
+
             const handleCanvasClick = async (e) => {
                 if (e.target !== canvasRef.current) return;
 
-                if (activeTool === 'sticky' || activeTool === 'whiteboard' || activeTool === 'text') {
+                const shapeTool = ['rectangle', 'circle', 'line', 'arrow'].includes(activeTool);
+                if (activeTool === 'sticky' || activeTool === 'whiteboard' || activeTool === 'text' || shapeTool) {
                     const rect = canvasRef.current.getBoundingClientRect();
                     const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
                     const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
@@ -10385,6 +10616,50 @@
                             content: { text: 'Double-click to edit', fontSize: '16px', fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 'normal', fontStyle: 'normal' },
                             background_color: 'transparent',
                             border_color: 'transparent'
+                        };
+                    } else if (activeTool === 'rectangle') {
+                        elementConfig = {
+                            element_type: 'shape',
+                            x: x - 75,
+                            y: y - 50,
+                            width: 150,
+                            height: 100,
+                            content: { shapeType: 'rectangle', fill: '#93c5fd', stroke: '#3b82f6', strokeWidth: 2, cornerRadius: 8 },
+                            background_color: '#93c5fd',
+                            border_color: '#3b82f6'
+                        };
+                    } else if (activeTool === 'circle') {
+                        elementConfig = {
+                            element_type: 'shape',
+                            x: x - 50,
+                            y: y - 50,
+                            width: 100,
+                            height: 100,
+                            content: { shapeType: 'circle', fill: '#fca5a5', stroke: '#ef4444', strokeWidth: 2 },
+                            background_color: '#fca5a5',
+                            border_color: '#ef4444'
+                        };
+                    } else if (activeTool === 'line') {
+                        elementConfig = {
+                            element_type: 'shape',
+                            x: x - 75,
+                            y: y,
+                            width: 150,
+                            height: 4,
+                            content: { shapeType: 'line', stroke: '#6b7280', strokeWidth: 3 },
+                            background_color: 'transparent',
+                            border_color: '#6b7280'
+                        };
+                    } else if (activeTool === 'arrow') {
+                        elementConfig = {
+                            element_type: 'shape',
+                            x: x - 75,
+                            y: y - 10,
+                            width: 150,
+                            height: 20,
+                            content: { shapeType: 'arrow', stroke: '#6b7280', strokeWidth: 3 },
+                            background_color: 'transparent',
+                            border_color: '#6b7280'
                         };
                     } else {
                         elementConfig = {
@@ -10539,6 +10814,96 @@
                 setShowShareModal(false);
             };
 
+            // Export functions
+            const exportAsPNG = async () => {
+                if (!contentRef.current || isExporting) return;
+                setIsExporting(true);
+                setShowExportMenu(false);
+
+                try {
+                    // Calculate bounding box of all elements
+                    if (elements.length === 0) {
+                        alert('No elements to export');
+                        setIsExporting(false);
+                        return;
+                    }
+
+                    const minX = Math.min(...elements.map(el => el.x)) - 20;
+                    const minY = Math.min(...elements.map(el => el.y)) - 20;
+                    const maxX = Math.max(...elements.map(el => el.x + el.width)) + 20;
+                    const maxY = Math.max(...elements.map(el => el.y + el.height)) + 20;
+                    const width = maxX - minX;
+                    const height = maxY - minY;
+
+                    const canvas = await html2canvas(contentRef.current, {
+                        backgroundColor: '#f3f4f6',
+                        scale: 2,
+                        x: minX,
+                        y: minY,
+                        width: width,
+                        height: height,
+                        scrollX: -minX,
+                        scrollY: -minY,
+                        windowWidth: width,
+                        windowHeight: height
+                    });
+
+                    const link = document.createElement('a');
+                    link.download = `${whiteboard?.title || 'whiteboard'}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                } catch (error) {
+                    console.error('Export PNG error:', error);
+                    alert('Failed to export as PNG');
+                }
+                setIsExporting(false);
+            };
+
+            const exportAsPDF = async () => {
+                if (!contentRef.current || isExporting) return;
+                setIsExporting(true);
+                setShowExportMenu(false);
+
+                try {
+                    if (elements.length === 0) {
+                        alert('No elements to export');
+                        setIsExporting(false);
+                        return;
+                    }
+
+                    const minX = Math.min(...elements.map(el => el.x)) - 20;
+                    const minY = Math.min(...elements.map(el => el.y)) - 20;
+                    const maxX = Math.max(...elements.map(el => el.x + el.width)) + 20;
+                    const maxY = Math.max(...elements.map(el => el.y + el.height)) + 20;
+                    const width = maxX - minX;
+                    const height = maxY - minY;
+
+                    const canvas = await html2canvas(contentRef.current, {
+                        backgroundColor: '#f3f4f6',
+                        scale: 2,
+                        x: minX,
+                        y: minY,
+                        width: width,
+                        height: height,
+                        scrollX: -minX,
+                        scrollY: -minY,
+                        windowWidth: width,
+                        windowHeight: height
+                    });
+
+                    const imgData = canvas.toDataURL('image/png');
+                    const { jsPDF } = window.jspdf;
+                    const orientation = width > height ? 'landscape' : 'portrait';
+                    const pdf = new jsPDF(orientation, 'px', [width, height]);
+                    pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+                    pdf.save(`${whiteboard?.title || 'whiteboard'}.pdf`);
+                } catch (error) {
+                    console.error('Export PDF error:', error);
+                    alert('Failed to export as PDF');
+                }
+                setIsExporting(false);
+            };
+
             const selectedElement = elements.find(el => el.id === selectedElementId);
 
             return (
@@ -10585,6 +10950,55 @@
                             >
                                 <i data-lucide="type" className="w-4 h-4"></i>
                             </button>
+                            <button
+                                onClick={() => imageInputRef.current?.click()}
+                                className="p-2 rounded-md transition-colors hover:bg-graystone-200 dark:hover:bg-graystone-600"
+                                title="Add Image (I)"
+                            >
+                                <i data-lucide="image" className="w-4 h-4"></i>
+                            </button>
+                            {/* Shapes dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowShapesMenu(!showShapesMenu)}
+                                    className={`p-2 rounded-md transition-colors ${['rectangle', 'circle', 'line', 'arrow'].includes(activeTool) ? 'bg-white dark:bg-graystone-600 shadow-sm' : 'hover:bg-graystone-200 dark:hover:bg-graystone-600'}`}
+                                    title="Shapes"
+                                >
+                                    <i data-lucide="shapes" className="w-4 h-4"></i>
+                                </button>
+                                {showShapesMenu && (
+                                    <div className="absolute top-full left-0 mt-1 bg-white dark:bg-graystone-800 rounded-lg shadow-lg border border-graystone-200 dark:border-graystone-700 p-1 z-50">
+                                        <button
+                                            onClick={() => { setActiveTool('rectangle'); setShowShapesMenu(false); }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded"
+                                        >
+                                            <i data-lucide="square" className="w-4 h-4"></i>
+                                            Rectangle
+                                        </button>
+                                        <button
+                                            onClick={() => { setActiveTool('circle'); setShowShapesMenu(false); }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded"
+                                        >
+                                            <i data-lucide="circle" className="w-4 h-4"></i>
+                                            Circle
+                                        </button>
+                                        <button
+                                            onClick={() => { setActiveTool('line'); setShowShapesMenu(false); }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded"
+                                        >
+                                            <i data-lucide="minus" className="w-4 h-4"></i>
+                                            Line
+                                        </button>
+                                        <button
+                                            onClick={() => { setActiveTool('arrow'); setShowShapesMenu(false); }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded"
+                                        >
+                                            <i data-lucide="arrow-right" className="w-4 h-4"></i>
+                                            Arrow
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Right side tools */}
@@ -10632,6 +11046,40 @@
                                 </button>
                             </div>
 
+                            {/* Export button */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowExportMenu(!showExportMenu)}
+                                    disabled={isExporting}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-graystone-700 dark:text-graystone-300 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded-lg transition-colors text-sm disabled:opacity-50"
+                                >
+                                    {isExporting ? (
+                                        <div className="w-4 h-4 border-2 border-graystone-400 border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <i data-lucide="download" className="w-4 h-4"></i>
+                                    )}
+                                    Export
+                                </button>
+                                {showExportMenu && (
+                                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-graystone-800 rounded-lg shadow-lg border border-graystone-200 dark:border-graystone-700 p-1 z-50 min-w-[140px]">
+                                        <button
+                                            onClick={exportAsPNG}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded text-left"
+                                        >
+                                            <i data-lucide="image" className="w-4 h-4"></i>
+                                            Export as PNG
+                                        </button>
+                                        <button
+                                            onClick={exportAsPDF}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded text-left"
+                                        >
+                                            <i data-lucide="file-text" className="w-4 h-4"></i>
+                                            Export as PDF
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Share button */}
                             <button
                                 onClick={() => setShowShareModal(true)}
@@ -10648,7 +11096,7 @@
                         ref={canvasRef}
                         className="flex-1 min-h-0 overflow-hidden bg-graystone-100 dark:bg-graystone-900 relative"
                         style={{
-                            cursor: isPanning ? 'grabbing' : ((activeTool === 'sticky' || activeTool === 'whiteboard' || activeTool === 'text') ? 'crosshair' : 'default'),
+                            cursor: isPanning ? 'grabbing' : (['sticky', 'whiteboard', 'text', 'rectangle', 'circle', 'line', 'arrow'].includes(activeTool) ? 'crosshair' : 'default'),
                             height: 'calc(100vh - 56px)'
                         }}
                         onClick={handleCanvasClick}
@@ -10670,6 +11118,7 @@
 
                         {/* Canvas content */}
                         <div
+                            ref={contentRef}
                             className="absolute"
                             style={{
                                 transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
@@ -10708,6 +11157,24 @@
                                         )}
                                         {element.element_type === 'text' && (
                                             <TextBoxElement
+                                                element={element}
+                                                isSelected={selectedElementId === element.id}
+                                                onSelect={setSelectedElementId}
+                                                onUpdate={handleUpdateElement}
+                                                onDelete={handleDeleteElement}
+                                            />
+                                        )}
+                                        {element.element_type === 'image' && (
+                                            <ImageElement
+                                                element={element}
+                                                isSelected={selectedElementId === element.id}
+                                                onSelect={setSelectedElementId}
+                                                onUpdate={handleUpdateElement}
+                                                onDelete={handleDeleteElement}
+                                            />
+                                        )}
+                                        {element.element_type === 'shape' && (
+                                            <ShapeElement
                                                 element={element}
                                                 isSelected={selectedElementId === element.id}
                                                 onSelect={setSelectedElementId}
@@ -10781,6 +11248,15 @@
                             </div>
                         </div>
                     )}
+
+                    {/* Hidden file input for image upload */}
+                    <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageInputChange}
+                        className="hidden"
+                    />
                 </div>
             );
         }
@@ -10980,6 +11456,45 @@
             const [isRunning, setIsRunning] = useState(false);
             const [sessionsCompleted, setSessionsCompleted] = useState(0);
             const [showSettings, setShowSettings] = useState(false);
+            const [showStats, setShowStats] = useState(false);
+
+            // Stats persisted to localStorage
+            const [stats, setStats] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('pomodoroStats');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        // Check if last session was today for streak
+                        const today = new Date().toDateString();
+                        const lastDate = parsed.lastSessionDate;
+                        if (lastDate) {
+                            const lastDateObj = new Date(lastDate);
+                            const daysDiff = Math.floor((new Date(today) - lastDateObj) / (1000 * 60 * 60 * 24));
+                            if (daysDiff > 1) {
+                                // Streak broken - reset it
+                                return { ...parsed, currentStreak: 0 };
+                            }
+                        }
+                        return parsed;
+                    }
+                } catch (e) {
+                    console.error('Error loading pomodoro stats:', e);
+                }
+                return {
+                    totalSessions: 0,
+                    totalFocusMinutes: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    lastSessionDate: null,
+                    todaySessions: 0,
+                    todayDate: new Date().toDateString()
+                };
+            });
+
+            // Save stats to localStorage whenever they change
+            useEffect(() => {
+                localStorage.setItem('pomodoroStats', JSON.stringify(stats));
+            }, [stats]);
 
             useEffect(() => {
                 let interval = null;
@@ -10994,6 +11509,47 @@
                     if (mode === 'work') {
                         const newSessions = sessionsCompleted + 1;
                         setSessionsCompleted(newSessions);
+
+                        // Update stats
+                        setStats(prev => {
+                            const today = new Date().toDateString();
+                            const isNewDay = prev.todayDate !== today;
+                            const todaySessions = isNewDay ? 1 : prev.todaySessions + 1;
+
+                            // Calculate streak
+                            let newStreak = prev.currentStreak;
+                            if (isNewDay) {
+                                const lastDate = prev.lastSessionDate ? new Date(prev.lastSessionDate) : null;
+                                const todayDate = new Date(today);
+                                if (lastDate) {
+                                    const daysDiff = Math.floor((todayDate - lastDate) / (1000 * 60 * 60 * 24));
+                                    newStreak = daysDiff <= 1 ? prev.currentStreak + 1 : 1;
+                                } else {
+                                    newStreak = 1;
+                                }
+                            } else if (prev.todaySessions === 0) {
+                                // First session of the day
+                                const lastDate = prev.lastSessionDate ? new Date(prev.lastSessionDate) : null;
+                                const todayDate = new Date(today);
+                                if (lastDate) {
+                                    const daysDiff = Math.floor((todayDate - lastDate) / (1000 * 60 * 60 * 24));
+                                    newStreak = daysDiff <= 1 ? prev.currentStreak + 1 : 1;
+                                } else {
+                                    newStreak = 1;
+                                }
+                            }
+
+                            return {
+                                totalSessions: prev.totalSessions + 1,
+                                totalFocusMinutes: prev.totalFocusMinutes + settings.work,
+                                currentStreak: newStreak,
+                                longestStreak: Math.max(prev.longestStreak, newStreak),
+                                lastSessionDate: today,
+                                todaySessions: todaySessions,
+                                todayDate: today
+                            };
+                        });
+
                         if (newSessions % 4 === 0) {
                             setMode('longBreak');
                             setTimeLeft(settings.longBreak * 60);
@@ -11039,6 +11595,14 @@
                 }
             };
 
+            // Format minutes to hours and minutes display
+            const formatFocusTime = (minutes) => {
+                if (minutes < 60) return `${minutes}m`;
+                const hours = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+            };
+
             return (
                 <div className="p-6 max-w-lg mx-auto">
                     <div className="flex items-center justify-between mb-6">
@@ -11046,9 +11610,14 @@
                             <i data-lucide="arrow-left" className="w-5 h-5"></i>
                             Back
                         </button>
-                        <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-graystone-100 rounded-lg">
-                            <i data-lucide="settings" className="w-5 h-5 text-graystone-600"></i>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setShowStats(true)} className="p-2 hover:bg-graystone-100 rounded-lg" title="View Stats">
+                                <i data-lucide="bar-chart-2" className="w-5 h-5 text-graystone-600"></i>
+                            </button>
+                            <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-graystone-100 rounded-lg" title="Settings">
+                                <i data-lucide="settings" className="w-5 h-5 text-graystone-600"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <div className="text-center">
@@ -11154,6 +11723,86 @@
                                         className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
                                     >
                                         Apply & Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Stats Modal */}
+                    {showStats && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-lg font-bold text-ocean-900">Your Focus Stats</h3>
+                                    <button onClick={() => setShowStats(false)} className="p-1 hover:bg-graystone-100 rounded">
+                                        <i data-lucide="x" className="w-5 h-5 text-graystone-600"></i>
+                                    </button>
+                                </div>
+
+                                {/* Stats Grid */}
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div className="bg-red-50 rounded-xl p-4 text-center">
+                                        <div className="text-3xl font-bold text-red-600">{stats.totalSessions}</div>
+                                        <div className="text-sm text-red-700">Total Sessions</div>
+                                    </div>
+                                    <div className="bg-ocean-50 rounded-xl p-4 text-center">
+                                        <div className="text-3xl font-bold text-ocean-600">{formatFocusTime(stats.totalFocusMinutes)}</div>
+                                        <div className="text-sm text-ocean-700">Focus Time</div>
+                                    </div>
+                                    <div className="bg-amber-50 rounded-xl p-4 text-center">
+                                        <div className="text-3xl font-bold text-amber-600">{stats.currentStreak}</div>
+                                        <div className="text-sm text-amber-700">Day Streak</div>
+                                    </div>
+                                    <div className="bg-purple-50 rounded-xl p-4 text-center">
+                                        <div className="text-3xl font-bold text-purple-600">{stats.longestStreak}</div>
+                                        <div className="text-sm text-purple-700">Best Streak</div>
+                                    </div>
+                                </div>
+
+                                {/* Today's Progress */}
+                                <div className="bg-green-50 rounded-xl p-4 mb-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <div className="text-sm text-green-700 font-medium">Today's Sessions</div>
+                                            <div className="text-2xl font-bold text-green-600">{stats.todaySessions}</div>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            {[...Array(Math.min(stats.todaySessions, 8))].map((_, i) => (
+                                                <span key={i} className="text-xl">🍅</span>
+                                            ))}
+                                            {stats.todaySessions > 8 && (
+                                                <span className="text-green-600 text-sm font-medium">+{stats.todaySessions - 8}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Reset Stats */}
+                                <div className="flex justify-between items-center pt-4 border-t">
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Reset all stats? This cannot be undone.')) {
+                                                setStats({
+                                                    totalSessions: 0,
+                                                    totalFocusMinutes: 0,
+                                                    currentStreak: 0,
+                                                    longestStreak: 0,
+                                                    lastSessionDate: null,
+                                                    todaySessions: 0,
+                                                    todayDate: new Date().toDateString()
+                                                });
+                                            }
+                                        }}
+                                        className="text-sm text-red-600 hover:text-red-700"
+                                    >
+                                        Reset Stats
+                                    </button>
+                                    <button
+                                        onClick={() => setShowStats(false)}
+                                        className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
+                                    >
+                                        Close
                                     </button>
                                 </div>
                             </div>
@@ -11780,6 +12429,9 @@
             const [newHabitColor, setNewHabitColor] = useState('#22c55e');
             const [completions, setCompletions] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [viewMode, setViewMode] = useState('weekly'); // 'weekly' or 'monthly'
+            const [selectedHabitForMonth, setSelectedHabitForMonth] = useState(null);
+            const [currentMonth, setCurrentMonth] = useState(new Date());
 
             const habitColors = ['#22c55e', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4'];
 
@@ -11794,11 +12446,52 @@
                 return days;
             };
 
+            // Get all days in the current month
+            const getMonthDays = () => {
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth();
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                const days = [];
+
+                // Get the day of week the month starts on (0 = Sunday)
+                const startDayOfWeek = firstDay.getDay();
+
+                // Add empty slots for days before the first of the month
+                for (let i = 0; i < startDayOfWeek; i++) {
+                    days.push(null);
+                }
+
+                // Add all days of the month
+                for (let d = 1; d <= lastDay.getDate(); d++) {
+                    const date = new Date(year, month, d);
+                    days.push(date.toISOString().split('T')[0]);
+                }
+
+                return days;
+            };
+
+            // Get date range for current view
+            const getDateRange = () => {
+                if (viewMode === 'weekly') {
+                    const weekDays = getLast7Days();
+                    return { start: weekDays[0], end: weekDays[weekDays.length - 1] };
+                } else {
+                    const year = currentMonth.getFullYear();
+                    const month = currentMonth.getMonth();
+                    const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
+                    const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0];
+                    return { start: firstDay, end: lastDay };
+                }
+            };
+
             const days = getLast7Days();
             const dayLabels = days.map(d => {
                 const date = new Date(d);
                 return date.toLocaleDateString('en-US', { weekday: 'short' });
             });
+
+            const monthDays = getMonthDays();
 
             // Load habits and completions
             useEffect(() => {
@@ -11809,17 +12502,18 @@
 
                     if (habitData.length > 0) {
                         const habitIds = habitData.map(h => h.id);
+                        const range = getDateRange();
                         const completionData = await PRODUCTIVITY_API.fetchCompletions(
                             habitIds,
-                            days[0],
-                            days[days.length - 1]
+                            range.start,
+                            range.end
                         );
                         setCompletions(completionData);
                     }
                     setLoading(false);
                 };
                 loadData();
-            }, [userEmail]);
+            }, [userEmail, viewMode, currentMonth]);
 
             const handleAddHabit = async () => {
                 if (!newHabitName.trim()) return;
@@ -11879,6 +12573,46 @@
                 return streak;
             };
 
+            // Get monthly completion rate for a habit
+            const getMonthlyCompletionRate = (habitId) => {
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth();
+                const today = new Date();
+                const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+                const lastDay = isCurrentMonth ? today.getDate() : new Date(year, month + 1, 0).getDate();
+
+                let completed = 0;
+                for (let d = 1; d <= lastDay; d++) {
+                    const dateStr = new Date(year, month, d).toISOString().split('T')[0];
+                    if (completions.some(c => c.habit_id === habitId && c.completed_date === dateStr)) {
+                        completed++;
+                    }
+                }
+                return Math.round((completed / lastDay) * 100);
+            };
+
+            // Navigate months
+            const prevMonth = () => {
+                setCurrentMonth(prev => {
+                    const newDate = new Date(prev);
+                    newDate.setMonth(newDate.getMonth() - 1);
+                    return newDate;
+                });
+            };
+
+            const nextMonth = () => {
+                setCurrentMonth(prev => {
+                    const newDate = new Date(prev);
+                    newDate.setMonth(newDate.getMonth() + 1);
+                    return newDate;
+                });
+            };
+
+            // Format month for display
+            const formatMonth = (date) => {
+                return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            };
+
             if (loading) {
                 return (
                     <div className="p-6 flex items-center justify-center">
@@ -11888,22 +12622,68 @@
             }
 
             return (
-                <div className="p-6 max-w-3xl mx-auto">
+                <div className="p-6 max-w-4xl mx-auto">
                     <div className="flex items-center justify-between mb-6">
                         <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
                             <i data-lucide="arrow-left" className="w-5 h-5"></i>
                             Back
                         </button>
-                        <button
-                            onClick={() => setShowAddModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
-                        >
-                            <i data-lucide="plus" className="w-4 h-4"></i>
-                            Add Habit
-                        </button>
+                        <div className="flex items-center gap-3">
+                            {/* View Toggle */}
+                            <div className="flex bg-graystone-100 rounded-lg p-1">
+                                <button
+                                    onClick={() => setViewMode('weekly')}
+                                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                        viewMode === 'weekly'
+                                            ? 'bg-white text-ocean-600 shadow-sm'
+                                            : 'text-graystone-600 hover:text-graystone-800'
+                                    }`}
+                                >
+                                    Weekly
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('monthly')}
+                                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                        viewMode === 'monthly'
+                                            ? 'bg-white text-ocean-600 shadow-sm'
+                                            : 'text-graystone-600 hover:text-graystone-800'
+                                    }`}
+                                >
+                                    Monthly
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
+                            >
+                                <i data-lucide="plus" className="w-4 h-4"></i>
+                                Add Habit
+                            </button>
+                        </div>
                     </div>
 
                     <h1 className="text-2xl font-bold text-ocean-900 mb-6">Habit Tracker</h1>
+
+                    {/* Month Navigation (only show in monthly view) */}
+                    {viewMode === 'monthly' && (
+                        <div className="flex items-center justify-center gap-4 mb-6">
+                            <button
+                                onClick={prevMonth}
+                                className="p-2 hover:bg-graystone-100 rounded-lg"
+                            >
+                                <i data-lucide="chevron-left" className="w-5 h-5 text-graystone-600"></i>
+                            </button>
+                            <span className="text-lg font-semibold text-graystone-800 min-w-[180px] text-center">
+                                {formatMonth(currentMonth)}
+                            </span>
+                            <button
+                                onClick={nextMonth}
+                                className="p-2 hover:bg-graystone-100 rounded-lg"
+                            >
+                                <i data-lucide="chevron-right" className="w-5 h-5 text-graystone-600"></i>
+                            </button>
+                        </div>
+                    )}
 
                     {habits.length === 0 ? (
                         <div className="bg-white rounded-xl shadow-lg p-8 text-center">
@@ -11916,7 +12696,8 @@
                                 Add Your First Habit
                             </button>
                         </div>
-                    ) : (
+                    ) : viewMode === 'weekly' ? (
+                        /* Weekly View - Table */
                         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full">
@@ -11982,6 +12763,87 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    ) : (
+                        /* Monthly View - Calendar Grid per Habit */
+                        <div className="space-y-6">
+                            {habits.map(habit => (
+                                <div key={habit.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                    {/* Habit Header */}
+                                    <div className="flex items-center justify-between p-4 border-b border-graystone-200">
+                                        <div className="flex items-center gap-3">
+                                            <div
+                                                className="w-4 h-4 rounded-full"
+                                                style={{ backgroundColor: habit.color }}
+                                            />
+                                            <span className="font-semibold text-graystone-800">{habit.name}</span>
+                                            {getStreak(habit.id) > 0 && (
+                                                <span className="inline-flex items-center gap-1 text-orange-500 text-sm font-medium">
+                                                    🔥 {getStreak(habit.id)} day streak
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="text-sm text-graystone-600">
+                                                <span className="font-semibold" style={{ color: habit.color }}>
+                                                    {getMonthlyCompletionRate(habit.id)}%
+                                                </span>
+                                                {' '}completion rate
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteHabit(habit.id)}
+                                                className="text-graystone-400 hover:text-red-500"
+                                            >
+                                                <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Calendar Grid */}
+                                    <div className="p-4">
+                                        {/* Day Headers */}
+                                        <div className="grid grid-cols-7 gap-1 mb-2">
+                                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                                                <div key={day} className="text-center text-xs font-medium text-graystone-500 py-1">
+                                                    {day}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Calendar Days */}
+                                        <div className="grid grid-cols-7 gap-1">
+                                            {monthDays.map((day, index) => {
+                                                if (day === null) {
+                                                    return <div key={`empty-${index}`} className="aspect-square" />;
+                                                }
+
+                                                const dayNum = new Date(day).getDate();
+                                                const isToday = day === new Date().toISOString().split('T')[0];
+                                                const completed = isCompleted(habit.id, day);
+                                                const isFuture = new Date(day) > new Date();
+
+                                                return (
+                                                    <button
+                                                        key={day}
+                                                        onClick={() => !isFuture && handleToggleCompletion(habit.id, day)}
+                                                        disabled={isFuture}
+                                                        className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all ${
+                                                            isFuture
+                                                                ? 'text-graystone-300 cursor-not-allowed'
+                                                                : completed
+                                                                    ? 'text-white'
+                                                                    : 'text-graystone-600 hover:bg-graystone-100'
+                                                        } ${isToday ? 'ring-2 ring-ocean-400 ring-offset-1' : ''}`}
+                                                        style={completed && !isFuture ? { backgroundColor: habit.color } : {}}
+                                                    >
+                                                        {dayNum}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
 
@@ -12705,6 +13567,1019 @@
             );
         }
 
+        // Goal Tracker Component
+        function GoalTracker({ onBack }) {
+            const [goals, setGoals] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('goalTrackerGoals');
+                    return saved ? JSON.parse(saved) : [];
+                } catch (e) {
+                    return [];
+                }
+            });
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [editingGoal, setEditingGoal] = useState(null);
+            const [newGoal, setNewGoal] = useState({
+                title: '',
+                description: '',
+                targetDate: '',
+                category: 'personal',
+                milestones: []
+            });
+            const [newMilestone, setNewMilestone] = useState('');
+
+            // Save goals to localStorage
+            useEffect(() => {
+                localStorage.setItem('goalTrackerGoals', JSON.stringify(goals));
+            }, [goals]);
+
+            const categories = [
+                { id: 'personal', label: 'Personal', color: '#3b82f6' },
+                { id: 'career', label: 'Career', color: '#8b5cf6' },
+                { id: 'health', label: 'Health', color: '#22c55e' },
+                { id: 'finance', label: 'Finance', color: '#f59e0b' },
+                { id: 'learning', label: 'Learning', color: '#ec4899' }
+            ];
+
+            const getCategoryColor = (categoryId) => {
+                return categories.find(c => c.id === categoryId)?.color || '#6b7280';
+            };
+
+            const getCategoryLabel = (categoryId) => {
+                return categories.find(c => c.id === categoryId)?.label || 'Other';
+            };
+
+            const handleAddGoal = () => {
+                if (!newGoal.title.trim()) return;
+
+                const goal = {
+                    id: Date.now().toString(),
+                    ...newGoal,
+                    createdAt: new Date().toISOString(),
+                    completed: false
+                };
+
+                setGoals(prev => [goal, ...prev]);
+                setShowAddModal(false);
+                setNewGoal({
+                    title: '',
+                    description: '',
+                    targetDate: '',
+                    category: 'personal',
+                    milestones: []
+                });
+            };
+
+            const handleAddMilestone = () => {
+                if (!newMilestone.trim()) return;
+                setNewGoal(prev => ({
+                    ...prev,
+                    milestones: [...prev.milestones, { id: Date.now().toString(), title: newMilestone.trim(), completed: false }]
+                }));
+                setNewMilestone('');
+            };
+
+            const handleRemoveMilestone = (milestoneId) => {
+                setNewGoal(prev => ({
+                    ...prev,
+                    milestones: prev.milestones.filter(m => m.id !== milestoneId)
+                }));
+            };
+
+            const handleToggleMilestone = (goalId, milestoneId) => {
+                setGoals(prev => prev.map(goal => {
+                    if (goal.id === goalId) {
+                        return {
+                            ...goal,
+                            milestones: goal.milestones.map(m =>
+                                m.id === milestoneId ? { ...m, completed: !m.completed } : m
+                            )
+                        };
+                    }
+                    return goal;
+                }));
+            };
+
+            const handleToggleGoalComplete = (goalId) => {
+                setGoals(prev => prev.map(goal =>
+                    goal.id === goalId ? { ...goal, completed: !goal.completed } : goal
+                ));
+            };
+
+            const handleDeleteGoal = (goalId) => {
+                if (!confirm('Delete this goal?')) return;
+                setGoals(prev => prev.filter(g => g.id !== goalId));
+            };
+
+            const getProgress = (goal) => {
+                if (goal.milestones.length === 0) return goal.completed ? 100 : 0;
+                const completed = goal.milestones.filter(m => m.completed).length;
+                return Math.round((completed / goal.milestones.length) * 100);
+            };
+
+            const getDaysRemaining = (targetDate) => {
+                if (!targetDate) return null;
+                const target = new Date(targetDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const diff = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+                return diff;
+            };
+
+            const activeGoals = goals.filter(g => !g.completed);
+            const completedGoals = goals.filter(g => g.completed);
+
+            return (
+                <div className="p-6 max-w-3xl mx-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
+                        >
+                            <i data-lucide="plus" className="w-4 h-4"></i>
+                            Add Goal
+                        </button>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-6">Goal Tracker</h1>
+
+                    {goals.length === 0 ? (
+                        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+                            <i data-lucide="target" className="w-16 h-16 text-graystone-300 mx-auto mb-4"></i>
+                            <p className="text-graystone-600 mb-4">No goals yet. Start setting goals to achieve!</p>
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700"
+                            >
+                                Create Your First Goal
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Active Goals */}
+                            {activeGoals.length > 0 && (
+                                <div>
+                                    <h2 className="text-lg font-semibold text-graystone-700 mb-3">Active Goals ({activeGoals.length})</h2>
+                                    <div className="space-y-4">
+                                        {activeGoals.map(goal => {
+                                            const progress = getProgress(goal);
+                                            const daysRemaining = getDaysRemaining(goal.targetDate);
+
+                                            return (
+                                                <div key={goal.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                                    <div className="p-4">
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="flex items-start gap-3">
+                                                                <button
+                                                                    onClick={() => handleToggleGoalComplete(goal.id)}
+                                                                    className="mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center hover:bg-graystone-100"
+                                                                    style={{ borderColor: getCategoryColor(goal.category) }}
+                                                                >
+                                                                    {goal.completed && (
+                                                                        <i data-lucide="check" className="w-3 h-3" style={{ color: getCategoryColor(goal.category) }}></i>
+                                                                    )}
+                                                                </button>
+                                                                <div>
+                                                                    <h3 className="font-semibold text-graystone-800">{goal.title}</h3>
+                                                                    {goal.description && (
+                                                                        <p className="text-sm text-graystone-600 mt-1">{goal.description}</p>
+                                                                    )}
+                                                                    <div className="flex items-center gap-3 mt-2">
+                                                                        <span
+                                                                            className="text-xs px-2 py-0.5 rounded-full text-white"
+                                                                            style={{ backgroundColor: getCategoryColor(goal.category) }}
+                                                                        >
+                                                                            {getCategoryLabel(goal.category)}
+                                                                        </span>
+                                                                        {daysRemaining !== null && (
+                                                                            <span className={`text-xs ${daysRemaining < 0 ? 'text-red-500' : daysRemaining <= 7 ? 'text-amber-500' : 'text-graystone-500'}`}>
+                                                                                {daysRemaining < 0
+                                                                                    ? `${Math.abs(daysRemaining)} days overdue`
+                                                                                    : daysRemaining === 0
+                                                                                        ? 'Due today'
+                                                                                        : `${daysRemaining} days left`
+                                                                                }
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleDeleteGoal(goal.id)}
+                                                                className="text-graystone-400 hover:text-red-500"
+                                                            >
+                                                                <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Progress Bar */}
+                                                        <div className="mb-3">
+                                                            <div className="flex items-center justify-between text-xs mb-1">
+                                                                <span className="text-graystone-600">Progress</span>
+                                                                <span className="font-medium" style={{ color: getCategoryColor(goal.category) }}>{progress}%</span>
+                                                            </div>
+                                                            <div className="h-2 bg-graystone-100 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className="h-full rounded-full transition-all"
+                                                                    style={{ width: `${progress}%`, backgroundColor: getCategoryColor(goal.category) }}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Milestones */}
+                                                        {goal.milestones.length > 0 && (
+                                                            <div className="space-y-2">
+                                                                <p className="text-xs font-medium text-graystone-500 uppercase">Milestones</p>
+                                                                {goal.milestones.map(milestone => (
+                                                                    <div
+                                                                        key={milestone.id}
+                                                                        className="flex items-center gap-2 pl-2"
+                                                                    >
+                                                                        <button
+                                                                            onClick={() => handleToggleMilestone(goal.id, milestone.id)}
+                                                                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                                                                milestone.completed
+                                                                                    ? 'bg-green-500 border-green-500 text-white'
+                                                                                    : 'border-graystone-300 hover:border-graystone-400'
+                                                                            }`}
+                                                                        >
+                                                                            {milestone.completed && (
+                                                                                <i data-lucide="check" className="w-3 h-3"></i>
+                                                                            )}
+                                                                        </button>
+                                                                        <span className={`text-sm ${milestone.completed ? 'line-through text-graystone-400' : 'text-graystone-700'}`}>
+                                                                            {milestone.title}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Completed Goals */}
+                            {completedGoals.length > 0 && (
+                                <div>
+                                    <h2 className="text-lg font-semibold text-graystone-700 mb-3">Completed ({completedGoals.length})</h2>
+                                    <div className="space-y-3">
+                                        {completedGoals.map(goal => (
+                                            <div key={goal.id} className="bg-white rounded-lg border border-graystone-200 p-4 opacity-75">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            onClick={() => handleToggleGoalComplete(goal.id)}
+                                                            className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center"
+                                                        >
+                                                            <i data-lucide="check" className="w-3 h-3 text-white"></i>
+                                                        </button>
+                                                        <span className="line-through text-graystone-500">{goal.title}</span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleDeleteGoal(goal.id)}
+                                                        className="text-graystone-400 hover:text-red-500"
+                                                    >
+                                                        <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Add Goal Modal */}
+                    {showAddModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+                                <h3 className="text-lg font-bold text-ocean-900 mb-4">Create New Goal</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Goal Title</label>
+                                        <input
+                                            type="text"
+                                            value={newGoal.title}
+                                            onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
+                                            placeholder="What do you want to achieve?"
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                            autoFocus
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Description (optional)</label>
+                                        <textarea
+                                            value={newGoal.description}
+                                            onChange={(e) => setNewGoal(prev => ({ ...prev, description: e.target.value }))}
+                                            placeholder="Add more details about your goal..."
+                                            className="w-full px-3 py-2 border rounded-lg resize-none"
+                                            rows="2"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Category</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {categories.map(cat => (
+                                                <button
+                                                    key={cat.id}
+                                                    onClick={() => setNewGoal(prev => ({ ...prev, category: cat.id }))}
+                                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                                                        newGoal.category === cat.id
+                                                            ? 'text-white ring-2 ring-offset-2'
+                                                            : 'bg-graystone-100 text-graystone-600 hover:bg-graystone-200'
+                                                    }`}
+                                                    style={newGoal.category === cat.id ? { backgroundColor: cat.color, ringColor: cat.color } : {}}
+                                                >
+                                                    {cat.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-1">Target Date (optional)</label>
+                                        <input
+                                            type="date"
+                                            value={newGoal.targetDate}
+                                            onChange={(e) => setNewGoal(prev => ({ ...prev, targetDate: e.target.value }))}
+                                            className="w-full px-3 py-2 border rounded-lg"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-graystone-700 mb-2">Milestones (optional)</label>
+                                        <div className="flex gap-2 mb-2">
+                                            <input
+                                                type="text"
+                                                value={newMilestone}
+                                                onChange={(e) => setNewMilestone(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddMilestone())}
+                                                placeholder="Add a milestone..."
+                                                className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                                            />
+                                            <button
+                                                onClick={handleAddMilestone}
+                                                className="px-3 py-2 bg-graystone-100 rounded-lg hover:bg-graystone-200"
+                                            >
+                                                <i data-lucide="plus" className="w-4 h-4 text-graystone-600"></i>
+                                            </button>
+                                        </div>
+                                        {newGoal.milestones.length > 0 && (
+                                            <div className="space-y-2 bg-graystone-50 rounded-lg p-2">
+                                                {newGoal.milestones.map((milestone, index) => (
+                                                    <div key={milestone.id} className="flex items-center justify-between bg-white rounded px-3 py-2">
+                                                        <span className="text-sm text-graystone-700">{index + 1}. {milestone.title}</span>
+                                                        <button
+                                                            onClick={() => handleRemoveMilestone(milestone.id)}
+                                                            className="text-graystone-400 hover:text-red-500"
+                                                        >
+                                                            <i data-lucide="x" className="w-4 h-4"></i>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <button
+                                        onClick={() => {
+                                            setShowAddModal(false);
+                                            setNewGoal({ title: '', description: '', targetDate: '', category: 'personal', milestones: [] });
+                                            setNewMilestone('');
+                                        }}
+                                        className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleAddGoal}
+                                        disabled={!newGoal.title.trim()}
+                                        className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 disabled:opacity-50"
+                                    >
+                                        Create Goal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <p className="text-center text-xs text-graystone-400 mt-6">
+                        Goals are saved in your browser's local storage
+                    </p>
+                </div>
+            );
+        }
+
+        // Decision Matrix Component (Weighted Decision Making)
+        function DecisionMatrix({ onBack }) {
+            const [decisionTitle, setDecisionTitle] = useState('');
+            const [criteria, setCriteria] = useState([
+                { id: '1', name: 'Cost', weight: 3 },
+                { id: '2', name: 'Quality', weight: 4 },
+                { id: '3', name: 'Time', weight: 2 }
+            ]);
+            const [options, setOptions] = useState([
+                { id: '1', name: 'Option A' },
+                { id: '2', name: 'Option B' }
+            ]);
+            const [scores, setScores] = useState({}); // { optionId_criteriaId: score }
+            const [newCriteria, setNewCriteria] = useState('');
+            const [newOption, setNewOption] = useState('');
+
+            const handleAddCriteria = () => {
+                if (!newCriteria.trim()) return;
+                setCriteria(prev => [...prev, {
+                    id: Date.now().toString(),
+                    name: newCriteria.trim(),
+                    weight: 3
+                }]);
+                setNewCriteria('');
+            };
+
+            const handleAddOption = () => {
+                if (!newOption.trim()) return;
+                setOptions(prev => [...prev, {
+                    id: Date.now().toString(),
+                    name: newOption.trim()
+                }]);
+                setNewOption('');
+            };
+
+            const handleDeleteCriteria = (id) => {
+                setCriteria(prev => prev.filter(c => c.id !== id));
+                // Clean up scores
+                setScores(prev => {
+                    const newScores = { ...prev };
+                    Object.keys(newScores).forEach(key => {
+                        if (key.includes(`_${id}`)) delete newScores[key];
+                    });
+                    return newScores;
+                });
+            };
+
+            const handleDeleteOption = (id) => {
+                setOptions(prev => prev.filter(o => o.id !== id));
+                // Clean up scores
+                setScores(prev => {
+                    const newScores = { ...prev };
+                    Object.keys(newScores).forEach(key => {
+                        if (key.startsWith(`${id}_`)) delete newScores[key];
+                    });
+                    return newScores;
+                });
+            };
+
+            const handleWeightChange = (criteriaId, weight) => {
+                setCriteria(prev => prev.map(c =>
+                    c.id === criteriaId ? { ...c, weight: parseInt(weight) || 1 } : c
+                ));
+            };
+
+            const handleScoreChange = (optionId, criteriaId, score) => {
+                const key = `${optionId}_${criteriaId}`;
+                setScores(prev => ({ ...prev, [key]: parseInt(score) || 0 }));
+            };
+
+            const getScore = (optionId, criteriaId) => {
+                return scores[`${optionId}_${criteriaId}`] || 0;
+            };
+
+            const calculateTotalScore = (optionId) => {
+                let total = 0;
+                let maxPossible = 0;
+                criteria.forEach(c => {
+                    const score = getScore(optionId, c.id);
+                    total += score * c.weight;
+                    maxPossible += 5 * c.weight; // Max score is 5
+                });
+                return { total, maxPossible, percentage: maxPossible > 0 ? Math.round((total / maxPossible) * 100) : 0 };
+            };
+
+            const getWinner = () => {
+                if (options.length < 2) return null;
+                let best = null;
+                let bestScore = -1;
+                options.forEach(opt => {
+                    const { total } = calculateTotalScore(opt.id);
+                    if (total > bestScore) {
+                        bestScore = total;
+                        best = opt;
+                    }
+                });
+                return best;
+            };
+
+            const winner = getWinner();
+            const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
+
+            const handleReset = () => {
+                if (!confirm('Reset all data? This cannot be undone.')) return;
+                setDecisionTitle('');
+                setCriteria([
+                    { id: '1', name: 'Cost', weight: 3 },
+                    { id: '2', name: 'Quality', weight: 4 },
+                    { id: '3', name: 'Time', weight: 2 }
+                ]);
+                setOptions([
+                    { id: '1', name: 'Option A' },
+                    { id: '2', name: 'Option B' }
+                ]);
+                setScores({});
+            };
+
+            return (
+                <div className="p-6 max-w-5xl mx-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                        <button
+                            onClick={handleReset}
+                            className="text-sm text-graystone-500 hover:text-red-500"
+                        >
+                            Reset
+                        </button>
+                    </div>
+
+                    <h1 className="text-2xl font-bold text-ocean-900 mb-2">Decision Matrix</h1>
+                    <p className="text-graystone-600 mb-6">Compare options by scoring them against weighted criteria (1-5 scale)</p>
+
+                    {/* Decision Title */}
+                    <div className="mb-6">
+                        <input
+                            type="text"
+                            value={decisionTitle}
+                            onChange={(e) => setDecisionTitle(e.target.value)}
+                            placeholder="What decision are you making? (e.g., 'Which laptop to buy')"
+                            className="w-full px-4 py-3 border-2 border-graystone-200 rounded-xl text-lg focus:border-teal-500 focus:outline-none"
+                        />
+                    </div>
+
+                    {/* Add Criteria & Options */}
+                    <div className="grid md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-white rounded-xl shadow-lg p-4">
+                            <h3 className="font-semibold text-graystone-700 mb-3">Criteria ({criteria.length})</h3>
+                            <div className="flex gap-2 mb-3">
+                                <input
+                                    type="text"
+                                    value={newCriteria}
+                                    onChange={(e) => setNewCriteria(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddCriteria()}
+                                    placeholder="Add criteria..."
+                                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                                />
+                                <button
+                                    onClick={handleAddCriteria}
+                                    className="px-3 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
+                                >
+                                    <i data-lucide="plus" className="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {criteria.map(c => (
+                                    <div key={c.id} className="flex items-center gap-2 bg-graystone-50 rounded-lg p-2">
+                                        <span className="flex-1 text-sm text-graystone-700">{c.name}</span>
+                                        <select
+                                            value={c.weight}
+                                            onChange={(e) => handleWeightChange(c.id, e.target.value)}
+                                            className="w-16 px-2 py-1 border rounded text-sm"
+                                            title="Weight"
+                                        >
+                                            {[1, 2, 3, 4, 5].map(w => (
+                                                <option key={w} value={w}>{w}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={() => handleDeleteCriteria(c.id)}
+                                            className="text-graystone-400 hover:text-red-500"
+                                        >
+                                            <i data-lucide="x" className="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-graystone-500 mt-2">Total weight: {totalWeight}</p>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-lg p-4">
+                            <h3 className="font-semibold text-graystone-700 mb-3">Options ({options.length})</h3>
+                            <div className="flex gap-2 mb-3">
+                                <input
+                                    type="text"
+                                    value={newOption}
+                                    onChange={(e) => setNewOption(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddOption()}
+                                    placeholder="Add option..."
+                                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                                />
+                                <button
+                                    onClick={handleAddOption}
+                                    className="px-3 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
+                                >
+                                    <i data-lucide="plus" className="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {options.map(o => (
+                                    <div key={o.id} className="flex items-center gap-2 bg-graystone-50 rounded-lg p-2">
+                                        <span className="flex-1 text-sm text-graystone-700">{o.name}</span>
+                                        <button
+                                            onClick={() => handleDeleteOption(o.id)}
+                                            className="text-graystone-400 hover:text-red-500"
+                                        >
+                                            <i data-lucide="x" className="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Matrix Table */}
+                    {criteria.length > 0 && options.length > 0 && (
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="bg-graystone-50 border-b border-graystone-200">
+                                            <th className="text-left p-4 font-semibold text-graystone-700">Criteria</th>
+                                            <th className="p-4 font-semibold text-graystone-700 text-center w-20">Weight</th>
+                                            {options.map(opt => (
+                                                <th key={opt.id} className="p-4 font-semibold text-graystone-700 text-center min-w-[120px]">
+                                                    {opt.name}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {criteria.map(crit => (
+                                            <tr key={crit.id} className="border-b border-graystone-100">
+                                                <td className="p-4 text-graystone-700">{crit.name}</td>
+                                                <td className="p-4 text-center">
+                                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-teal-100 text-teal-700 font-semibold text-sm">
+                                                        {crit.weight}
+                                                    </span>
+                                                </td>
+                                                {options.map(opt => (
+                                                    <td key={opt.id} className="p-4 text-center">
+                                                        <div className="flex justify-center gap-1">
+                                                            {[1, 2, 3, 4, 5].map(score => (
+                                                                <button
+                                                                    key={score}
+                                                                    onClick={() => handleScoreChange(opt.id, crit.id, score)}
+                                                                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                                                                        getScore(opt.id, crit.id) === score
+                                                                            ? 'bg-teal-500 text-white'
+                                                                            : getScore(opt.id, crit.id) >= score
+                                                                                ? 'bg-teal-100 text-teal-700'
+                                                                                : 'bg-graystone-100 text-graystone-400 hover:bg-graystone-200'
+                                                                    }`}
+                                                                >
+                                                                    {score}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="bg-graystone-50 border-t-2 border-graystone-200">
+                                            <td className="p-4 font-semibold text-graystone-700">Weighted Score</td>
+                                            <td className="p-4"></td>
+                                            {options.map(opt => {
+                                                const { total, percentage } = calculateTotalScore(opt.id);
+                                                const isWinner = winner && winner.id === opt.id && options.length > 1;
+                                                return (
+                                                    <td key={opt.id} className="p-4 text-center">
+                                                        <div className={`inline-flex flex-col items-center px-4 py-2 rounded-lg ${
+                                                            isWinner ? 'bg-green-100' : 'bg-graystone-100'
+                                                        }`}>
+                                                            <span className={`text-2xl font-bold ${isWinner ? 'text-green-600' : 'text-graystone-700'}`}>
+                                                                {total}
+                                                            </span>
+                                                            <span className={`text-xs ${isWinner ? 'text-green-500' : 'text-graystone-500'}`}>
+                                                                {percentage}%
+                                                            </span>
+                                                            {isWinner && (
+                                                                <span className="text-xs text-green-600 font-semibold mt-1">BEST</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Winner Banner */}
+                    {winner && options.length > 1 && (
+                        <div className="bg-gradient-to-r from-green-500 to-teal-500 rounded-xl p-6 text-white text-center mb-6">
+                            <p className="text-sm opacity-90 mb-1">Based on your criteria, the best choice is:</p>
+                            <h2 className="text-3xl font-bold">{winner.name}</h2>
+                            <p className="text-sm opacity-90 mt-2">
+                                Score: {calculateTotalScore(winner.id).total} ({calculateTotalScore(winner.id).percentage}%)
+                            </p>
+                        </div>
+                    )}
+
+                    <p className="text-center text-xs text-graystone-400">
+                        Session only - your decision matrix resets when you refresh
+                    </p>
+                </div>
+            );
+        }
+
+        // Mind Map Tool Component
+        function MindMapTool({ onBack }) {
+            const [nodes, setNodes] = useState([
+                { id: 'root', text: 'Main Idea', x: 400, y: 300, color: '#8b5cf6', parentId: null }
+            ]);
+            const [selectedNodeId, setSelectedNodeId] = useState(null);
+            const [editingNodeId, setEditingNodeId] = useState(null);
+            const [editText, setEditText] = useState('');
+            const [dragging, setDragging] = useState(null);
+            const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+            const canvasRef = useRef(null);
+
+            const nodeColors = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4'];
+
+            const handleAddChild = (parentId) => {
+                const parent = nodes.find(n => n.id === parentId);
+                if (!parent) return;
+
+                const children = nodes.filter(n => n.parentId === parentId);
+                const angle = (children.length * 45) - 90;
+                const distance = 150;
+                const radians = (angle * Math.PI) / 180;
+
+                const newNode = {
+                    id: Date.now().toString(),
+                    text: 'New idea',
+                    x: parent.x + Math.cos(radians) * distance,
+                    y: parent.y + Math.sin(radians) * distance,
+                    color: nodeColors[(nodes.length) % nodeColors.length],
+                    parentId: parentId
+                };
+
+                setNodes(prev => [...prev, newNode]);
+                setSelectedNodeId(newNode.id);
+                setEditingNodeId(newNode.id);
+                setEditText('New idea');
+            };
+
+            const handleDeleteNode = (nodeId) => {
+                if (nodeId === 'root') return; // Can't delete root
+
+                // Get all descendants
+                const getDescendants = (id) => {
+                    const children = nodes.filter(n => n.parentId === id);
+                    let descendants = [...children];
+                    children.forEach(child => {
+                        descendants = [...descendants, ...getDescendants(child.id)];
+                    });
+                    return descendants;
+                };
+
+                const toDelete = [nodeId, ...getDescendants(nodeId).map(n => n.id)];
+                setNodes(prev => prev.filter(n => !toDelete.includes(n.id)));
+                setSelectedNodeId(null);
+            };
+
+            const handleStartEdit = (node) => {
+                setEditingNodeId(node.id);
+                setEditText(node.text);
+            };
+
+            const handleFinishEdit = () => {
+                if (editingNodeId && editText.trim()) {
+                    setNodes(prev => prev.map(n =>
+                        n.id === editingNodeId ? { ...n, text: editText.trim() } : n
+                    ));
+                }
+                setEditingNodeId(null);
+                setEditText('');
+            };
+
+            const handleMouseDown = (e, node) => {
+                if (editingNodeId === node.id) return;
+                e.stopPropagation();
+                setSelectedNodeId(node.id);
+                setDragging(node.id);
+                const rect = e.currentTarget.getBoundingClientRect();
+                setDragOffset({
+                    x: e.clientX - rect.left - rect.width / 2,
+                    y: e.clientY - rect.top - rect.height / 2
+                });
+            };
+
+            const handleMouseMove = (e) => {
+                if (!dragging || !canvasRef.current) return;
+                const rect = canvasRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left - dragOffset.x;
+                const y = e.clientY - rect.top - dragOffset.y;
+
+                setNodes(prev => prev.map(n =>
+                    n.id === dragging ? { ...n, x: Math.max(60, Math.min(rect.width - 60, x)), y: Math.max(30, Math.min(rect.height - 30, y)) } : n
+                ));
+            };
+
+            const handleMouseUp = () => {
+                setDragging(null);
+            };
+
+            const handleCanvasClick = (e) => {
+                if (e.target === canvasRef.current) {
+                    setSelectedNodeId(null);
+                    if (editingNodeId) handleFinishEdit();
+                }
+            };
+
+            const handleColorChange = (nodeId, color) => {
+                setNodes(prev => prev.map(n =>
+                    n.id === nodeId ? { ...n, color } : n
+                ));
+            };
+
+            const handleReset = () => {
+                if (!confirm('Reset mind map? This cannot be undone.')) return;
+                setNodes([{ id: 'root', text: 'Main Idea', x: 400, y: 300, color: '#8b5cf6', parentId: null }]);
+                setSelectedNodeId(null);
+            };
+
+            // Get lines between connected nodes
+            const getLines = () => {
+                return nodes
+                    .filter(n => n.parentId)
+                    .map(node => {
+                        const parent = nodes.find(p => p.id === node.parentId);
+                        if (!parent) return null;
+                        return {
+                            id: `line-${node.id}`,
+                            x1: parent.x,
+                            y1: parent.y,
+                            x2: node.x,
+                            y2: node.y,
+                            color: node.color
+                        };
+                    })
+                    .filter(Boolean);
+            };
+
+            const selectedNode = nodes.find(n => n.id === selectedNodeId);
+
+            return (
+                <div className="p-6 h-[calc(100vh-100px)] flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                        <button onClick={onBack} className="flex items-center gap-2 text-ocean-600 hover:text-ocean-700">
+                            <i data-lucide="arrow-left" className="w-5 h-5"></i>
+                            Back
+                        </button>
+                        <div className="flex items-center gap-3">
+                            {selectedNodeId && (
+                                <>
+                                    <button
+                                        onClick={() => handleAddChild(selectedNodeId)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-violet-500 text-white rounded-lg hover:bg-violet-600 text-sm"
+                                    >
+                                        <i data-lucide="plus" className="w-4 h-4"></i>
+                                        Add Child
+                                    </button>
+                                    {selectedNodeId !== 'root' && (
+                                        <button
+                                            onClick={() => handleDeleteNode(selectedNodeId)}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+                                        >
+                                            <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                            <button
+                                onClick={handleReset}
+                                className="text-sm text-graystone-500 hover:text-red-500"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-ocean-900">Mind Map</h1>
+                            <p className="text-sm text-graystone-600">Click a node to select, double-click to edit, drag to move</p>
+                        </div>
+                        {selectedNode && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-graystone-500">Color:</span>
+                                {nodeColors.map(color => (
+                                    <button
+                                        key={color}
+                                        onClick={() => handleColorChange(selectedNodeId, color)}
+                                        className={`w-6 h-6 rounded-full transition-transform ${selectedNode.color === color ? 'ring-2 ring-offset-2 ring-graystone-400 scale-110' : ''}`}
+                                        style={{ backgroundColor: color }}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Canvas */}
+                    <div
+                        ref={canvasRef}
+                        className="flex-1 bg-white rounded-xl shadow-lg relative overflow-hidden cursor-default"
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                        onClick={handleCanvasClick}
+                    >
+                        {/* SVG for lines */}
+                        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                            {getLines().map(line => (
+                                <line
+                                    key={line.id}
+                                    x1={line.x1}
+                                    y1={line.y1}
+                                    x2={line.x2}
+                                    y2={line.y2}
+                                    stroke={line.color}
+                                    strokeWidth="2"
+                                    strokeOpacity="0.5"
+                                />
+                            ))}
+                        </svg>
+
+                        {/* Nodes */}
+                        {nodes.map(node => (
+                            <div
+                                key={node.id}
+                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-move select-none ${
+                                    selectedNodeId === node.id ? 'z-20' : 'z-10'
+                                }`}
+                                style={{ left: node.x, top: node.y }}
+                                onMouseDown={(e) => handleMouseDown(e, node)}
+                                onDoubleClick={() => handleStartEdit(node)}
+                            >
+                                <div
+                                    className={`px-4 py-2 rounded-xl text-white font-medium shadow-lg transition-all ${
+                                        selectedNodeId === node.id ? 'ring-4 ring-offset-2 ring-violet-300 scale-110' : 'hover:scale-105'
+                                    } ${node.id === 'root' ? 'text-lg' : 'text-sm'}`}
+                                    style={{ backgroundColor: node.color, minWidth: node.id === 'root' ? '120px' : '80px' }}
+                                >
+                                    {editingNodeId === node.id ? (
+                                        <input
+                                            type="text"
+                                            value={editText}
+                                            onChange={(e) => setEditText(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleFinishEdit();
+                                                if (e.key === 'Escape') { setEditingNodeId(null); setEditText(''); }
+                                            }}
+                                            onBlur={handleFinishEdit}
+                                            className="bg-transparent border-none outline-none text-center text-white w-full"
+                                            autoFocus
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    ) : (
+                                        <span className="text-center block">{node.text}</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Empty state hint */}
+                        {nodes.length === 1 && (
+                            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-sm text-graystone-400 bg-white/80 px-4 py-2 rounded-lg">
+                                Click the main idea, then use "Add Child" to start brainstorming
+                            </div>
+                        )}
+                    </div>
+
+                    <p className="text-center text-xs text-graystone-400 mt-4">
+                        Session only - your mind map resets when you refresh
+                    </p>
+                </div>
+            );
+        }
+
         // Main Productivity Tools Dashboard
         function ProductivityToolsView({ userEmail, habits, setHabits, matrixTasks, setMatrixTasks }) {
             const [activeTool, setActiveTool] = useState(null);
@@ -12715,6 +14590,9 @@
                 { id: 'notes', name: 'Quick Notes', description: 'Temporary scratchpad for ideas', icon: 'sticky-note', bgColor: 'bg-amber-50', iconColor: 'text-amber-500', borderColor: 'border-amber-200' },
                 { id: 'speedreader', name: 'Speed Reader', description: 'RSVP reading at up to 1000 WPM', icon: 'book-open', bgColor: 'bg-pink-50', iconColor: 'text-pink-500', borderColor: 'border-pink-200' },
                 { id: 'bookmarks', name: 'Bookmark Manager', description: 'Save and organize useful links', icon: 'bookmark', bgColor: 'bg-indigo-50', iconColor: 'text-indigo-500', borderColor: 'border-indigo-200' },
+                { id: 'goals', name: 'Goal Tracker', description: 'Set goals with milestones & deadlines', icon: 'target', bgColor: 'bg-emerald-50', iconColor: 'text-emerald-500', borderColor: 'border-emerald-200' },
+                { id: 'decision', name: 'Decision Matrix', description: 'Compare options with weighted criteria', icon: 'scale', bgColor: 'bg-teal-50', iconColor: 'text-teal-500', borderColor: 'border-teal-200' },
+                { id: 'mindmap', name: 'Mind Map', description: 'Brainstorm and organize ideas visually', icon: 'brain', bgColor: 'bg-violet-50', iconColor: 'text-violet-500', borderColor: 'border-violet-200' },
                 { id: 'habits', name: 'Habit Tracker', description: 'Build streaks with daily habits', icon: 'check-circle', bgColor: 'bg-green-50', iconColor: 'text-green-500', borderColor: 'border-green-200' },
                 { id: 'matrix', name: 'Eisenhower Matrix', description: 'Prioritize by urgency & importance', icon: 'grid-3x3', bgColor: 'bg-purple-50', iconColor: 'text-purple-500', borderColor: 'border-purple-200' },
                 { id: 'planner', name: 'Daily Planner', description: 'Time-block your day', icon: 'calendar-days', bgColor: 'bg-ocean-50', iconColor: 'text-ocean-500', borderColor: 'border-ocean-200' }
@@ -12735,6 +14613,12 @@
                         return <SpeedReader onBack={handleBack} />;
                     case 'bookmarks':
                         return <BookmarkManager onBack={handleBack} />;
+                    case 'goals':
+                        return <GoalTracker onBack={handleBack} />;
+                    case 'decision':
+                        return <DecisionMatrix onBack={handleBack} />;
+                    case 'mindmap':
+                        return <MindMapTool onBack={handleBack} />;
                     case 'habits':
                         return <HabitTracker onBack={handleBack} userEmail={userEmail} habits={habits} setHabits={setHabits} />;
                     case 'matrix':
@@ -12776,8 +14660,8 @@
                     <div className="mt-8 p-4 bg-graystone-50 rounded-lg border border-graystone-200">
                         <h3 className="font-medium text-graystone-700 mb-2">Storage Info</h3>
                         <div className="text-sm text-graystone-600 space-y-1">
-                            <p><span className="font-medium">Session-only:</span> Pomodoro Timer, Stopwatch, Quick Notes, Speed Reader, Daily Planner</p>
-                            <p><span className="font-medium">Saved locally:</span> Bookmark Manager</p>
+                            <p><span className="font-medium">Session-only:</span> Pomodoro Timer, Stopwatch, Quick Notes, Speed Reader, Daily Planner, Decision Matrix, Mind Map</p>
+                            <p><span className="font-medium">Saved locally:</span> Bookmark Manager, Goal Tracker</p>
                             <p><span className="font-medium">Saved to database:</span> Habit Tracker, Eisenhower Matrix</p>
                         </div>
                     </div>
