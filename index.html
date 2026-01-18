@@ -5975,7 +5975,7 @@
             );
         }
 
-        function ItemDashboard({ entry, onBack, onToggleSubtask, onDeleteSubtask, onEditSubtask, onUpdateEntry, openSubtaskModal, currentUser, userEmail, allEntries = [] }) {
+        function ItemDashboard({ entry, onBack, onToggleSubtask, onDeleteSubtask, onEditSubtask, onUpdateEntry, openSubtaskModal, currentUser, userEmail, allEntries = [], onNavigateToWhiteboard }) {
             const getCaption = () => (entry && typeof entry.caption === 'string' ? entry.caption : "");
             const getDocuments = () => (entry && Array.isArray(entry.documents) ? entry.documents : []);
 
@@ -6727,6 +6727,23 @@
                                     </form>
                                 </div>
                             </div>
+
+                            {/* Whiteboard */}
+                            {entry.itemType !== 'job' && (
+                                <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+                                    <h3 className="text-lg font-bold text-ocean-900 mb-4 flex items-center gap-2">
+                                        <Icon name="layout" className="w-5 h-5 text-ocean-500" />
+                                        Whiteboard
+                                    </h3>
+                                    <WhiteboardPreviewCard
+                                        workflowItemId={entry.id}
+                                        itemTitle={entry.title}
+                                        userEmail={userEmail}
+                                        currentUser={currentUser}
+                                        onNavigate={onNavigateToWhiteboard}
+                                    />
+                                </div>
+                            )}
 
                             {/* Handoff Notes */}
                             <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
@@ -9491,6 +9508,19 @@
                 return true;
             },
 
+            fetchWhiteboardByWorkflowItem: async (workflowItemId) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('whiteboards')
+                    .select('*')
+                    .eq('workflow_item_id', workflowItemId)
+                    .single();
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Error fetching linked whiteboard:', error);
+                }
+                return data || null;
+            },
+
             fetchElements: async (whiteboardId) => {
                 if (!supabase) return [];
                 const { data, error } = await supabase
@@ -9577,6 +9607,98 @@
             { id: 'in_progress', label: 'In Progress', color: 'blue' },
             { id: 'done', label: 'Done', color: 'green' }
         ];
+
+        // Whiteboard Preview Card - shows linked whiteboard or create button
+        function WhiteboardPreviewCard({ workflowItemId, itemTitle, userEmail, currentUser, onNavigate }) {
+            const [whiteboard, setWhiteboard] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+            const [creating, setCreating] = React.useState(false);
+
+            React.useEffect(() => {
+                const loadWhiteboard = async () => {
+                    if (!workflowItemId) {
+                        setLoading(false);
+                        return;
+                    }
+                    const wb = await WHITEBOARD_API.fetchWhiteboardByWorkflowItem(workflowItemId);
+                    setWhiteboard(wb);
+                    setLoading(false);
+                };
+                loadWhiteboard();
+            }, [workflowItemId]);
+
+            const handleCreateWhiteboard = async () => {
+                setCreating(true);
+                const newWb = await WHITEBOARD_API.createWhiteboard({
+                    title: `${itemTitle} - Whiteboard`,
+                    description: `Whiteboard for: ${itemTitle}`,
+                    owner_email: userEmail,
+                    owner_name: currentUser,
+                    workflow_item_id: workflowItemId,
+                    canvas_width: 3000,
+                    canvas_height: 2000
+                });
+                setWhiteboard(newWb);
+                setCreating(false);
+            };
+
+            if (loading) {
+                return (
+                    <div className="animate-pulse bg-graystone-100 dark:bg-graystone-700 h-20 rounded-lg" />
+                );
+            }
+
+            if (!whiteboard) {
+                return (
+                    <button
+                        onClick={handleCreateWhiteboard}
+                        disabled={creating}
+                        className="w-full p-4 border-2 border-dashed border-graystone-300 dark:border-graystone-600 rounded-lg
+                                   hover:border-ocean-400 hover:bg-ocean-50 dark:hover:bg-ocean-900/20 transition-colors
+                                   flex items-center justify-center gap-2 text-graystone-500 dark:text-graystone-400
+                                   disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {creating ? (
+                            <>
+                                <i data-lucide="loader-2" className="w-5 h-5 animate-spin" />
+                                Creating...
+                            </>
+                        ) : (
+                            <>
+                                <i data-lucide="plus" className="w-5 h-5" />
+                                Create Whiteboard
+                            </>
+                        )}
+                    </button>
+                );
+            }
+
+            return (
+                <button
+                    onClick={() => onNavigate(whiteboard.id)}
+                    className="w-full p-4 bg-gradient-to-br from-ocean-50 to-sky-50
+                               dark:from-ocean-900/30 dark:to-sky-900/30
+                               border border-ocean-200 dark:border-ocean-700 rounded-lg
+                               hover:shadow-md transition-shadow text-left group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white dark:bg-graystone-800 rounded-lg shadow-sm">
+                            <i data-lucide="layout" className="w-6 h-6 text-ocean-600 dark:text-ocean-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="font-medium text-ocean-900 dark:text-ocean-100 truncate">
+                                {whiteboard.title}
+                            </div>
+                            <div className="text-sm text-graystone-500 dark:text-graystone-400">
+                                Click to open whiteboard
+                            </div>
+                        </div>
+                        <i data-lucide="arrow-right" className="w-5 h-5 text-ocean-400
+                                                                group-hover:translate-x-1 transition-transform" />
+                    </div>
+                </button>
+            );
+        }
 
         // Job Card Component
         function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles }) {
@@ -9841,7 +9963,7 @@
         }
 
         // Job Detail Modal Component
-        function JobDetailModal({ job, show, onClose, onUpdate, onDelete, onPromote, userProfiles, teams }) {
+        function JobDetailModal({ job, show, onClose, onUpdate, onDelete, onPromote, userProfiles, teams, userEmail, currentUser, onNavigateToWhiteboard }) {
             const [editing, setEditing] = useState(false);
             const [title, setTitle] = useState(job?.title || '');
             const [description, setDescription] = useState(job?.caption || '');
@@ -10053,8 +10175,26 @@
                                     </div>
 
                                     {/* Created date */}
-                                    <div className="text-xs text-graystone-400">
+                                    <div className="text-xs text-graystone-400 mb-6">
                                         Created {job.createdAt ? new Date(job.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
+                                    </div>
+
+                                    {/* Whiteboard Section */}
+                                    <div className="border-t border-graystone-200 pt-4">
+                                        <h4 className="text-sm font-medium text-graystone-700 mb-3 flex items-center gap-2">
+                                            <i data-lucide="layout" className="w-4 h-4"></i>
+                                            Whiteboard
+                                        </h4>
+                                        <WhiteboardPreviewCard
+                                            workflowItemId={job.id}
+                                            itemTitle={job.title}
+                                            userEmail={userEmail}
+                                            currentUser={currentUser}
+                                            onNavigate={(whiteboardId) => {
+                                                onClose();
+                                                onNavigateToWhiteboard(whiteboardId);
+                                            }}
+                                        />
                                     </div>
                                 </>
                             )}
@@ -10117,7 +10257,7 @@
         }
 
         // Jobs View - Main Kanban Board
-        function JobsView({ entries, setEntries, userEmail, currentUser, darkMode, userProfiles, teams }) {
+        function JobsView({ entries, setEntries, userEmail, currentUser, darkMode, userProfiles, teams, onNavigateToWhiteboard }) {
             const [showAddModal, setShowAddModal] = useState(false);
             const [selectedJob, setSelectedJob] = useState(null);
             const [filter, setFilter] = useState('all'); // 'all', 'mine'
@@ -10433,6 +10573,9 @@
                         onPromote={handlePromoteToProject}
                         userProfiles={userProfiles}
                         teams={teams}
+                        userEmail={userEmail}
+                        currentUser={currentUser}
+                        onNavigateToWhiteboard={onNavigateToWhiteboard}
                     />
                 </div>
             );
@@ -18298,6 +18441,17 @@
                             workflowStatus: newItem.workflowStatus || "Idea"
                         }, userEmail); // Pass userEmail for ownership
                         if (saved) {
+                            // Auto-create linked whiteboard for the project
+                            await WHITEBOARD_API.createWhiteboard({
+                                title: `${saved.title} - Whiteboard`,
+                                description: `Whiteboard for project: ${saved.title}`,
+                                owner_email: userEmail,
+                                owner_name: currentUser,
+                                workflow_item_id: saved.id,
+                                canvas_width: 3000,
+                                canvas_height: 2000
+                            });
+
                             // Add to local state
                             setEntries(prev => [SUPABASE_API.mapToAppFormat(saved), ...prev]);
                             setCurrentView('dashboard');
@@ -18369,6 +18523,17 @@
                         console.error('Error creating job:', error);
                         return;
                     }
+
+                    // Auto-create linked whiteboard for the job
+                    await WHITEBOARD_API.createWhiteboard({
+                        title: `${data.title} - Whiteboard`,
+                        description: `Whiteboard for job: ${data.title}`,
+                        owner_email: userEmail,
+                        owner_name: currentUser,
+                        workflow_item_id: data.id,
+                        canvas_width: 3000,
+                        canvas_height: 2000
+                    });
 
                     setEntries(prev => [SUPABASE_API.mapToAppFormat(data), ...prev]);
                     setCurrentView('jobs');
@@ -18621,6 +18786,10 @@
                                 darkMode={darkMode}
                                 userProfiles={userProfilesCache}
                                 teams={TEAMS}
+                                onNavigateToWhiteboard={(whiteboardId) => {
+                                    setCurrentWhiteboardId(whiteboardId);
+                                    setCurrentView('whiteboards');
+                                }}
                             />
                         );
 
@@ -19024,6 +19193,10 @@
                                 currentUser={currentUser}
                                 userEmail={userEmail}
                                 allEntries={entries}
+                                onNavigateToWhiteboard={(whiteboardId) => {
+                                    setCurrentWhiteboardId(whiteboardId);
+                                    setCurrentView('whiteboards');
+                                }}
                             />
                         );
 
