@@ -5671,9 +5671,29 @@
         }
 
         // Dashboard Component
-        function Dashboard({ entries, currentUser, onOpenEntry, onOpenPdfExport, onNavigate, todos = [], onToggleTodo }) {
+        function Dashboard({ entries, currentUser, onOpenEntry, onOpenPdfExport, onNavigate, todos = [], onToggleTodo, onAddTodo, onUpdateEntry }) {
             const now = new Date();
             const today = now.toISOString().slice(0, 10);
+
+            // New task input state
+            const [newTaskText, setNewTaskText] = useState('');
+
+            const handleAddTask = () => {
+                if (newTaskText.trim() && onAddTodo) {
+                    onAddTodo({
+                        text: newTaskText.trim(),
+                        date: today,
+                        completed: false
+                    });
+                    setNewTaskText('');
+                }
+            };
+
+            const handleMarkJobComplete = (jobId) => {
+                if (onUpdateEntry) {
+                    onUpdateEntry(jobId, { workflowStatus: 'done' });
+                }
+            };
 
             // Stats calculations
             const myProjects = entries.filter(e =>
@@ -5849,7 +5869,7 @@
 
                     {/* Stats Cards - Projects, Subtasks, Jobs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => onNavigate && onNavigate('personal')}>
+                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('projects')}>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Projects</p>
@@ -5865,7 +5885,7 @@
                                     <i data-lucide="folder" className="w-6 h-6 text-ocean-600"></i>
                                 </div>
                             </div>
-                            <p className="text-xs text-graystone-500 mt-2">View all projects</p>
+                            <p className="text-xs text-graystone-500 mt-2">Click to view</p>
                         </div>
 
                         <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('subtasks')}>
@@ -5887,7 +5907,7 @@
                             <p className="text-xs text-graystone-500 mt-2">Assigned to you</p>
                         </div>
 
-                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => onNavigate && onNavigate('jobs')}>
+                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('jobs')}>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Jobs</p>
@@ -5903,7 +5923,7 @@
                                     <i data-lucide="briefcase" className="w-6 h-6 text-green-600"></i>
                                 </div>
                             </div>
-                            <p className="text-xs text-graystone-500 mt-2">View all jobs</p>
+                            <p className="text-xs text-graystone-500 mt-2">Click to view</p>
                         </div>
                     </div>
 
@@ -6131,37 +6151,70 @@
                                 <i data-lucide="check-square" className="w-5 h-5"></i>
                                 Today's Tasks
                             </h3>
-                            <div className="space-y-2 max-h-80 overflow-y-auto">
+
+                            {/* Add Task Input */}
+                            <div className="flex gap-2 mb-4">
+                                <input
+                                    type="text"
+                                    value={newTaskText}
+                                    onChange={(e) => setNewTaskText(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
+                                    placeholder="Add a new task..."
+                                    className="flex-1 px-3 py-2 text-sm border border-ocean-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
+                                />
+                                <button
+                                    onClick={handleAddTask}
+                                    disabled={!newTaskText.trim()}
+                                    className="px-4 py-2 bg-ocean-500 hover:bg-ocean-600 disabled:bg-graystone-300 text-white rounded-lg transition text-sm font-medium"
+                                >
+                                    <i data-lucide="plus" className="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
                                 {todaysTasks.length > 0 ? (
                                     todaysTasks.map((task, idx) => (
                                         <div
                                             key={task.id || idx}
                                             className={`p-3 rounded-lg border flex items-start gap-3 ${
-                                                task.taskType === 'job' ? 'bg-green-50 border-green-200 cursor-pointer hover:border-green-400' :
-                                                'bg-graystone-50 border-graystone-200'
+                                                task.taskType === 'job'
+                                                    ? (task.workflowStatus === 'done' ? 'bg-green-100 border-green-300' : 'bg-green-50 border-green-200')
+                                                    : 'bg-graystone-50 border-graystone-200'
                                             }`}
-                                            onClick={() => task.taskType === 'job' && onOpenEntry && onOpenEntry(task.id)}
                                         >
-                                            {task.taskType === 'todo' && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
+                                            {/* Checkbox for both todos and jobs */}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (task.taskType === 'todo') {
                                                         onToggleTodo && onToggleTodo(task.id);
-                                                    }}
-                                                    className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition ${
-                                                        task.completed ? 'bg-ocean-500 border-ocean-500 text-white' : 'border-graystone-300 hover:border-ocean-500'
-                                                    }`}
-                                                >
-                                                    {task.completed && <i data-lucide="check" className="w-3 h-3"></i>}
-                                                </button>
-                                            )}
-                                            {task.taskType === 'job' && (
-                                                <div className="w-5 h-5 rounded bg-green-500 flex-shrink-0 mt-0.5 flex items-center justify-center">
-                                                    <i data-lucide="briefcase" className="w-3 h-3 text-white"></i>
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className={`text-sm ${task.completed ? 'line-through text-graystone-400' : 'text-ocean-900'}`}>
+                                                    } else if (task.taskType === 'job') {
+                                                        handleMarkJobComplete(task.id);
+                                                    }
+                                                }}
+                                                className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition ${
+                                                    (task.taskType === 'todo' && task.completed) || (task.taskType === 'job' && task.workflowStatus === 'done')
+                                                        ? 'bg-green-500 border-green-500 text-white'
+                                                        : task.taskType === 'job'
+                                                            ? 'border-green-400 hover:border-green-600 hover:bg-green-100'
+                                                            : 'border-graystone-300 hover:border-ocean-500'
+                                                }`}
+                                                title={task.taskType === 'job' ? 'Mark as done' : 'Toggle complete'}
+                                            >
+                                                {((task.taskType === 'todo' && task.completed) || (task.taskType === 'job' && task.workflowStatus === 'done')) && (
+                                                    <i data-lucide="check" className="w-3 h-3"></i>
+                                                )}
+                                            </button>
+
+                                            <div
+                                                className={`flex-1 min-w-0 ${task.taskType === 'job' ? 'cursor-pointer' : ''}`}
+                                                onClick={() => task.taskType === 'job' && onOpenEntry && onOpenEntry(task.id)}
+                                            >
+                                                <div className={`text-sm ${
+                                                    (task.taskType === 'todo' && task.completed) || (task.taskType === 'job' && task.workflowStatus === 'done')
+                                                        ? 'line-through text-graystone-400'
+                                                        : 'text-ocean-900'
+                                                }`}>
                                                     {task.title || task.text}
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-1">
@@ -6170,8 +6223,17 @@
                                                     }`}>
                                                         {task.taskType === 'job' ? 'Job' : 'Personal'}
                                                     </span>
-                                                    {task.workflowStatus && (
-                                                        <span className="text-xs text-graystone-500">{task.workflowStatus}</span>
+                                                    {task.taskType === 'job' && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onOpenEntry && onOpenEntry(task.id);
+                                                            }}
+                                                            className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1"
+                                                        >
+                                                            <i data-lucide="external-link" className="w-3 h-3"></i>
+                                                            Open
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
@@ -6181,12 +6243,13 @@
                                     <div className="text-center py-8 text-graystone-400">
                                         <i data-lucide="check-circle" className="w-8 h-8 mx-auto mb-2 opacity-50"></i>
                                         <p className="text-sm">No tasks for today</p>
+                                        <p className="text-xs mt-1">Add a task above to get started</p>
                                     </div>
                                 )}
                             </div>
                             {todaysTasks.length > 0 && (
                                 <div className="mt-4 pt-3 border-t border-ocean-100 text-sm text-graystone-500">
-                                    {todaysTasks.length} task{todaysTasks.length !== 1 ? 's' : ''} &bull; {todaysTasks.filter(t => t.completed).length} completed
+                                    {todaysTasks.length} task{todaysTasks.length !== 1 ? 's' : ''} &bull; {todaysTasks.filter(t => t.completed || t.workflowStatus === 'done').length} completed
                                 </div>
                             )}
                         </div>
@@ -19091,7 +19154,7 @@
             const renderContent = () => {
                 switch (currentView) {
                     case 'dashboard':
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} onAddTodo={handleAddTodo} onUpdateEntry={handleUpdateEntry} />;
 
                     case "add-item":
                         return <AddItemForm onSubmit={handleAddItem} onBack={() => handleNavigate('dashboard')} availableTags={availableTags} />;
@@ -19582,7 +19645,7 @@
 
                     default:
                         // Default to dashboard instead of menu
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} onAddTodo={handleAddTodo} onUpdateEntry={handleUpdateEntry} />;
                 }
             };
 
