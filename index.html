@@ -5671,12 +5671,14 @@
         }
 
         // Dashboard Component
-        function Dashboard({ entries, currentUser, onOpenEntry, onOpenPdfExport, onNavigate, todos = [], onToggleTodo, onAddTodo, onUpdateEntry }) {
+        function Dashboard({ entries, currentUser, onOpenEntry, onOpenPdfExport, onNavigate, todos = [], onToggleTodo, onAddTodo, onUpdateTodo, onDeleteTodo, onUpdateEntry }) {
             const now = new Date();
             const today = now.toISOString().slice(0, 10);
 
             // New task input state
             const [newTaskText, setNewTaskText] = useState('');
+            const [editingTodoId, setEditingTodoId] = useState(null);
+            const [editingTodoDate, setEditingTodoDate] = useState('');
 
             const handleAddTask = () => {
                 if (newTaskText.trim() && onAddTodo) {
@@ -5693,6 +5695,27 @@
                 if (onUpdateEntry) {
                     onUpdateEntry(jobId, { workflowStatus: 'done' });
                 }
+            };
+
+            const startEditingTodoDate = (todo) => {
+                setEditingTodoId(todo.id);
+                setEditingTodoDate(todo.date || '');
+            };
+
+            const saveTodoDate = () => {
+                if (editingTodoId && onUpdateTodo) {
+                    onUpdateTodo(editingTodoId, { date: editingTodoDate || null });
+                }
+                setEditingTodoId(null);
+                setEditingTodoDate('');
+            };
+
+            const clearTodoDate = (todoId) => {
+                if (onUpdateTodo) {
+                    onUpdateTodo(todoId, { date: null });
+                }
+                setEditingTodoId(null);
+                setEditingTodoDate('');
             };
 
             // Stats calculations
@@ -5746,11 +5769,12 @@
                 return items;
             };
 
-            // Today's tasks (personal todos + jobs in To Do)
-            const todaysTodos = (todos || []).filter(t => t.date === today || !t.date);
+            // Today's tasks (all incomplete personal todos + jobs in To Do)
+            // Show all incomplete todos so users can manage dates from here
+            const incompleteTodos = (todos || []).filter(t => !t.completed);
             const jobsToDo = myJobs.filter(j => j.workflowStatus === 'todo');
             const todaysTasks = [
-                ...todaysTodos.map(t => ({ ...t, taskType: 'todo' })),
+                ...incompleteTodos.map(t => ({ ...t, taskType: 'todo' })),
                 ...jobsToDo.map(j => ({ ...j, taskType: 'job' }))
             ];
 
@@ -6217,12 +6241,53 @@
                                                 }`}>
                                                     {task.title || task.text}
                                                 </div>
-                                                <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                     <span className={`text-xs px-1.5 py-0.5 rounded ${
                                                         task.taskType === 'job' ? 'bg-green-200 text-green-800' : 'bg-graystone-200 text-graystone-600'
                                                     }`}>
                                                         {task.taskType === 'job' ? 'Job' : 'Personal'}
                                                     </span>
+
+                                                    {/* Date editing for personal todos */}
+                                                    {task.taskType === 'todo' && (
+                                                        editingTodoId === task.id ? (
+                                                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                                <input
+                                                                    type="date"
+                                                                    value={editingTodoDate}
+                                                                    onChange={(e) => setEditingTodoDate(e.target.value)}
+                                                                    className="text-xs px-1.5 py-0.5 border border-ocean-300 rounded focus:outline-none focus:ring-1 focus:ring-ocean-500"
+                                                                />
+                                                                <button
+                                                                    onClick={saveTodoDate}
+                                                                    className="text-xs px-1.5 py-0.5 bg-ocean-500 text-white rounded hover:bg-ocean-600"
+                                                                    title="Save date"
+                                                                >
+                                                                    <i data-lucide="check" className="w-3 h-3"></i>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => clearTodoDate(task.id)}
+                                                                    className="text-xs px-1.5 py-0.5 bg-graystone-200 text-graystone-600 rounded hover:bg-graystone-300"
+                                                                    title="Clear date"
+                                                                >
+                                                                    <i data-lucide="x" className="w-3 h-3"></i>
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    startEditingTodoDate(task);
+                                                                }}
+                                                                className="text-xs px-1.5 py-0.5 rounded bg-ocean-100 text-ocean-700 hover:bg-ocean-200 flex items-center gap-1"
+                                                                title="Edit date"
+                                                            >
+                                                                <i data-lucide="calendar" className="w-3 h-3"></i>
+                                                                {task.date ? new Date(task.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'No date'}
+                                                            </button>
+                                                        )
+                                                    )}
+
                                                     {task.taskType === 'job' && (
                                                         <button
                                                             onClick={(e) => {
@@ -6233,6 +6298,20 @@
                                                         >
                                                             <i data-lucide="external-link" className="w-3 h-3"></i>
                                                             Open
+                                                        </button>
+                                                    )}
+
+                                                    {/* Delete button for personal todos */}
+                                                    {task.taskType === 'todo' && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onDeleteTodo && onDeleteTodo(task.id);
+                                                            }}
+                                                            className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 ml-auto"
+                                                            title="Delete task"
+                                                        >
+                                                            <i data-lucide="trash-2" className="w-3 h-3"></i>
                                                         </button>
                                                     )}
                                                 </div>
@@ -19138,6 +19217,14 @@
                 setTodos(todos.map(t => t.id === todoId ? { ...t, completed: !t.completed } : t));
             };
 
+            const handleUpdateTodo = (todoId, updates) => {
+                setTodos(todos.map(t => t.id === todoId ? { ...t, ...updates } : t));
+            };
+
+            const handleDeleteTodo = (todoId) => {
+                setTodos(todos.filter(t => t.id !== todoId));
+            };
+
             const openStatsModal = (title, items) => {
                 setStatsModalTitle(title);
                 setStatsModalItems(items || []);
@@ -19154,7 +19241,7 @@
             const renderContent = () => {
                 switch (currentView) {
                     case 'dashboard':
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} onAddTodo={handleAddTodo} onUpdateEntry={handleUpdateEntry} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} onAddTodo={handleAddTodo} onUpdateTodo={handleUpdateTodo} onDeleteTodo={handleDeleteTodo} onUpdateEntry={handleUpdateEntry} />;
 
                     case "add-item":
                         return <AddItemForm onSubmit={handleAddItem} onBack={() => handleNavigate('dashboard')} availableTags={availableTags} />;
@@ -19645,7 +19732,7 @@
 
                     default:
                         // Default to dashboard instead of menu
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} onAddTodo={handleAddTodo} onUpdateEntry={handleUpdateEntry} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} onAddTodo={handleAddTodo} onUpdateTodo={handleUpdateTodo} onDeleteTodo={handleDeleteTodo} onUpdateEntry={handleUpdateEntry} />;
                 }
             };
 
