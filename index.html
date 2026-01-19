@@ -1504,6 +1504,78 @@
                     }
                 }
                 return true;
+            },
+
+            // ============ PERSONAL TODOS ============
+
+            // Load all personal todos for user
+            loadPersonalTodos: async (userEmail) => {
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('personal_todos')
+                    .select('*')
+                    .eq('user_email', userEmail)
+                    .order('created_at', { ascending: false });
+                if (error) {
+                    Logger.error(error, 'Supabase personal todos load error');
+                    return [];
+                }
+                return data || [];
+            },
+
+            // Save a new personal todo
+            savePersonalTodo: async (todo, userEmail) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('personal_todos')
+                    .insert({
+                        user_email: userEmail,
+                        text: todo.text,
+                        completed: todo.completed || false,
+                        date: todo.date || null
+                    })
+                    .select()
+                    .single();
+                if (error) {
+                    Logger.error(error, 'Supabase personal todo save error');
+                    return null;
+                }
+                return data;
+            },
+
+            // Update a personal todo
+            updatePersonalTodo: async (id, updates) => {
+                if (!supabase) return null;
+                const updateObj = { updated_at: new Date().toISOString() };
+                if (updates.text !== undefined) updateObj.text = updates.text;
+                if (updates.completed !== undefined) updateObj.completed = updates.completed;
+                if (updates.date !== undefined) updateObj.date = updates.date;
+
+                const { data, error } = await supabase
+                    .from('personal_todos')
+                    .update(updateObj)
+                    .eq('id', id)
+                    .select()
+                    .single();
+                if (error) {
+                    Logger.error(error, 'Supabase personal todo update error');
+                    return null;
+                }
+                return data;
+            },
+
+            // Delete a personal todo
+            deletePersonalTodo: async (id) => {
+                if (!supabase) return false;
+                const { error } = await supabase
+                    .from('personal_todos')
+                    .delete()
+                    .eq('id', id);
+                if (error) {
+                    Logger.error(error, 'Supabase personal todo delete error');
+                    return false;
+                }
+                return true;
             }
         };
 
@@ -19274,6 +19346,15 @@
                             Logger.warn("Could not load workstream tasks from Supabase", e);
                         }
 
+                        // 3.7. Load personal todos
+                        try {
+                            const loadedTodos = await SUPABASE_API.loadPersonalTodos(userEmail);
+                            setTodos(loadedTodos);
+                            Logger.debug(`Loaded ${loadedTodos.length} personal todos`);
+                        } catch (e) {
+                            Logger.warn("Could not load personal todos from Supabase", e);
+                        }
+
                         // 4. Subscribe to real-time updates
                         realtimeSubscription = SUPABASE_API.subscribeToChanges((payload) => {
                             // Refresh data on any change
@@ -21200,20 +21281,55 @@
                 }
             };
 
-            const handleAddTodo = (newTodo) => {
-                setTodos([...todos, { ...newTodo, id: Date.now() }]);
+            const handleAddTodo = async (newTodo) => {
+                const saved = await SUPABASE_API.savePersonalTodo(newTodo, userEmail);
+                if (saved) {
+                    setTodos(prev => [saved, ...prev]);
+                } else {
+                    // Fallback to local-only if save fails
+                    setTodos(prev => [...prev, { ...newTodo, id: Date.now() }]);
+                }
             };
 
-            const handleToggleTodo = (todoId) => {
-                setTodos(todos.map(t => t.id === todoId ? { ...t, completed: !t.completed } : t));
+            const handleToggleTodo = async (todoId) => {
+                const todo = todos.find(t => t.id === todoId);
+                if (!todo) return;
+
+                const newCompleted = !todo.completed;
+                // Optimistically update UI
+                setTodos(todos.map(t => t.id === todoId ? { ...t, completed: newCompleted } : t));
+
+                // Persist to database
+                const updated = await SUPABASE_API.updatePersonalTodo(todoId, { completed: newCompleted });
+                if (!updated) {
+                    // Revert on failure
+                    setTodos(todos.map(t => t.id === todoId ? { ...t, completed: !newCompleted } : t));
+                }
             };
 
-            const handleUpdateTodo = (todoId, updates) => {
+            const handleUpdateTodo = async (todoId, updates) => {
+                // Optimistically update UI
                 setTodos(todos.map(t => t.id === todoId ? { ...t, ...updates } : t));
+
+                // Persist to database
+                const updated = await SUPABASE_API.updatePersonalTodo(todoId, updates);
+                if (!updated) {
+                    // Note: Could revert here, but updates are less critical
+                    Logger.warn('Failed to persist todo update');
+                }
             };
 
-            const handleDeleteTodo = (todoId) => {
+            const handleDeleteTodo = async (todoId) => {
+                const todoToDelete = todos.find(t => t.id === todoId);
+                // Optimistically update UI
                 setTodos(todos.filter(t => t.id !== todoId));
+
+                // Persist to database
+                const success = await SUPABASE_API.deletePersonalTodo(todoId);
+                if (!success && todoToDelete) {
+                    // Revert on failure
+                    setTodos(prev => [...prev, todoToDelete]);
+                }
             };
 
             // ============ WORKSTREAM HANDLERS ============
