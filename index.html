@@ -1421,6 +1421,7 @@
                         priority: task.priority || 'medium',
                         sort_order: task.sortOrder || 0,
                         deadline: task.deadline || null,
+                        task_type: task.taskType || 'Issue',
                         assignee: task.assignee || null,
                         assignee_email: task.assigneeEmail || null,
                         requester: task.requester || null,
@@ -17677,7 +17678,15 @@
             const [newTaskTitle, setNewTaskTitle] = useState('');
             const [newTaskDeadline, setNewTaskDeadline] = useState('');
             const [newTaskPriority, setNewTaskPriority] = useState('medium');
+            const [newTaskType, setNewTaskType] = useState('Issue');
+            const [showAddTypeInput, setShowAddTypeInput] = useState(false);
+            const [newCustomType, setNewCustomType] = useState('');
             const [draggedTask, setDraggedTask] = useState(null);
+
+            // Default task types + any custom types used in this workstream
+            const defaultTaskTypes = ['Issue', 'Feature Request', 'Feature Improvement'];
+            const existingTypes = [...new Set((tasks || []).map(t => t.task_type).filter(Boolean))];
+            const allTaskTypes = [...new Set([...defaultTaskTypes, ...existingTypes])];
 
             // Load tasks when component mounts
             useEffect(() => {
@@ -17715,6 +17724,7 @@
                     title: newTaskTitle.trim(),
                     priority: showNewTaskForm === 'deadline' ? 'medium' : newTaskPriority,
                     deadline: showNewTaskForm === 'deadline' ? newTaskDeadline : null,
+                    taskType: newTaskType,
                     assignee: currentUser,
                     assigneeEmail: userEmail,
                     sortOrder: showNewTaskForm === 'backlog'
@@ -17727,7 +17737,16 @@
                     setNewTaskTitle('');
                     setNewTaskDeadline('');
                     setNewTaskPriority('medium');
+                    setNewTaskType('Issue');
                     setShowNewTaskForm(null);
+                }
+            };
+
+            const handleAddCustomType = () => {
+                if (newCustomType.trim() && !allTaskTypes.includes(newCustomType.trim())) {
+                    setNewTaskType(newCustomType.trim());
+                    setNewCustomType('');
+                    setShowAddTypeInput(false);
                 }
             };
 
@@ -17801,7 +17820,12 @@
                             )}>
                                 {task.title}
                             </p>
-                            <div className="flex items-center gap-2 mt-1 text-xs text-graystone-400">
+                            <div className="flex items-center gap-2 mt-1 text-xs text-graystone-400 flex-wrap">
+                                {task.task_type && (
+                                    <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded text-xs">
+                                        {task.task_type}
+                                    </span>
+                                )}
                                 {showDeadline && task.deadline && (
                                     <span className={cx(
                                         "flex items-center gap-1",
@@ -17914,6 +17938,53 @@
                                         onChange={(e) => setNewTaskDeadline(e.target.value)}
                                         className="w-full px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
                                     />
+                                    {/* Task Type Dropdown */}
+                                    <div className="relative">
+                                        {showAddTypeInput ? (
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={newCustomType}
+                                                    onChange={(e) => setNewCustomType(e.target.value)}
+                                                    placeholder="New type name..."
+                                                    className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddCustomType()}
+                                                />
+                                                <button
+                                                    onClick={handleAddCustomType}
+                                                    disabled={!newCustomType.trim()}
+                                                    className="px-3 py-2 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
+                                                >
+                                                    Add
+                                                </button>
+                                                <button
+                                                    onClick={() => { setShowAddTypeInput(false); setNewCustomType(''); }}
+                                                    className="px-3 py-2 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <select
+                                                    value={newTaskType}
+                                                    onChange={(e) => setNewTaskType(e.target.value)}
+                                                    className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                                                >
+                                                    {allTaskTypes.map(type => (
+                                                        <option key={type} value={type}>{type}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => setShowAddTypeInput(true)}
+                                                    className="px-3 py-2 text-ocean-600 text-sm hover:bg-ocean-50 rounded-lg transition flex items-center gap-1"
+                                                    title="Add new type"
+                                                >
+                                                    <Icon name="plus" className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={handleCreateTask}
@@ -17923,7 +17994,7 @@
                                             Add
                                         </button>
                                         <button
-                                            onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); setNewTaskDeadline(''); }}
+                                            onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); setNewTaskDeadline(''); setNewTaskType('Issue'); }}
                                             className="px-3 py-1.5 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
                                         >
                                             Cancel
@@ -17972,6 +18043,53 @@
                                         <option value="medium">Medium Priority</option>
                                         <option value="low">Low Priority</option>
                                     </select>
+                                    {/* Task Type Dropdown */}
+                                    <div className="relative">
+                                        {showAddTypeInput ? (
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={newCustomType}
+                                                    onChange={(e) => setNewCustomType(e.target.value)}
+                                                    placeholder="New type name..."
+                                                    className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddCustomType()}
+                                                />
+                                                <button
+                                                    onClick={handleAddCustomType}
+                                                    disabled={!newCustomType.trim()}
+                                                    className="px-3 py-2 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
+                                                >
+                                                    Add
+                                                </button>
+                                                <button
+                                                    onClick={() => { setShowAddTypeInput(false); setNewCustomType(''); }}
+                                                    className="px-3 py-2 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <select
+                                                    value={newTaskType}
+                                                    onChange={(e) => setNewTaskType(e.target.value)}
+                                                    className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                                                >
+                                                    {allTaskTypes.map(type => (
+                                                        <option key={type} value={type}>{type}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => setShowAddTypeInput(true)}
+                                                    className="px-3 py-2 text-ocean-600 text-sm hover:bg-ocean-50 rounded-lg transition flex items-center gap-1"
+                                                    title="Add new type"
+                                                >
+                                                    <Icon name="plus" className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={handleCreateTask}
@@ -17981,7 +18099,7 @@
                                             Add
                                         </button>
                                         <button
-                                            onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); }}
+                                            onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); setNewTaskType('Issue'); }}
                                             className="px-3 py-1.5 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
                                         >
                                             Cancel
