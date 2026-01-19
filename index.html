@@ -5817,13 +5817,20 @@
                 return items;
             };
 
-            // Today's tasks (all incomplete personal todos + jobs in To Do)
+            // Today's tasks (all incomplete personal todos + jobs for today or in To Do)
             // Show all incomplete todos so users can manage dates from here
             const incompleteTodos = (todos || []).filter(t => !t.completed);
-            const jobsToDo = myJobs.filter(j => j.workflowStatus === 'todo');
+            // Jobs: show if scheduled for today OR in 'todo' status (and not done)
+            const jobsForToday = myJobs.filter(j => {
+                if (j.workflowStatus === 'done') return false;
+                const jobDate = j.date || j.timelineValue;
+                const isToday = jobDate && jobDate.slice(0, 10) === today;
+                const isTodo = j.workflowStatus === 'todo';
+                return isToday || isTodo;
+            });
             const todaysTasks = [
                 ...incompleteTodos.map(t => ({ ...t, taskType: 'todo' })),
-                ...jobsToDo.map(j => ({ ...j, taskType: 'job' }))
+                ...jobsForToday.map(j => ({ ...j, taskType: 'job' }))
             ];
 
             // Mentions & Activity
