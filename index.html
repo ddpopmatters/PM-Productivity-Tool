@@ -5817,19 +5817,15 @@
                 return items;
             };
 
-            // Today's tasks (all incomplete personal todos + jobs for today or in To Do)
-            // Show all incomplete todos so users can manage dates from here
-            const incompleteTodos = (todos || []).filter(t => !t.completed);
-            // Jobs: show if scheduled for today OR in 'todo' status (and not done)
+            // Today's tasks - only items explicitly scheduled for today
+            const todaysTodos = (todos || []).filter(t => t.date === today && !t.completed);
             const jobsForToday = myJobs.filter(j => {
                 if (j.workflowStatus === 'done') return false;
                 const jobDate = j.date || j.timelineValue;
-                const isToday = jobDate && jobDate.slice(0, 10) === today;
-                const isTodo = j.workflowStatus === 'todo';
-                return isToday || isTodo;
+                return jobDate && jobDate.slice(0, 10) === today;
             });
             const todaysTasks = [
-                ...incompleteTodos.map(t => ({ ...t, taskType: 'todo' })),
+                ...todaysTodos.map(t => ({ ...t, taskType: 'todo' })),
                 ...jobsForToday.map(j => ({ ...j, taskType: 'job' }))
             ];
 
