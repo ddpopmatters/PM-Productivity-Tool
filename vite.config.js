@@ -9,12 +9,14 @@ export default defineConfig(({ mode }) => {
 
   if (isLegacyBridge) {
     // Build config for legacy bridge bundle
+    // Output to 'lib' folder (not gitignored) for GitHub Pages compatibility
     return {
       plugins: [react()],
       base: '/PM-Productivity-Tool/',
       build: {
-        outDir: 'dist',
+        outDir: 'lib',
         sourcemap: true,
+        emptyDir: false,
         lib: {
           entry: resolve(__dirname, 'src/legacy-bridge.js'),
           name: 'MomentumComponents',
