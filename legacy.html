@@ -452,8 +452,16 @@
         });
     </script>
 
+    <!-- Legacy Bridge: Extracted React components -->
+    <script src="./dist/legacy-bridge.js"></script>
+
     <script type="text/babel">
         const { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } = React;
+
+        // ============================================
+        // EXTRACTED COMPONENTS (from legacy-bridge.js)
+        // ============================================
+        const { LoadingSpinner, Badge, Button, Pagination } = window.MomentumComponents || {};
 
         // ============================================
         // LUCIDE ICON COMPONENT (React-safe)
@@ -3537,28 +3545,7 @@
             );
         }
 
-        // Loading Spinner Component - Standardized loading indicator (memoized)
-        const LoadingSpinner = React.memo(function LoadingSpinner({ size = "md", text = "", className = "" }) {
-            const sizeClasses = {
-                sm: "w-4 h-4 border-2",
-                md: "w-8 h-8 border-3",
-                lg: "w-12 h-12 border-4"
-            };
-
-            return (
-                <div className={cx("flex flex-col items-center justify-center", className)} role="status" aria-live="polite">
-                    <div
-                        className={cx(
-                            sizeClasses[size] || sizeClasses.md,
-                            "border-ocean-200 border-t-ocean-600 rounded-full animate-spin"
-                        )}
-                        aria-hidden="true"
-                    />
-                    {text && <span className="text-sm text-graystone-600 mt-2">{text}</span>}
-                    <span className="sr-only">{text || "Loading..."}</span>
-                </div>
-            );
-        });
+        // LoadingSpinner - Now loaded from legacy-bridge.js (src/components/ui/LoadingSpinner.jsx)
 
         // Constants
         const KANBAN_STATUSES = [
@@ -5290,61 +5277,8 @@
             );
         }
 
-        // Components (memoized for performance)
-        const Badge = React.memo(({ variant = 'default', className = '', children }) => {
-            const styles = {
-                default: 'bg-aqua-100 text-ocean-700',
-                secondary: 'bg-graystone-100 text-graystone-700',
-                outline: 'border border-aqua-200 text-ocean-700 bg-aqua-50',
-                success: 'bg-green-100 text-green-700',
-                neutral: 'bg-graystone-100 text-graystone-600',
-            };
-            return (
-                <span className={cx('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium', styles[variant], className)}>
-                    {children}
-                </span>
-            );
-        });
-
-        const Button = React.memo(({
-            type = "button",
-            variant = "solid",
-            size = "md",
-            disabled = false,
-            className = "",
-            onClick,
-            children,
-        }) => {
-            const base =
-                "heading-font inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-[#0F9DDE]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#CFEBF8] disabled:cursor-not-allowed disabled:opacity-60";
-            const variants = {
-                solid:
-                    "border border-black bg-black text-white shadow-[0_0_30px_rgba(15,157,222,0.35)] hover:-translate-y-0.5 hover:bg-white hover:text-black",
-                outline:
-                    "border border-black bg-white text-black hover:-translate-y-0.5 hover:bg-black hover:text-white",
-                ghost: "text-black hover:bg-black/10",
-                destructive:
-                    "border border-rose-500 bg-rose-600 text-white shadow-[0_0_25px_rgba(244,63,94,0.35)] hover:-translate-y-0.5 hover:bg-rose-700",
-                cta:
-                    "border border-[#0F9DDE]/40 bg-white text-black shadow-[0_0_35px_rgba(15,157,222,0.3)] hover:-translate-y-0.5 hover:shadow-[0_0_45px_rgba(15,157,222,0.45)]",
-            };
-            const sizes = {
-                sm: "px-4 py-1.5 text-xs",
-                md: "px-6 py-2 text-sm",
-                lg: "px-7 py-3 text-base",
-                icon: "h-10 w-10",
-            };
-            return (
-                <button
-                    type={type}
-                    onClick={onClick}
-                    disabled={disabled}
-                    className={cx(base, variants[variant] || variants.solid, sizes[size], className)}
-                >
-                    {children}
-                </button>
-            );
-        });
+        // Badge - Now loaded from legacy-bridge.js (src/components/ui/Badge.jsx)
+        // Button - Now loaded from legacy-bridge.js (src/components/ui/Button.jsx)
 
         function KanbanBoard({ statuses, entries, onOpen, onUpdateStatus, openSubtaskModal, currentUser }) {
             const [draggedItem, setDraggedItem] = useState(null);
