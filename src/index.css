@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles from original app */
+.heading-font {
+  font-family: Impact, 'Arial Black', Arial, sans-serif;
+}
+
+.required-indicator::after {
+  content: '*';
+  color: #dc2626;
+  margin-left: 4px;
+}
+
+.validation-message {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.validation-error {
+  color: #dc2626;
+}
+
+.input-error {
+  border-color: #fca5a5;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f3f5;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ced4da;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
