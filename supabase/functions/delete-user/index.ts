@@ -1,5 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// Rate limiting configuration (stricter for destructive operations)
+const RATE_LIMIT_CONFIG = {
+  maxAttempts: 5,       // Max 5 deletes per window
+  windowMinutes: 60,    // 1 hour window
+  blockMinutes: 60      // Block for 1 hour if exceeded
+}
+
 // Security: Restrict CORS to only allowed origins
 const APP_URL = Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
 const ALLOWED_ORIGINS = [
@@ -92,6 +99,36 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Only admins can delete users' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Rate limiting check using database function
+    const { data: rateLimitResult, error: rateLimitError } = await supabaseAdmin.rpc(
+      'check_rate_limit',
+      {
+        p_identifier: user.email?.toLowerCase() || 'unknown',
+        p_action_type: 'delete_user',
+        p_max_attempts: RATE_LIMIT_CONFIG.maxAttempts,
+        p_window_minutes: RATE_LIMIT_CONFIG.windowMinutes,
+        p_block_minutes: RATE_LIMIT_CONFIG.blockMinutes
+      }
+    )
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError)
+    } else if (rateLimitResult && !rateLimitResult.allowed) {
+      await supabaseAdmin.rpc('log_security_event', {
+        p_event_type: 'rate_limited',
+        p_user_email: user.email?.toLowerCase(),
+        p_details: { action: 'delete_user', blocked_until: rateLimitResult.blocked_until }
+      })
+
+      return new Response(
+        JSON.stringify({
+          error: rateLimitResult.message || 'Too many requests. Please try again later.',
+          retryAfter: rateLimitResult.blocked_until
+        }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '3600' } }
       )
     }
 

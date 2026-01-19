@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// Rate limiting configuration (stricter to prevent email spam)
+const RATE_LIMIT_CONFIG = {
+  maxAttempts: 20,      // Max 20 emails per window
+  windowMinutes: 60,    // 1 hour window
+  blockMinutes: 120     // Block for 2 hours if exceeded
+}
+
 // Environment variables
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'noreply@populationmatters.org'
@@ -227,6 +234,39 @@ serve(async (req) => {
 
     // Log authenticated user for audit trail
     console.log(`Email request from authenticated user: ${user.email}`)
+
+    // ============================================
+    // RATE LIMITING CHECK
+    // ============================================
+    const { data: rateLimitResult, error: rateLimitError } = await supabaseAdmin.rpc(
+      'check_rate_limit',
+      {
+        p_identifier: user.email?.toLowerCase() || 'unknown',
+        p_action_type: 'send_email',
+        p_max_attempts: RATE_LIMIT_CONFIG.maxAttempts,
+        p_window_minutes: RATE_LIMIT_CONFIG.windowMinutes,
+        p_block_minutes: RATE_LIMIT_CONFIG.blockMinutes
+      }
+    )
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError)
+    } else if (rateLimitResult && !rateLimitResult.allowed) {
+      await supabaseAdmin.rpc('log_security_event', {
+        p_event_type: 'rate_limited',
+        p_user_email: user.email?.toLowerCase(),
+        p_details: { action: 'send_email', blocked_until: rateLimitResult.blocked_until }
+      })
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: rateLimitResult.message || 'Too many email requests. Please try again later.',
+          retryAfter: rateLimitResult.blocked_until
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '7200' }, status: 429 }
+      )
+    }
 
     // ============================================
     // CHECK RESEND CONFIGURATION

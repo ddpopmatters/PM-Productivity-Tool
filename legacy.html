@@ -22044,7 +22044,12 @@
             // Show loading while checking auth
             if (!authChecked) {
                 return (
-                    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#cfebf8' }}>
+                    <div
+                        className="min-h-screen flex items-center justify-center"
+                        style={{ backgroundColor: '#cfebf8' }}
+                        aria-busy="true"
+                        aria-live="polite"
+                    >
                         <LoadingSpinner size="lg" text="Loading..." className="text-ocean-700" />
                     </div>
                 );
@@ -22068,6 +22073,14 @@
 
             return (
                 <div className="flex h-screen overflow-hidden transition-colors duration-300" style={{ backgroundColor: darkMode ? '#0f172a' : '#cfebf8' }}>
+                    {/* Skip link for keyboard navigation */}
+                    <a
+                        href="#main-content"
+                        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:bg-ocean-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg"
+                    >
+                        Skip to main content
+                    </a>
+
                     {/* Sidebar */}
                     <Sidebar
                         currentView={currentView}
@@ -22082,7 +22095,13 @@
                     />
 
                     {/* Main Content Area */}
-                    <div className="flex-1 overflow-y-auto lg:ml-64 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#0f172a' : '#cfebf8' }}>
+                    <main
+                        id="main-content"
+                        className="flex-1 overflow-y-auto lg:ml-64 transition-colors duration-300"
+                        style={{ backgroundColor: darkMode ? '#0f172a' : '#cfebf8' }}
+                        role="main"
+                        aria-label="Main content"
+                    >
                         {/* Top Bar with Hamburger and Notifications */}
                         <div className="sticky top-0 z-20 flex items-center justify-between px-4 lg:px-8 py-3 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#0f172a' : '#cfebf8' }}>
                             {/* Mobile hamburger menu */}
@@ -22828,20 +22847,25 @@
 
                     {/* Error Toast */}
                     {saveError && (
-                        <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-4 duration-300">
+                        <div
+                            className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-4 duration-300"
+                            role="alert"
+                            aria-live="assertive"
+                        >
                             <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl shadow-lg flex items-center gap-3">
-                                <i data-lucide="alert-circle" className="w-5 h-5"></i>
+                                <i data-lucide="alert-circle" className="w-5 h-5" aria-hidden="true"></i>
                                 <span>{saveError}</span>
                                 <button
                                     onClick={() => setSaveError("")}
                                     className="ml-2 text-red-500 hover:text-red-700"
+                                    aria-label="Dismiss error"
                                 >
-                                    <i data-lucide="x" className="w-4 h-4"></i>
+                                    <i data-lucide="x" className="w-4 h-4" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>
                     )}
-                </div>
+                </main>
             );
         }
 
