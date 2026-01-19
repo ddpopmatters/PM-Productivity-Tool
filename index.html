@@ -533,6 +533,21 @@
         };
 
         // ============================================================
+        // VALIDATION UTILITIES
+        // ============================================================
+        const Validators = {
+            isValidEmail: (email) => {
+                if (!email || typeof email !== 'string') return false;
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return emailRegex.test(email.trim());
+            },
+            isOrgEmail: (email) => {
+                if (!Validators.isValidEmail(email)) return false;
+                return email.toLowerCase().endsWith(`@${APP_CONFIG.ORG_DOMAIN}`);
+            }
+        };
+
+        // ============================================================
         // GLOBAL ERROR HANDLERS
         // ============================================================
         window.onerror = (message, source, lineno, colno, error) => {
@@ -1881,6 +1896,12 @@
             const handleSignIn = async (e) => {
                 e.preventDefault();
                 if (!supabase) return;
+
+                if (!Validators.isValidEmail(email)) {
+                    setError('Please enter a valid email address.');
+                    return;
+                }
+
                 setLoading(true);
                 setError('');
 
@@ -1904,6 +1925,10 @@
                 e.preventDefault();
                 if (!supabase) return;
 
+                if (!Validators.isValidEmail(email)) {
+                    setError('Please enter a valid email address.');
+                    return;
+                }
                 if (password !== confirmPassword) {
                     setError('Passwords do not match.');
                     return;
@@ -3607,6 +3632,9 @@
             // Report expanded subtasks state
             const [expandedProjectSubtasks, setExpandedProjectSubtasks] = useState({});
 
+            // Yearly Overview state
+            const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
             // Reinitialize icons when subtasks expand/collapse
             useEffect(() => {
                 setTimeout(() => lucide.createIcons(), 50);
@@ -4375,7 +4403,6 @@
                     {/* YEARLY OVERVIEW TAB CONTENT */}
                     {(managerHubTab || 'overview') === 'yearly' && (() => {
                         const currentYear = new Date().getFullYear();
-                        const [selectedYear, setSelectedYear] = useState(currentYear);
 
                         const months = [
                             'January', 'February', 'March', 'April', 'May', 'June',
@@ -10781,7 +10808,7 @@
                     .eq('archived', false)
                     .order('updated_at', { ascending: false });
                 if (error) {
-                    console.error('Error fetching whiteboards:', error);
+                    Logger.error(error, 'Error fetching whiteboards');
                     return [];
                 }
                 return data || [];
@@ -10795,7 +10822,7 @@
                     .select()
                     .single();
                 if (error) {
-                    console.error('Error creating whiteboard:', error);
+                    Logger.error(error, 'Error creating whiteboard');
                     return null;
                 }
                 return data;
@@ -10810,7 +10837,7 @@
                     .select()
                     .single();
                 if (error) {
-                    console.error('Error updating whiteboard:', error);
+                    Logger.error(error, 'Error updating whiteboard');
                     return null;
                 }
                 return data;
@@ -10823,7 +10850,7 @@
                     .delete()
                     .eq('id', id);
                 if (error) {
-                    console.error('Error deleting whiteboard:', error);
+                    Logger.error(error, 'Error deleting whiteboard');
                     return false;
                 }
                 return true;
@@ -10837,7 +10864,7 @@
                     .eq('workflow_item_id', workflowItemId)
                     .single();
                 if (error && error.code !== 'PGRST116') {
-                    console.error('Error fetching linked whiteboard:', error);
+                    Logger.error(error, 'Error fetching linked whiteboard');
                 }
                 return data || null;
             },
@@ -10850,7 +10877,7 @@
                     .eq('whiteboard_id', whiteboardId)
                     .order('z_index', { ascending: true });
                 if (error) {
-                    console.error('Error fetching elements:', error);
+                    Logger.error(error, 'Error fetching elements');
                     return [];
                 }
                 return data || [];
@@ -10864,7 +10891,7 @@
                     .select()
                     .single();
                 if (error) {
-                    console.error('Error creating element:', error);
+                    Logger.error(error, 'Error creating element');
                     return null;
                 }
                 return data;
@@ -10879,7 +10906,7 @@
                     .select()
                     .single();
                 if (error) {
-                    console.error('Error updating element:', error);
+                    Logger.error(error, 'Error updating element');
                     return null;
                 }
                 return data;
@@ -10892,7 +10919,7 @@
                     .delete()
                     .eq('id', id);
                 if (error) {
-                    console.error('Error deleting element:', error);
+                    Logger.error(error, 'Error deleting element');
                     return false;
                 }
                 return true;
@@ -11638,7 +11665,7 @@
                     .single();
 
                 if (error) {
-                    console.error('Error creating job:', error);
+                    Logger.error(error, 'Error creating job');
                     return;
                 }
 
@@ -11693,7 +11720,7 @@
                     .eq('id', updatedJob.id);
 
                 if (error) {
-                    console.error('Error updating job:', error);
+                    Logger.error(error, 'Error updating job');
                     return;
                 }
 
@@ -11717,7 +11744,7 @@
                     .eq('id', jobId);
 
                 if (error) {
-                    console.error('Error deleting job:', error);
+                    Logger.error(error, 'Error deleting job');
                     return;
                 }
 
@@ -11738,7 +11765,7 @@
                     .eq('id', jobId);
 
                 if (error) {
-                    console.error('Error promoting job:', error);
+                    Logger.error(error, 'Error promoting job');
                     return;
                 }
 
@@ -13273,7 +13300,7 @@
                     link.href = canvas.toDataURL('image/png');
                     link.click();
                 } catch (error) {
-                    console.error('Export PNG error:', error);
+                    Logger.error(error, 'Export PNG error');
                     alert('Failed to export as PNG');
                 }
                 setIsExporting(false);
@@ -13318,7 +13345,7 @@
                     pdf.addImage(imgData, 'PNG', 0, 0, width, height);
                     pdf.save(`${whiteboard?.title || 'whiteboard'}.pdf`);
                 } catch (error) {
-                    console.error('Export PDF error:', error);
+                    Logger.error(error, 'Export PDF error');
                     alert('Failed to export as PDF');
                 }
                 setIsExporting(false);
@@ -13720,7 +13747,7 @@
                     if (error) throw error;
                     return data || [];
                 } catch (err) {
-                    console.error('Error fetching habits:', err);
+                    Logger.error(err, 'Error fetching habits');
                     return [];
                 }
             },
@@ -13735,7 +13762,7 @@
                     if (error) throw error;
                     return data;
                 } catch (err) {
-                    console.error('Error creating habit:', err);
+                    Logger.error(err, 'Error creating habit');
                     return null;
                 }
             },
@@ -13749,7 +13776,7 @@
                     if (error) throw error;
                     return true;
                 } catch (err) {
-                    console.error('Error deleting habit:', err);
+                    Logger.error(err, 'Error deleting habit');
                     return false;
                 }
             },
@@ -13766,7 +13793,7 @@
                     if (error) throw error;
                     return data || [];
                 } catch (err) {
-                    console.error('Error fetching completions:', err);
+                    Logger.error(err, 'Error fetching completions');
                     return [];
                 }
             },
@@ -13799,7 +13826,7 @@
                         return { action: 'added', data };
                     }
                 } catch (err) {
-                    console.error('Error toggling completion:', err);
+                    Logger.error(err, 'Error toggling completion');
                     return null;
                 }
             },
@@ -13815,7 +13842,7 @@
                     if (error) throw error;
                     return data || [];
                 } catch (err) {
-                    console.error('Error fetching matrix tasks:', err);
+                    Logger.error(err, 'Error fetching matrix tasks');
                     return [];
                 }
             },
@@ -13830,7 +13857,7 @@
                     if (error) throw error;
                     return data;
                 } catch (err) {
-                    console.error('Error creating matrix task:', err);
+                    Logger.error(err, 'Error creating matrix task');
                     return null;
                 }
             },
@@ -13846,7 +13873,7 @@
                     if (error) throw error;
                     return data;
                 } catch (err) {
-                    console.error('Error updating matrix task:', err);
+                    Logger.error(err, 'Error updating matrix task');
                     return null;
                 }
             },
@@ -13860,7 +13887,7 @@
                     if (error) throw error;
                     return true;
                 } catch (err) {
-                    console.error('Error deleting matrix task:', err);
+                    Logger.error(err, 'Error deleting matrix task');
                     return false;
                 }
             }
@@ -13884,7 +13911,7 @@
                 oscillator.start(audioContext.currentTime);
                 oscillator.stop(audioContext.currentTime + 0.5);
             } catch (err) {
-                console.log('Audio not supported');
+                Logger.debug('Audio not supported');
             }
         }
 
@@ -13918,7 +13945,7 @@
                         return parsed;
                     }
                 } catch (e) {
-                    console.error('Error loading pomodoro stats:', e);
+                    Logger.error(e, 'Error loading pomodoro stats');
                 }
                 return {
                     totalSessions: 0,
@@ -21088,7 +21115,7 @@
                         .single();
 
                     if (error) {
-                        console.error('Error creating job:', error);
+                        Logger.error(error, 'Error creating job');
                         return;
                     }
 
@@ -21106,7 +21133,7 @@
                     setEntries(prev => [SUPABASE_API.mapToAppFormat(data), ...prev]);
                     setCurrentView('jobs');
                 } catch (error) {
-                    console.error('Error creating job:', error);
+                    Logger.error(error, 'Error creating job');
                 }
             };
 
