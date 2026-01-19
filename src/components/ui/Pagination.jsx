@@ -1,73 +1,97 @@
 import React from 'react';
 
+/**
+ * Pagination - Table/list pagination with items per page selector
+ *
+ * @param {number} currentPage - Current page number (1-indexed)
+ * @param {number} totalPages - Total number of pages
+ * @param {number} totalItems - Total number of items
+ * @param {number} itemsPerPage - Items shown per page
+ * @param {function} onPageChange - Called with new page number
+ * @param {function} onItemsPerPageChange - Called with new items per page value
+ */
 const Pagination = React.memo(function Pagination({
   currentPage,
   totalPages,
-  onPageChange
+  totalItems,
+  itemsPerPage,
+  onPageChange,
+  onItemsPerPageChange
 }) {
-  if (totalPages <= 1) return null;
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
-  const pages = [];
-  const showEllipsisStart = currentPage > 3;
-  const showEllipsisEnd = currentPage < totalPages - 2;
-
-  if (showEllipsisStart) {
-    pages.push(1);
-    if (currentPage > 4) pages.push('...');
-  }
-
-  for (let i = Math.max(1, currentPage - 1); i <= Math.min(totalPages, currentPage + 1); i++) {
-    if (!pages.includes(i)) pages.push(i);
-  }
-
-  if (showEllipsisEnd) {
-    if (currentPage < totalPages - 3) pages.push('...');
-    if (!pages.includes(totalPages)) pages.push(totalPages);
-  }
+  if (totalItems === 0) return null;
 
   return (
-    <div className="flex items-center justify-center gap-1">
-      <button
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={currentPage === 1}
-        className="p-2 rounded-lg hover:bg-graystone-100 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label="Previous page"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      {pages.map((page, idx) => (
-        page === '...' ? (
-          <span key={`ellipsis-${idx}`} className="px-2 text-graystone-400">...</span>
-        ) : (
-          <button
-            key={page}
-            onClick={() => onPageChange(page)}
-            className={`w-10 h-10 rounded-lg font-medium transition-colors ${
-              currentPage === page
-                ? 'bg-ocean-500 text-white'
-                : 'hover:bg-graystone-100 text-graystone-700'
-            }`}
-            aria-label={`Page ${page}`}
-            aria-current={currentPage === page ? 'page' : undefined}
+    <div className="flex items-center justify-between py-3 px-4 bg-white border-t border-graystone-200">
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-graystone-600">
+          Showing <span className="font-medium">{startItem}-{endItem}</span> of <span className="font-medium">{totalItems}</span> items
+        </span>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-graystone-500">Per page:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              onItemsPerPageChange(Number(e.target.value));
+              onPageChange(1); // Reset to first page
+            }}
+            className="px-2 py-1 text-sm border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none"
           >
-            {page}
-          </button>
-        )
-      ))}
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={999999}>All</option>
+          </select>
+        </div>
+      </div>
 
-      <button
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage === totalPages}
-        className="p-2 rounded-lg hover:bg-graystone-100 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label="Next page"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onPageChange(1)}
+            disabled={currentPage === 1}
+            className="px-2 py-1 text-sm text-graystone-600 hover:bg-graystone-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            title="First page"
+            aria-label="First page"
+          >
+            <i data-lucide="chevrons-left" className="w-4 h-4"></i>
+          </button>
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-2 py-1 text-sm text-graystone-600 hover:bg-graystone-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Previous page"
+            aria-label="Previous page"
+          >
+            <i data-lucide="chevron-left" className="w-4 h-4"></i>
+          </button>
+
+          <span className="px-3 py-1 text-sm text-graystone-700">
+            Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
+          </span>
+
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-2 py-1 text-sm text-graystone-600 hover:bg-graystone-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Next page"
+            aria-label="Next page"
+          >
+            <i data-lucide="chevron-right" className="w-4 h-4"></i>
+          </button>
+          <button
+            onClick={() => onPageChange(totalPages)}
+            disabled={currentPage === totalPages}
+            className="px-2 py-1 text-sm text-graystone-600 hover:bg-graystone-100 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Last page"
+            aria-label="Last page"
+          >
+            <i data-lucide="chevrons-right" className="w-4 h-4"></i>
+          </button>
+        </div>
+      )}
     </div>
   );
 });
