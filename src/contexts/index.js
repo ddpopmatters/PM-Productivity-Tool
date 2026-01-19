@@ -1,1 +1,1 @@
-export { AppContext, AppProvider, useApp } from './AppContext';
+export { default as AppContext, AppProvider, useApp } from './AppContext';
