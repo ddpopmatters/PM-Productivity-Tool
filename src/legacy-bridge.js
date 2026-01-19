@@ -5,7 +5,7 @@
  * via the global window.MomentumComponents object.
  *
  * Usage in legacy.html:
- *   const { LoadingSpinner, Badge, Button, Icon, ViewSwitcher, ListView, GanttView } = window.MomentumComponents;
+ *   const { LoadingSpinner, Badge, Button, Icon, ViewSwitcher, ListView, GanttView, TableView, NotificationsPanel, KeyboardShortcutsHelp } = window.MomentumComponents;
  */
 
 import {
@@ -23,6 +23,10 @@ import {
   // Tier 3 - View Components
   ListView,
   GanttView,
+  // Tier 4 - Complex Components
+  TableView,
+  NotificationsPanel,
+  KeyboardShortcutsHelp,
 } from './components/features';
 
 // Register components globally for legacy.html
@@ -38,6 +42,10 @@ window.MomentumComponents = {
   // Tier 3 - View Components
   ListView,
   GanttView,
+  // Tier 4 - Complex Components
+  TableView,
+  NotificationsPanel,
+  KeyboardShortcutsHelp,
 };
 
 // Log registration for debugging (only in development)
