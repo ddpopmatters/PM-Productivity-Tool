@@ -1,8 +1,12 @@
 -- Migration: Create Workstreams Feature
 -- Adds workstreams and workstream_tasks tables for ongoing work management
 
+-- Drop existing tables if they exist (to ensure clean slate)
+DROP TABLE IF EXISTS workstream_tasks CASCADE;
+DROP TABLE IF EXISTS workstreams CASCADE;
+
 -- Create workstreams table
-CREATE TABLE IF NOT EXISTS workstreams (
+CREATE TABLE workstreams (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     description TEXT,
@@ -15,7 +19,7 @@ CREATE TABLE IF NOT EXISTS workstreams (
 );
 
 -- Create workstream_tasks table
-CREATE TABLE IF NOT EXISTS workstream_tasks (
+CREATE TABLE workstream_tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workstream_id UUID NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
@@ -36,12 +40,12 @@ CREATE TABLE IF NOT EXISTS workstream_tasks (
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_workstreams_owner ON workstreams(owner_email);
-CREATE INDEX IF NOT EXISTS idx_workstreams_visibility ON workstreams(visibility);
-CREATE INDEX IF NOT EXISTS idx_workstream_tasks_workstream ON workstream_tasks(workstream_id);
-CREATE INDEX IF NOT EXISTS idx_workstream_tasks_assignee ON workstream_tasks(assignee_email);
-CREATE INDEX IF NOT EXISTS idx_workstream_tasks_deadline ON workstream_tasks(deadline);
-CREATE INDEX IF NOT EXISTS idx_workstream_tasks_priority ON workstream_tasks(priority);
+CREATE INDEX idx_workstreams_owner ON workstreams(owner_email);
+CREATE INDEX idx_workstreams_visibility ON workstreams(visibility);
+CREATE INDEX idx_workstream_tasks_workstream ON workstream_tasks(workstream_id);
+CREATE INDEX idx_workstream_tasks_assignee ON workstream_tasks(assignee_email);
+CREATE INDEX idx_workstream_tasks_deadline ON workstream_tasks(deadline);
+CREATE INDEX idx_workstream_tasks_priority ON workstream_tasks(priority);
 
 -- Enable RLS
 ALTER TABLE workstreams ENABLE ROW LEVEL SECURITY;
