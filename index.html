@@ -17772,6 +17772,24 @@
                         // 3. Load user profiles cache for role checking
                         await loadUserProfilesCache();
 
+                        // 3.5. Load workstreams
+                        try {
+                            const ws = await SUPABASE_API.fetchWorkstreams();
+                            setWorkstreams(ws);
+                            Logger.debug(`Loaded ${ws.length} workstreams from Supabase`);
+                        } catch (e) {
+                            Logger.warn("Could not load workstreams from Supabase", e);
+                        }
+
+                        // 3.6. Load user's workstream tasks for dashboard
+                        try {
+                            const wsTasks = await SUPABASE_API.fetchMyWorkstreamTasks(userEmail);
+                            setMyWorkstreamTasks(wsTasks);
+                            Logger.debug(`Loaded ${wsTasks.length} assigned workstream tasks`);
+                        } catch (e) {
+                            Logger.warn("Could not load workstream tasks from Supabase", e);
+                        }
+
                         // 4. Subscribe to real-time updates
                         realtimeSubscription = SUPABASE_API.subscribeToChanges((payload) => {
                             // Refresh data on any change
@@ -17892,10 +17910,17 @@
             };
             // --- STATE REPLACEMENT END ---
 
-            const [currentView, setCurrentView] = useState("dashboard"); // dashboard, personal, add-item, teams, team-board, org, calendar, item-dashboard, todo, manager-hub
+            const [currentView, setCurrentView] = useState("dashboard"); // dashboard, personal, add-item, teams, team-board, org, calendar, item-dashboard, todo, manager-hub, workstreams
             const [selectedTeam, setSelectedTeam] = useState(null);
             const [selectedItemId, setSelectedItemId] = useState(null);
             const [todos, setTodos] = useState([]);
+
+            // Workstreams state
+            const [workstreams, setWorkstreams] = useState([]);
+            const [workstreamTasks, setWorkstreamTasks] = useState({}); // { workstreamId: [tasks] }
+            const [currentWorkstreamId, setCurrentWorkstreamId] = useState(null);
+            const [currentWorkstreamTaskId, setCurrentWorkstreamTaskId] = useState(null);
+            const [myWorkstreamTasks, setMyWorkstreamTasks] = useState([]);
 
             // Search & Filter State
             const [searchQuery, setSearchQuery] = useState("");
@@ -19705,6 +19730,101 @@
 
             const handleDeleteTodo = (todoId) => {
                 setTodos(todos.filter(t => t.id !== todoId));
+            };
+
+            // ============ WORKSTREAM HANDLERS ============
+
+            const handleCreateWorkstream = async (workstream) => {
+                const saved = await SUPABASE_API.saveWorkstream(workstream, userEmail);
+                if (saved) {
+                    setWorkstreams(prev => [saved, ...prev]);
+                    return saved;
+                }
+                return null;
+            };
+
+            const handleUpdateWorkstream = async (id, updates) => {
+                const updated = await SUPABASE_API.updateWorkstream(id, updates);
+                if (updated) {
+                    setWorkstreams(prev => prev.map(w => w.id === id ? updated : w));
+                    return updated;
+                }
+                return null;
+            };
+
+            const handleDeleteWorkstream = async (id) => {
+                const success = await SUPABASE_API.deleteWorkstream(id);
+                if (success) {
+                    setWorkstreams(prev => prev.filter(w => w.id !== id));
+                    if (currentWorkstreamId === id) {
+                        setCurrentWorkstreamId(null);
+                    }
+                }
+                return success;
+            };
+
+            const handleLoadWorkstreamTasks = async (workstreamId) => {
+                const tasks = await SUPABASE_API.fetchWorkstreamTasks(workstreamId);
+                setWorkstreamTasks(prev => ({ ...prev, [workstreamId]: tasks }));
+                return tasks;
+            };
+
+            const handleCreateWorkstreamTask = async (task) => {
+                const saved = await SUPABASE_API.saveWorkstreamTask(task, userEmail);
+                if (saved) {
+                    setWorkstreamTasks(prev => ({
+                        ...prev,
+                        [task.workstreamId]: [...(prev[task.workstreamId] || []), saved]
+                    }));
+                    // Refresh my tasks for dashboard
+                    const myTasks = await SUPABASE_API.fetchMyWorkstreamTasks(userEmail);
+                    setMyWorkstreamTasks(myTasks);
+                    return saved;
+                }
+                return null;
+            };
+
+            const handleUpdateWorkstreamTask = async (id, workstreamId, updates) => {
+                const updated = await SUPABASE_API.updateWorkstreamTask(id, updates);
+                if (updated) {
+                    setWorkstreamTasks(prev => ({
+                        ...prev,
+                        [workstreamId]: (prev[workstreamId] || []).map(t => t.id === id ? updated : t)
+                    }));
+                    // Refresh my tasks for dashboard
+                    const myTasks = await SUPABASE_API.fetchMyWorkstreamTasks(userEmail);
+                    setMyWorkstreamTasks(myTasks);
+                    return updated;
+                }
+                return null;
+            };
+
+            const handleDeleteWorkstreamTask = async (id, workstreamId) => {
+                const success = await SUPABASE_API.deleteWorkstreamTask(id);
+                if (success) {
+                    setWorkstreamTasks(prev => ({
+                        ...prev,
+                        [workstreamId]: (prev[workstreamId] || []).filter(t => t.id !== id)
+                    }));
+                    // Refresh my tasks for dashboard
+                    const myTasks = await SUPABASE_API.fetchMyWorkstreamTasks(userEmail);
+                    setMyWorkstreamTasks(myTasks);
+                }
+                return success;
+            };
+
+            const handleReorderTasks = async (workstreamId, taskUpdates) => {
+                // Optimistically update UI
+                setWorkstreamTasks(prev => {
+                    const tasks = prev[workstreamId] || [];
+                    const updatedTasks = tasks.map(t => {
+                        const update = taskUpdates.find(u => u.id === t.id);
+                        return update ? { ...t, sort_order: update.sortOrder, priority: update.priority } : t;
+                    });
+                    return { ...prev, [workstreamId]: updatedTasks };
+                });
+                // Persist to database
+                await SUPABASE_API.updateTaskSortOrders(taskUpdates);
             };
 
             const openStatsModal = (title, items) => {
