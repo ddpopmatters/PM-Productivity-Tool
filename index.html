@@ -3503,7 +3503,7 @@
         const inputBaseClasses =
             "w-full rounded-lg border border-graystone-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200";
 
-        function ManagerHub({ managers = [], teams = [], entries = [], currentUser, userEmail, openStatsModal, onOpen, onUpdateStatus, openSubtaskModal, onOpenPdfExport, onExportStatusReport, managerHubTab, setManagerHubTab, reportPeriodType, setReportPeriodType, reportStartDate, setReportStartDate, reportEndDate, setReportEndDate, reportSections, setReportSections, projectsDisplayMode, setProjectsDisplayMode, reportNarratives, setReportNarratives }) {
+        function ManagerHub({ managers = [], teams = [], entries = [], currentUser, userEmail, openStatsModal, onOpen, onUpdateStatus, openSubtaskModal, onOpenPdfExport, onExportStatusReport, managerHubTab, setManagerHubTab, reportPeriodType, setReportPeriodType, reportStartDate, setReportStartDate, reportEndDate, setReportEndDate, reportSections, setReportSections, projectsDisplayMode, setProjectsDisplayMode, reportNarratives, setReportNarratives, workstreams = [], onNavigateToWorkstream }) {
             const normalizedTeams = teams.length ? teams : TEAMS;
 
             // Filter to only show the logged-in manager's own hub (or all if admin)
@@ -3802,6 +3802,7 @@
                     <div className="flex gap-1 border-b border-graystone-200">
                         {[
                             { id: 'overview', label: 'Overview', icon: 'layout-dashboard' },
+                            { id: 'yearly', label: 'Yearly Overview', icon: 'calendar-range' },
                             { id: 'reports', label: 'Reports', icon: 'file-text' }
                         ].map(tab => (
                             <button
@@ -4298,6 +4299,189 @@
                             })()}
                         </div>
                     </div>
+
+                    {/* YEARLY OVERVIEW TAB CONTENT */}
+                    {(managerHubTab || 'overview') === 'yearly' && (() => {
+                        const currentYear = new Date().getFullYear();
+                        const [selectedYear, setSelectedYear] = useState(currentYear);
+
+                        const months = [
+                            'January', 'February', 'March', 'April', 'May', 'June',
+                            'July', 'August', 'September', 'October', 'November', 'December'
+                        ];
+
+                        // Get projects only (not jobs)
+                        const projects = entries.filter(e => e.itemType !== 'job');
+
+                        // Group projects by month based on their date or timelineValue
+                        const getProjectMonth = (project) => {
+                            const dateStr = project.date || project.timelineValue;
+                            if (!dateStr) return null;
+                            const date = new Date(dateStr);
+                            if (isNaN(date.getTime())) return null;
+                            if (date.getFullYear() !== selectedYear) return null;
+                            return date.getMonth();
+                        };
+
+                        const projectsByMonth = months.map((monthName, monthIndex) => ({
+                            month: monthName,
+                            monthIndex,
+                            projects: projects.filter(p => getProjectMonth(p) === monthIndex)
+                        }));
+
+                        // Get accessible workstreams (personal or shared)
+                        const accessibleWorkstreams = workstreams.filter(w =>
+                            w.visibility === 'shared' || w.owner_email === userEmail
+                        );
+
+                        return (
+                            <div className="space-y-6">
+                                {/* Year Selector */}
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-ocean-900">Yearly Overview</h2>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setSelectedYear(selectedYear - 1)}
+                                            className="p-2 hover:bg-graystone-100 rounded-lg transition"
+                                        >
+                                            <i data-lucide="chevron-left" className="w-5 h-5"></i>
+                                        </button>
+                                        <span className="text-lg font-bold text-ocean-900 min-w-[80px] text-center">{selectedYear}</span>
+                                        <button
+                                            onClick={() => setSelectedYear(selectedYear + 1)}
+                                            className="p-2 hover:bg-graystone-100 rounded-lg transition"
+                                        >
+                                            <i data-lucide="chevron-right" className="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Monthly Projects Table */}
+                                <div className="bg-white rounded-xl border border-graystone-200 overflow-hidden">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-graystone-50 border-b border-graystone-200">
+                                                <th className="px-4 py-3 text-left text-sm font-semibold text-ocean-900 w-32">Month</th>
+                                                <th className="px-4 py-3 text-left text-sm font-semibold text-ocean-900">Projects</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {projectsByMonth.map(({ month, monthIndex, projects: monthProjects }) => {
+                                                const isCurrentMonth = new Date().getMonth() === monthIndex && new Date().getFullYear() === selectedYear;
+                                                return (
+                                                    <tr
+                                                        key={month}
+                                                        className={cx(
+                                                            "border-b border-graystone-100 hover:bg-graystone-50 transition",
+                                                            isCurrentMonth && "bg-ocean-50"
+                                                        )}
+                                                    >
+                                                        <td className={cx(
+                                                            "px-4 py-3 text-sm font-medium align-top",
+                                                            isCurrentMonth ? "text-ocean-700" : "text-graystone-700"
+                                                        )}>
+                                                            {month}
+                                                            {isCurrentMonth && (
+                                                                <span className="ml-2 text-xs bg-ocean-500 text-white px-1.5 py-0.5 rounded">Now</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {monthProjects.length > 0 ? (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {monthProjects.map(project => (
+                                                                        <button
+                                                                            key={project.id}
+                                                                            onClick={() => onOpen && onOpen(project.id)}
+                                                                            className={cx(
+                                                                                "px-3 py-1.5 text-sm rounded-lg border transition hover:shadow-sm",
+                                                                                project.workflowStatus === 'Done'
+                                                                                    ? "bg-green-50 border-green-200 text-green-700"
+                                                                                    : "bg-white border-graystone-200 text-graystone-700 hover:border-ocean-300"
+                                                                            )}
+                                                                        >
+                                                                            <span className="flex items-center gap-2">
+                                                                                {project.workflowStatus === 'Done' && (
+                                                                                    <i data-lucide="check-circle" className="w-3.5 h-3.5"></i>
+                                                                                )}
+                                                                                {project.title}
+                                                                            </span>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-sm text-graystone-400 italic">No projects scheduled</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+
+                                            {/* Ongoing - Workstreams Row */}
+                                            <tr className="bg-violet-50 border-t-2 border-violet-200">
+                                                <td className="px-4 py-3 text-sm font-semibold text-violet-700 align-top">
+                                                    <span className="flex items-center gap-2">
+                                                        <i data-lucide="infinity" className="w-4 h-4"></i>
+                                                        Ongoing
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {accessibleWorkstreams.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {accessibleWorkstreams.map(ws => (
+                                                                <button
+                                                                    key={ws.id}
+                                                                    onClick={() => onNavigateToWorkstream && onNavigateToWorkstream(ws.id)}
+                                                                    className="px-3 py-1.5 text-sm rounded-lg border bg-white border-violet-200 text-violet-700 hover:border-violet-400 hover:shadow-sm transition flex items-center gap-2"
+                                                                >
+                                                                    <span className={cx(
+                                                                        "w-2 h-2 rounded-full",
+                                                                        ws.color === 'blue' ? 'bg-blue-500' :
+                                                                        ws.color === 'green' ? 'bg-green-500' :
+                                                                        ws.color === 'purple' ? 'bg-purple-500' :
+                                                                        ws.color === 'orange' ? 'bg-orange-500' :
+                                                                        ws.color === 'pink' ? 'bg-pink-500' :
+                                                                        ws.color === 'teal' ? 'bg-teal-500' : 'bg-blue-500'
+                                                                    )}></span>
+                                                                    {ws.title}
+                                                                    {ws.visibility === 'shared' && (
+                                                                        <i data-lucide="users" className="w-3 h-3 text-violet-400"></i>
+                                                                    )}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-sm text-violet-400 italic">No workstreams yet</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Summary Stats */}
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-white rounded-xl border border-graystone-200 p-4">
+                                        <p className="text-sm text-graystone-500 mb-1">Total Projects</p>
+                                        <p className="text-2xl font-bold text-ocean-900">
+                                            {projectsByMonth.reduce((sum, m) => sum + m.projects.length, 0)}
+                                        </p>
+                                    </div>
+                                    <div className="bg-white rounded-xl border border-graystone-200 p-4">
+                                        <p className="text-sm text-graystone-500 mb-1">Completed</p>
+                                        <p className="text-2xl font-bold text-green-600">
+                                            {projectsByMonth.reduce((sum, m) => sum + m.projects.filter(p => p.workflowStatus === 'Done').length, 0)}
+                                        </p>
+                                    </div>
+                                    <div className="bg-white rounded-xl border border-graystone-200 p-4">
+                                        <p className="text-sm text-graystone-500 mb-1">Workstreams</p>
+                                        <p className="text-2xl font-bold text-violet-600">
+                                            {accessibleWorkstreams.length}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* REPORTS TAB CONTENT */}
                     {(managerHubTab || 'overview') === 'reports' && selectedManager && (() => {
@@ -21272,7 +21456,7 @@
                                 </div>
                             );
                         }
-                        return <ManagerHub managers={managers} teams={TEAMS} entries={entries} currentUser={currentUser} userEmail={userEmail} openStatsModal={openStatsModal} onOpen={handleOpenEntry} onUpdateStatus={handleUpdateStatus} openSubtaskModal={openSubtaskModal} onOpenPdfExport={handleOpenPdfExport} onExportStatusReport={handleStatusReportPdfExport} managerHubTab={managerHubTab} setManagerHubTab={setManagerHubTab} reportPeriodType={reportPeriodType} setReportPeriodType={setReportPeriodType} reportStartDate={reportStartDate} setReportStartDate={setReportStartDate} reportEndDate={reportEndDate} setReportEndDate={setReportEndDate} reportSections={reportSections} setReportSections={setReportSections} projectsDisplayMode={projectsDisplayMode} setProjectsDisplayMode={setProjectsDisplayMode} reportNarratives={reportNarratives} setReportNarratives={setReportNarratives} />;
+                        return <ManagerHub managers={managers} teams={TEAMS} entries={entries} currentUser={currentUser} userEmail={userEmail} openStatsModal={openStatsModal} onOpen={handleOpenEntry} onUpdateStatus={handleUpdateStatus} openSubtaskModal={openSubtaskModal} onOpenPdfExport={handleOpenPdfExport} onExportStatusReport={handleStatusReportPdfExport} managerHubTab={managerHubTab} setManagerHubTab={setManagerHubTab} reportPeriodType={reportPeriodType} setReportPeriodType={setReportPeriodType} reportStartDate={reportStartDate} setReportStartDate={setReportStartDate} reportEndDate={reportEndDate} setReportEndDate={setReportEndDate} reportSections={reportSections} setReportSections={setReportSections} projectsDisplayMode={projectsDisplayMode} setProjectsDisplayMode={setProjectsDisplayMode} reportNarratives={reportNarratives} setReportNarratives={setReportNarratives} workstreams={workstreams} onNavigateToWorkstream={(id) => { setCurrentWorkstreamId(id); handleLoadWorkstreamTasks(id); setCurrentView('workstreams'); }} />;
 
                     case 'personal': {
                         const myOwnedEntries = entries.filter(e => e.owner === currentUser);
