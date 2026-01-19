@@ -1,34 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { initSupabase } from './api/supabase';
+import { useApp } from './contexts';
 import { APP_CONFIG } from './utils/config';
-import { Logger } from './utils/logger';
 
 // Temporary App component during migration
 // This will be replaced with the full app as components are migrated
 function App() {
+  const { authChecked, isAuthenticated, userEmail, loading } = useApp();
   const [status, setStatus] = useState('initializing');
-  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        const supabase = await initSupabase();
-        if (supabase) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            setUser(session.user);
-          }
-          setStatus('ready');
-        } else {
-          setStatus('no-supabase');
-        }
-      } catch (error) {
-        Logger.error(error, 'App initialization');
-        setStatus('error');
-      }
-    };
-    init();
-  }, []);
+    if (authChecked) {
+      setStatus('ready');
+    }
+  }, [authChecked]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-ocean-50 to-aqua-50 flex items-center justify-center p-4">
@@ -49,22 +33,14 @@ function App() {
           <div className="text-green-600">
             <div className="text-4xl mb-4">✓</div>
             <p className="font-medium">Vite build working!</p>
-            {user && <p className="text-sm text-graystone-600 mt-2">Logged in as: {user.email}</p>}
+            {isAuthenticated && (
+              <p className="text-sm text-graystone-600 mt-2">
+                Logged in as: {userEmail}
+              </p>
+            )}
             <p className="text-sm text-graystone-500 mt-4">
               Migration in progress. Full app coming soon.
             </p>
-          </div>
-        )}
-
-        {status === 'no-supabase' && (
-          <div className="text-yellow-600">
-            <p>Supabase not configured</p>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="text-red-600">
-            <p>Initialization error</p>
           </div>
         )}
 

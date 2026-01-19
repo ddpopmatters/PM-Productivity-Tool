@@ -41,3 +41,19 @@ export const SEED_USERS = [
   { email: "madeleine.hewitt@populationmatters.org", name: "Madeleine Hewitt", team: "Advocacy & Influence", role: "member" },
   { email: "shweta.shirodkar@populationmatters.org", name: "Shweta Shirodkar", team: "Advocacy & Influence", role: "member" }
 ];
+
+// Manager hierarchy
+export const MANAGERS = [
+  {
+    name: "Jameen Kaur",
+    email: "jameen.kaur@populationmatters.org",
+    team: "Advocacy & Influence",
+    reports: ["Dan Davis", "Francesca Harrison", "Madeleine Hewitt", "Shweta Shirodkar"]
+  },
+  {
+    name: "Dan Davis",
+    email: "daniel.davis@populationmatters.org",
+    team: "Advocacy & Influence",
+    reports: ["Francesca Harrison"]
+  }
+];
