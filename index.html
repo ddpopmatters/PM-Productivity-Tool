@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Workflow Manager</title>
+    <title>Momentum Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -1468,7 +1468,7 @@
 
             const getMessage = () => {
                 switch (type) {
-                    case 'signup': return 'Your email has been confirmed. You can now access the Productivity Tool.';
+                    case 'signup': return 'Your email has been confirmed. You can now access Momentum Hub.';
                     case 'recovery': return 'Your password has been updated successfully.';
                     case 'magiclink': return 'You have been signed in successfully.';
                     case 'invite': return 'Welcome! Your account is now active.';
@@ -1485,7 +1485,7 @@
                                 alt={APP_CONFIG.ORG_NAME}
                                 className="h-12 mx-auto mb-3"
                             />
-                            <h1 className="text-2xl font-bold text-ocean-900 uppercase tracking-tight">Productivity Tool</h1>
+                            <h1 className="text-2xl font-bold text-ocean-900 uppercase tracking-tight">Momentum Hub</h1>
                         </div>
 
                         {status === 'processing' && (
@@ -5671,62 +5671,159 @@
         }
 
         // Dashboard Component
-        function Dashboard({ entries, currentUser, onOpenEntry, onOpenPdfExport }) {
+        function Dashboard({ entries, currentUser, onOpenEntry, onOpenPdfExport, onNavigate, todos = [], onToggleTodo }) {
             const now = new Date();
-            const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+            const today = now.toISOString().slice(0, 10);
 
-            // User's tasks
-            const myTasks = entries.filter(e => e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)));
-            const inProgress = myTasks.filter(e => e.workflowStatus !== 'Done' && e.workflowStatus !== 'Idea');
-            const completed = myTasks.filter(e => e.workflowStatus === 'Done');
+            // Stats calculations
+            const myProjects = entries.filter(e =>
+                (e.itemType !== 'job') &&
+                (e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)))
+            );
+            const myJobs = entries.filter(e =>
+                e.itemType === 'job' &&
+                (e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)))
+            );
+            const mySubtasks = entries.flatMap(e =>
+                (e.subtasks || [])
+                    .filter(st => st.assignedTo === currentUser)
+                    .map(st => ({ ...st, parentId: e.id, parentTitle: e.title }))
+            );
 
-            // Upcoming deadlines
-            const upcomingDeadlines = entries
-                .filter(e => {
-                    const deadline = new Date(e.date || e.timelineValue);
-                    return deadline >= now && deadline <= thirtyDaysFromNow;
-                })
-                .filter(e => e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)))
-                .sort((a, b) => new Date(a.date || a.timelineValue) - new Date(b.date || b.timelineValue))
-                .slice(0, 5);
+            // Calendar state
+            const [calendarView, setCalendarView] = useState('month');
+            const [calendarMonth, setCalendarMonth] = useState(new Date());
+            const [selectedDate, setSelectedDate] = useState(null);
 
-            // Recent comments (simulated - would come from real data)
-            const recentComments = myTasks
-                .filter(e => e.firstComment)
-                .slice(0, 3)
-                .map(e => ({
-                    id: e.id,
-                    title: e.title,
-                    comment: e.firstComment,
-                    user: e.owner,
-                    time: 'Recently'
-                }));
+            // Get all scheduled items for calendar
+            const getScheduledItems = (dateStr) => {
+                const items = [];
 
-            // Project updates (tasks that changed recently - simulated)
-            const projectUpdates = entries
-                .filter(e => (e.collaborators && e.collaborators.includes(currentUser)) || e.team)
-                .slice(0, 4)
-                .map(e => ({
-                    id: e.id,
-                    title: e.title,
-                    status: e.workflowStatus,
-                    team: e.team,
-                    owner: e.owner
-                }));
+                // Projects/Jobs with dates
+                entries.forEach(e => {
+                    const itemDate = e.date || e.timelineValue;
+                    if (itemDate && itemDate.slice(0, 10) === dateStr) {
+                        items.push({ type: e.itemType === 'job' ? 'job' : 'project', ...e });
+                    }
+                });
 
-            // Task List Modal State
+                // Subtasks with deadlines
+                entries.forEach(e => {
+                    (e.subtasks || []).forEach(st => {
+                        if (st.deadline && st.deadline.slice(0, 10) === dateStr) {
+                            items.push({ type: 'subtask', parentTitle: e.title, parentId: e.id, ...st });
+                        }
+                    });
+                });
+
+                // Personal todos
+                (todos || []).forEach(t => {
+                    if (t.date === dateStr) {
+                        items.push({ type: 'todo', ...t });
+                    }
+                });
+
+                return items;
+            };
+
+            // Today's tasks (personal todos + jobs in To Do)
+            const todaysTodos = (todos || []).filter(t => t.date === today || !t.date);
+            const jobsToDo = myJobs.filter(j => j.workflowStatus === 'todo');
+            const todaysTasks = [
+                ...todaysTodos.map(t => ({ ...t, taskType: 'todo' })),
+                ...jobsToDo.map(j => ({ ...j, taskType: 'job' }))
+            ];
+
+            // Mentions & Activity
+            const getMentionsAndActivity = () => {
+                const mentions = [];
+                const currentUserLower = (currentUser || '').toLowerCase();
+
+                entries.forEach(entry => {
+                    const isMyProject = entry.owner === currentUser ||
+                                       (entry.collaborators && entry.collaborators.includes(currentUser));
+
+                    (entry.comments || []).forEach(comment => {
+                        const mentionsMe = comment.text && comment.text.toLowerCase().includes(`@${currentUserLower}`);
+
+                        if (mentionsMe || isMyProject) {
+                            mentions.push({
+                                id: comment.id,
+                                type: mentionsMe ? 'mention' : 'activity',
+                                entryId: entry.id,
+                                entryTitle: entry.title,
+                                author: comment.author,
+                                text: comment.text,
+                                timestamp: comment.timestamp
+                            });
+                        }
+                    });
+                });
+
+                return mentions
+                    .filter(m => m.author !== currentUser) // Don't show own comments
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                    .slice(0, 10);
+            };
+
+            const mentionsAndActivity = getMentionsAndActivity();
+
+            // Time ago helper
+            const timeAgo = (timestamp) => {
+                if (!timestamp) return '';
+                const seconds = Math.floor((new Date() - new Date(timestamp)) / 1000);
+                if (seconds < 60) return 'just now';
+                const minutes = Math.floor(seconds / 60);
+                if (minutes < 60) return `${minutes}m ago`;
+                const hours = Math.floor(minutes / 60);
+                if (hours < 24) return `${hours}h ago`;
+                const days = Math.floor(hours / 24);
+                if (days < 7) return `${days}d ago`;
+                return new Date(timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+            };
+
+            // Calendar helpers
+            const getDaysInMonth = (date) => {
+                const year = date.getFullYear();
+                const month = date.getMonth();
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                const daysInMonth = lastDay.getDate();
+                const startingDay = (firstDay.getDay() + 6) % 7; // Monday = 0
+                return { daysInMonth, startingDay, year, month };
+            };
+
+            const { daysInMonth, startingDay, year, month } = getDaysInMonth(calendarMonth);
+
+            // Week view helpers
+            const getWeekDays = () => {
+                const startOfWeek = new Date(calendarMonth);
+                const day = startOfWeek.getDay();
+                const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+                startOfWeek.setDate(diff);
+
+                const days = [];
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(startOfWeek);
+                    d.setDate(startOfWeek.getDate() + i);
+                    days.push(d);
+                }
+                return days;
+            };
+
+            // Task List Modal State (keeping for subtasks)
             const [showTaskListModal, setShowTaskListModal] = useState(false);
-            const [taskListType, setTaskListType] = useState(''); // 'assigned', 'inProgress', 'completed'
+            const [taskListType, setTaskListType] = useState('');
             const [taskListItems, setTaskListItems] = useState([]);
 
             const openTaskList = (type) => {
                 setTaskListType(type);
-                if (type === 'assigned') {
-                    setTaskListItems(myTasks);
-                } else if (type === 'inProgress') {
-                    setTaskListItems(inProgress);
-                } else if (type === 'completed') {
-                    setTaskListItems(completed);
+                if (type === 'projects') {
+                    setTaskListItems(myProjects);
+                } else if (type === 'subtasks') {
+                    setTaskListItems(mySubtasks.map(st => ({ ...st, isSubtask: true })));
+                } else if (type === 'jobs') {
+                    setTaskListItems(myJobs);
                 }
                 setShowTaskListModal(true);
             };
@@ -5738,7 +5835,7 @@
                         <div className="flex items-start justify-between">
                             <div>
                                 <h1 className="text-3xl font-bold mb-2">Welcome back, {(currentUser || 'User').split(' ')[0]}!</h1>
-                                <p className="text-ocean-100">Here's what's happening with your projects</p>
+                                <p className="text-ocean-100">Here's your momentum for today</p>
                             </div>
                             <button
                                 onClick={() => onOpenPdfExport && onOpenPdfExport('dashboard')}
@@ -5750,156 +5847,400 @@
                         </div>
                     </div>
 
-                    {/* Stats Cards */}
+                    {/* Stats Cards - Projects, Subtasks, Jobs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('assigned')}>
+                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => onNavigate && onNavigate('personal')}>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Assigned Tasks</p>
+                                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Projects</p>
                                     <div className="relative inline-flex items-center justify-center">
-                                        {/* Hover Circle - Behind Number */}
                                         <div
                                             className="absolute rounded-full transition-all duration-300 scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
                                             style={{ backgroundColor: '#0CFFFF', width: '43px', height: '43px' }}
                                         ></div>
-                                        <p className="text-3xl font-bold text-ocean-900 relative z-10">{myTasks.length}</p>
+                                        <p className="text-3xl font-bold text-ocean-900 relative z-10">{myProjects.length}</p>
                                     </div>
                                 </div>
                                 <div className="w-12 h-12 bg-ocean-50 rounded-xl flex items-center justify-center">
-                                    <i data-lucide="briefcase" className="w-6 h-6 text-ocean-600"></i>
+                                    <i data-lucide="folder" className="w-6 h-6 text-ocean-600"></i>
                                 </div>
                             </div>
+                            <p className="text-xs text-graystone-500 mt-2">View all projects</p>
                         </div>
 
-                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('inProgress')}>
+                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('subtasks')}>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">In Progress</p>
+                                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Subtasks</p>
                                     <div className="relative inline-flex items-center justify-center">
-                                        {/* Hover Circle - Behind Number */}
                                         <div
                                             className="absolute rounded-full transition-all duration-300 scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
                                             style={{ backgroundColor: '#0CFFFF', width: '43px', height: '43px' }}
                                         ></div>
-                                        <p className="text-3xl font-bold text-ocean-900 relative z-10">{inProgress.length}</p>
+                                        <p className="text-3xl font-bold text-ocean-900 relative z-10">{mySubtasks.length}</p>
                                     </div>
                                 </div>
                                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                                    <i data-lucide="activity" className="w-6 h-6 text-blue-600"></i>
+                                    <i data-lucide="list-checks" className="w-6 h-6 text-blue-600"></i>
                                 </div>
                             </div>
+                            <p className="text-xs text-graystone-500 mt-2">Assigned to you</p>
                         </div>
 
-                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
+                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => onNavigate && onNavigate('jobs')}>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Completed</p>
-                                    <p className="text-3xl font-bold text-ocean-900">{completed.length}</p>
+                                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Jobs</p>
+                                    <div className="relative inline-flex items-center justify-center">
+                                        <div
+                                            className="absolute rounded-full transition-all duration-300 scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
+                                            style={{ backgroundColor: '#0CFFFF', width: '43px', height: '43px' }}
+                                        ></div>
+                                        <p className="text-3xl font-bold text-ocean-900 relative z-10">{myJobs.length}</p>
+                                    </div>
                                 </div>
                                 <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-                                    <i data-lucide="check-circle" className="w-6 h-6 text-green-600"></i>
+                                    <i data-lucide="briefcase" className="w-6 h-6 text-green-600"></i>
                                 </div>
                             </div>
+                            <p className="text-xs text-graystone-500 mt-2">View all jobs</p>
                         </div>
                     </div>
 
-                    {/* Two Column Layout */}
+                    {/* Calendar and Today's Tasks Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Upcoming Deadlines */}
+                        {/* Calendar Section */}
                         <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-                            <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2 tracking-wide">
-                                <i data-lucide="clock" className="w-5 h-5"></i>
-                                Upcoming Deadlines
-                            </h3>
-                            <div className="space-y-3">
-                                {upcomingDeadlines.length > 0 ? (
-                                    upcomingDeadlines.map(item => (
-                                        <div key={item.id} className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-ocean-500 to-ocean-600 text-white shadow-md hover:shadow-lg transition-all">
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-medium text-sm truncate heading-font">{item.title}</div>
-                                                <div className="text-xs opacity-80">{item.date || item.timelineValue}</div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge variant={item.workflowStatus === 'Done' ? 'success' : 'default'} className="text-[10px] ml-2">
-                                                    {item.workflowStatus}
-                                                </Badge>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-heading text-lg text-ocean-900 flex items-center gap-2 tracking-wide">
+                                    <i data-lucide="calendar" className="w-5 h-5"></i>
+                                    Calendar
+                                </h3>
+                                <select
+                                    value={calendarView}
+                                    onChange={(e) => setCalendarView(e.target.value)}
+                                    className="text-sm border border-ocean-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                                >
+                                    <option value="month">Month</option>
+                                    <option value="week">Week</option>
+                                    <option value="day">Day</option>
+                                </select>
+                            </div>
+
+                            {/* Month Navigation */}
+                            <div className="flex items-center justify-between mb-4">
+                                <button
+                                    onClick={() => {
+                                        const newDate = new Date(calendarMonth);
+                                        if (calendarView === 'month') {
+                                            newDate.setMonth(newDate.getMonth() - 1);
+                                        } else if (calendarView === 'week') {
+                                            newDate.setDate(newDate.getDate() - 7);
+                                        } else {
+                                            newDate.setDate(newDate.getDate() - 1);
+                                        }
+                                        setCalendarMonth(newDate);
+                                    }}
+                                    className="p-2 hover:bg-ocean-50 rounded-lg transition"
+                                >
+                                    <i data-lucide="chevron-left" className="w-4 h-4 text-ocean-600"></i>
+                                </button>
+                                <span className="font-medium text-ocean-900">
+                                    {calendarView === 'day'
+                                        ? calendarMonth.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                                        : calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+                                    }
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        const newDate = new Date(calendarMonth);
+                                        if (calendarView === 'month') {
+                                            newDate.setMonth(newDate.getMonth() + 1);
+                                        } else if (calendarView === 'week') {
+                                            newDate.setDate(newDate.getDate() + 7);
+                                        } else {
+                                            newDate.setDate(newDate.getDate() + 1);
+                                        }
+                                        setCalendarMonth(newDate);
+                                    }}
+                                    className="p-2 hover:bg-ocean-50 rounded-lg transition"
+                                >
+                                    <i data-lucide="chevron-right" className="w-4 h-4 text-ocean-600"></i>
+                                </button>
+                            </div>
+
+                            {/* Month View */}
+                            {calendarView === 'month' && (
+                                <div>
+                                    <div className="grid grid-cols-7 gap-1 mb-2">
+                                        {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => (
+                                            <div key={d} className="text-center text-xs font-medium text-graystone-500 py-1">{d}</div>
+                                        ))}
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-1">
+                                        {Array.from({ length: startingDay }).map((_, i) => (
+                                            <div key={`empty-${i}`} className="h-10"></div>
+                                        ))}
+                                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                                            const day = i + 1;
+                                            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                            const items = getScheduledItems(dateStr);
+                                            const isToday = dateStr === today;
+                                            const isSelected = selectedDate === dateStr;
+
+                                            return (
                                                 <button
-                                                    onClick={() => onOpenEntry(item.id)}
-                                                    className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
-                                                    title="Open"
+                                                    key={day}
+                                                    onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+                                                    className={`h-10 rounded-lg text-sm relative flex flex-col items-center justify-center transition ${
+                                                        isToday ? 'bg-ocean-500 text-white font-bold' :
+                                                        isSelected ? 'bg-ocean-100 text-ocean-900' :
+                                                        'hover:bg-ocean-50 text-ocean-900'
+                                                    }`}
                                                 >
-                                                    <i data-lucide="external-link" className="w-4 h-4 text-white"></i>
+                                                    <span>{day}</span>
+                                                    {items.length > 0 && (
+                                                        <div className="flex gap-0.5 mt-0.5">
+                                                            {items.slice(0, 3).map((_, idx) => (
+                                                                <div key={idx} className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : 'bg-ocean-500'}`}></div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-center py-8 text-graystone-400 text-sm">
-                                        No upcoming deadlines in the next 30 days
+                                            );
+                                        })}
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
+
+                            {/* Week View */}
+                            {calendarView === 'week' && (
+                                <div className="grid grid-cols-7 gap-2">
+                                    {getWeekDays().map(d => {
+                                        const dateStr = d.toISOString().slice(0, 10);
+                                        const items = getScheduledItems(dateStr);
+                                        const isToday = dateStr === today;
+                                        const isSelected = selectedDate === dateStr;
+
+                                        return (
+                                            <button
+                                                key={dateStr}
+                                                onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+                                                className={`p-2 rounded-lg text-center transition ${
+                                                    isToday ? 'bg-ocean-500 text-white' :
+                                                    isSelected ? 'bg-ocean-100' :
+                                                    'hover:bg-ocean-50'
+                                                }`}
+                                            >
+                                                <div className="text-xs font-medium">{d.toLocaleDateString('en-GB', { weekday: 'short' })}</div>
+                                                <div className="text-lg font-bold">{d.getDate()}</div>
+                                                {items.length > 0 && (
+                                                    <div className={`text-xs ${isToday ? 'text-white/80' : 'text-ocean-600'}`}>{items.length} item{items.length !== 1 ? 's' : ''}</div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Day View */}
+                            {calendarView === 'day' && (
+                                <div>
+                                    {(() => {
+                                        const dateStr = calendarMonth.toISOString().slice(0, 10);
+                                        const items = getScheduledItems(dateStr);
+                                        return items.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {items.map((item, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        onClick={() => item.type !== 'todo' && onOpenEntry && onOpenEntry(item.parentId || item.id)}
+                                                        className={`p-3 rounded-lg border ${item.type !== 'todo' ? 'cursor-pointer hover:border-ocean-500' : ''} ${
+                                                            item.type === 'project' ? 'bg-ocean-50 border-ocean-200' :
+                                                            item.type === 'job' ? 'bg-green-50 border-green-200' :
+                                                            item.type === 'subtask' ? 'bg-blue-50 border-blue-200' :
+                                                            'bg-graystone-50 border-graystone-200'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                                item.type === 'project' ? 'bg-ocean-200 text-ocean-800' :
+                                                                item.type === 'job' ? 'bg-green-200 text-green-800' :
+                                                                item.type === 'subtask' ? 'bg-blue-200 text-blue-800' :
+                                                                'bg-graystone-200 text-graystone-800'
+                                                            }`}>
+                                                                {item.type}
+                                                            </span>
+                                                            <span className="font-medium text-sm truncate">{item.title || item.text}</span>
+                                                        </div>
+                                                        {item.parentTitle && (
+                                                            <div className="text-xs text-graystone-500 mt-1">From: {item.parentTitle}</div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8 text-graystone-400">
+                                                <i data-lucide="calendar-x" className="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                                                <p className="text-sm">No items scheduled</p>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            )}
+
+                            {/* Selected Date Detail Panel */}
+                            {selectedDate && calendarView !== 'day' && (
+                                <div className="mt-4 pt-4 border-t border-ocean-100">
+                                    <h4 className="font-medium text-sm text-ocean-900 mb-2">
+                                        {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                    </h4>
+                                    {(() => {
+                                        const items = getScheduledItems(selectedDate);
+                                        return items.length > 0 ? (
+                                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                {items.map((item, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        onClick={() => item.type !== 'todo' && onOpenEntry && onOpenEntry(item.parentId || item.id)}
+                                                        className={`p-2 rounded-lg text-sm flex items-center gap-2 ${item.type !== 'todo' ? 'cursor-pointer hover:bg-ocean-100' : ''} bg-ocean-50`}
+                                                    >
+                                                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                                            item.type === 'project' ? 'bg-ocean-200 text-ocean-800' :
+                                                            item.type === 'job' ? 'bg-green-200 text-green-800' :
+                                                            item.type === 'subtask' ? 'bg-blue-200 text-blue-800' :
+                                                            'bg-graystone-200 text-graystone-800'
+                                                        }`}>
+                                                            {item.type}
+                                                        </span>
+                                                        <span className="truncate">{item.title || item.text}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-graystone-400">No items scheduled</p>
+                                        );
+                                    })()}
+                                </div>
+                            )}
                         </div>
 
-                        {/* Recent Comments */}
+                        {/* Today's Tasks */}
                         <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
                             <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2 tracking-wide">
-                                <i data-lucide="message-square" className="w-5 h-5"></i>
-                                Recent Comments
+                                <i data-lucide="check-square" className="w-5 h-5"></i>
+                                Today's Tasks
                             </h3>
-                            <div className="space-y-3">
-                                {recentComments.length > 0 ? (
-                                    recentComments.map(comment => (
-                                        <div key={comment.id} className="p-4 rounded-xl bg-gradient-to-r from-ocean-500 to-ocean-600 text-white shadow-md hover:shadow-lg transition-all">
-                                            <div className="font-medium text-sm mb-1 heading-font">{comment.title}</div>
-                                            <p className="text-xs opacity-90 line-clamp-2">{comment.comment}</p>
-                                            <div className="text-xs opacity-70 mt-2">{comment.user} · {comment.time}</div>
+                            <div className="space-y-2 max-h-80 overflow-y-auto">
+                                {todaysTasks.length > 0 ? (
+                                    todaysTasks.map((task, idx) => (
+                                        <div
+                                            key={task.id || idx}
+                                            className={`p-3 rounded-lg border flex items-start gap-3 ${
+                                                task.taskType === 'job' ? 'bg-green-50 border-green-200 cursor-pointer hover:border-green-400' :
+                                                'bg-graystone-50 border-graystone-200'
+                                            }`}
+                                            onClick={() => task.taskType === 'job' && onOpenEntry && onOpenEntry(task.id)}
+                                        >
+                                            {task.taskType === 'todo' && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onToggleTodo && onToggleTodo(task.id);
+                                                    }}
+                                                    className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition ${
+                                                        task.completed ? 'bg-ocean-500 border-ocean-500 text-white' : 'border-graystone-300 hover:border-ocean-500'
+                                                    }`}
+                                                >
+                                                    {task.completed && <i data-lucide="check" className="w-3 h-3"></i>}
+                                                </button>
+                                            )}
+                                            {task.taskType === 'job' && (
+                                                <div className="w-5 h-5 rounded bg-green-500 flex-shrink-0 mt-0.5 flex items-center justify-center">
+                                                    <i data-lucide="briefcase" className="w-3 h-3 text-white"></i>
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className={`text-sm ${task.completed ? 'line-through text-graystone-400' : 'text-ocean-900'}`}>
+                                                    {task.title || task.text}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                                        task.taskType === 'job' ? 'bg-green-200 text-green-800' : 'bg-graystone-200 text-graystone-600'
+                                                    }`}>
+                                                        {task.taskType === 'job' ? 'Job' : 'Personal'}
+                                                    </span>
+                                                    {task.workflowStatus && (
+                                                        <span className="text-xs text-graystone-500">{task.workflowStatus}</span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="text-center py-8 text-graystone-400 text-sm">
-                                        No recent comments
+                                    <div className="text-center py-8 text-graystone-400">
+                                        <i data-lucide="check-circle" className="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                                        <p className="text-sm">No tasks for today</p>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Project Updates */}
-                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-                        <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2 tracking-wide">
-                            <i data-lucide="bell" className="w-5 h-5"></i>
-                            Project Updates
-                        </h3>
-                        <div className="space-y-2">
-                            {projectUpdates.length > 0 ? (
-                                projectUpdates.map(update => (
-                                    <div key={update.id} className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-ocean-500 to-ocean-600 text-white shadow-md hover:shadow-lg transition-all">
-                                        <div className="flex items-center gap-3">
-                                            <div className={cx(
-                                                "w-2 h-2 rounded-full",
-                                                update.status === 'Done' ? "bg-white" : "bg-cyan-300"
-                                            )}></div>
-                                            <div>
-                                                <div className="font-medium text-sm heading-font">{update.title}</div>
-                                                <div className="text-xs opacity-80">{update.team} · {update.owner}</div>
-                                            </div>
-                                        </div>
-                                        <Badge variant="neutral" className="text-[10px]">{update.status}</Badge>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center py-8 text-graystone-400 text-sm">
-                                    No recent updates
+                            {todaysTasks.length > 0 && (
+                                <div className="mt-4 pt-3 border-t border-ocean-100 text-sm text-graystone-500">
+                                    {todaysTasks.length} task{todaysTasks.length !== 1 ? 's' : ''} &bull; {todaysTasks.filter(t => t.completed).length} completed
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* Task List Modal */}
+                    {/* Mentions & Activity Feed */}
+                    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                        <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2 tracking-wide">
+                            <i data-lucide="at-sign" className="w-5 h-5"></i>
+                            Mentions & Activity
+                        </h3>
+                        <div className="space-y-3">
+                            {mentionsAndActivity.length > 0 ? (
+                                mentionsAndActivity.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        onClick={() => onOpenEntry && onOpenEntry(item.entryId)}
+                                        className="p-4 rounded-xl border border-ocean-100 hover:border-ocean-300 cursor-pointer transition bg-gradient-to-r from-white to-ocean-50"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-ocean-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                                                {(item.author || '?')[0].toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="text-sm">
+                                                        {item.type === 'mention' ? (
+                                                            <span><strong className="text-ocean-900">{item.author}</strong> mentioned you in <strong className="text-ocean-900">"{item.entryTitle}"</strong></span>
+                                                        ) : (
+                                                            <span>New comment on <strong className="text-ocean-900">"{item.entryTitle}"</strong></span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs text-graystone-400 flex-shrink-0">{timeAgo(item.timestamp)}</span>
+                                                </div>
+                                                <div className="mt-1 text-sm text-graystone-600 line-clamp-2 bg-white/50 p-2 rounded border-l-2 border-ocean-300">
+                                                    "{item.text}"
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-8 text-graystone-400">
+                                    <i data-lucide="message-circle" className="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                                    <p className="text-sm">No recent mentions or activity</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Task List Modal for Subtasks */}
                     {showTaskListModal && (
                         <div
-                            className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50"
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                             role="dialog"
                             aria-modal="true"
                             aria-labelledby="task-list-modal-title"
@@ -5908,9 +6249,9 @@
                             <div className="relative bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-xl animate-in fade-in zoom-in-95 duration-200">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 id="task-list-modal-title" className="font-heading text-2xl text-ocean-900 tracking-wide">
-                                        {taskListType === 'assigned' && 'Assigned Tasks'}
-                                        {taskListType === 'inProgress' && 'In Progress'}
-                                        {taskListType === 'completed' && 'Completed Tasks'}
+                                        {taskListType === 'projects' && 'My Projects'}
+                                        {taskListType === 'subtasks' && 'My Subtasks'}
+                                        {taskListType === 'jobs' && 'My Jobs'}
                                     </h3>
                                     <button
                                         onClick={() => setShowTaskListModal(false)}
@@ -5923,40 +6264,53 @@
 
                                 <div className="overflow-y-auto max-h-[60vh] space-y-2">
                                     {taskListItems.length > 0 ? (
-                                        taskListItems.map(task => (
+                                        taskListItems.map((task, idx) => (
                                             <button
-                                                key={task.id}
+                                                key={task.id || idx}
                                                 onClick={() => {
                                                     setShowTaskListModal(false);
-                                                    onOpenEntry(task.id);
+                                                    if (task.isSubtask && task.parentId) {
+                                                        onOpenEntry(task.parentId);
+                                                    } else {
+                                                        onOpenEntry(task.id);
+                                                    }
                                                 }}
                                                 className="w-full flex items-center justify-between p-4 rounded-xl border border-ocean-100 hover:border-ocean-500 hover:bg-ocean-50 transition-all group text-left"
                                             >
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-medium text-sm text-ocean-900 truncate mb-1 heading-font">{task.title}</div>
                                                     <div className="flex items-center gap-3 text-xs text-graystone-600">
-                                                        <div className="flex items-center gap-1">
-                                                            <i data-lucide="user" className="w-3 h-3"></i>
-                                                            <span>{task.owner}</span>
-                                                        </div>
-                                                        {task.date && (
+                                                        {task.isSubtask && task.parentTitle && (
                                                             <div className="flex items-center gap-1">
-                                                                <i data-lucide="calendar" className="w-3 h-3"></i>
-                                                                <span>{task.date}</span>
+                                                                <i data-lucide="folder" className="w-3 h-3"></i>
+                                                                <span>{task.parentTitle}</span>
                                                             </div>
                                                         )}
-                                                        {task.team && (
+                                                        {task.owner && (
                                                             <div className="flex items-center gap-1">
-                                                                <i data-lucide="users" className="w-3 h-3"></i>
-                                                                <span>{task.team}</span>
+                                                                <i data-lucide="user" className="w-3 h-3"></i>
+                                                                <span>{task.owner || task.assignedTo}</span>
+                                                            </div>
+                                                        )}
+                                                        {(task.date || task.deadline) && (
+                                                            <div className="flex items-center gap-1">
+                                                                <i data-lucide="calendar" className="w-3 h-3"></i>
+                                                                <span>{task.date || task.deadline}</span>
                                                             </div>
                                                         )}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-4">
-                                                    <Badge variant={task.workflowStatus === 'Done' ? 'success' : 'default'} className="text-[10px]">
-                                                        {task.workflowStatus}
-                                                    </Badge>
+                                                    {task.workflowStatus && (
+                                                        <Badge variant={task.workflowStatus === 'Done' ? 'success' : 'default'} className="text-[10px]">
+                                                            {task.workflowStatus}
+                                                        </Badge>
+                                                    )}
+                                                    {task.isSubtask && (
+                                                        <span className={`text-xs px-2 py-0.5 rounded ${task.completed ? 'bg-green-100 text-green-700' : 'bg-graystone-100 text-graystone-600'}`}>
+                                                            {task.completed ? 'Done' : 'Pending'}
+                                                        </span>
+                                                    )}
                                                     <i data-lucide="external-link" className="w-5 h-5 text-graystone-400 group-hover:text-ocean-500"></i>
                                                 </div>
                                             </button>
@@ -5964,7 +6318,7 @@
                                     ) : (
                                         <div className="text-center py-12 text-graystone-400">
                                             <i data-lucide="inbox" className="w-12 h-12 mx-auto mb-3 opacity-50"></i>
-                                            <p className="text-sm">No tasks found</p>
+                                            <p className="text-sm">No items found</p>
                                         </div>
                                     )}
                                 </div>
@@ -18737,7 +19091,7 @@
             const renderContent = () => {
                 switch (currentView) {
                     case 'dashboard':
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} />;
 
                     case "add-item":
                         return <AddItemForm onSubmit={handleAddItem} onBack={() => handleNavigate('dashboard')} availableTags={availableTags} />;
@@ -19228,7 +19582,7 @@
 
                     default:
                         // Default to dashboard instead of menu
-                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} />;
+                        return <Dashboard entries={entries} currentUser={currentUser} onOpenEntry={handleOpenEntry} onOpenPdfExport={handleOpenPdfExport} onNavigate={handleNavigate} todos={todos} onToggleTodo={handleToggleTodo} />;
                 }
             };
 
