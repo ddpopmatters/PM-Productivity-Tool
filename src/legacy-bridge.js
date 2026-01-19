@@ -5,10 +5,19 @@
  * via the global window.MomentumComponents object.
  *
  * Usage in legacy.html:
- *   const { LoadingSpinner, Badge, Button, Pagination } = window.MomentumComponents;
+ *   const { LoadingSpinner, Badge, Button, Icon, ViewSwitcher } = window.MomentumComponents;
  */
 
-import { LoadingSpinner, Badge, Button, Pagination } from './components/ui';
+import {
+  // Tier 1 - Pure UI Components
+  LoadingSpinner,
+  Badge,
+  Button,
+  Pagination,
+  // Tier 2 - Utility Components
+  Icon,
+  ViewSwitcher,
+} from './components/ui';
 
 // Register components globally for legacy.html
 window.MomentumComponents = {
@@ -17,6 +26,9 @@ window.MomentumComponents = {
   Badge,
   Button,
   Pagination,
+  // Tier 2 - Utility Components
+  Icon,
+  ViewSwitcher,
 };
 
 // Log registration for debugging (only in development)

@@ -461,36 +461,14 @@
         // ============================================
         // EXTRACTED COMPONENTS (from legacy-bridge.js)
         // ============================================
-        const { LoadingSpinner, Badge, Button, Pagination } = window.MomentumComponents || {};
+        const {
+            // Tier 1
+            LoadingSpinner, Badge, Button, Pagination,
+            // Tier 2
+            Icon, ViewSwitcher
+        } = window.MomentumComponents || {};
 
-        // ============================================
-        // LUCIDE ICON COMPONENT (React-safe)
-        // ============================================
-        // Prevents React reconciliation errors with Lucide icons
-        // by managing icon rendering outside React's virtual DOM
-        const Icon = ({ name, className = "", size, ...props }) => {
-            const iconRef = useRef(null);
-
-            useLayoutEffect(() => {
-                if (iconRef.current && window.lucide) {
-                    // Clear any existing content
-                    iconRef.current.innerHTML = '';
-                    // Create the icon element
-                    const iconEl = document.createElement('i');
-                    iconEl.setAttribute('data-lucide', name);
-                    if (className) iconEl.className = className;
-                    if (size) {
-                        iconEl.style.width = typeof size === 'number' ? `${size}px` : size;
-                        iconEl.style.height = typeof size === 'number' ? `${size}px` : size;
-                    }
-                    iconRef.current.appendChild(iconEl);
-                    // Transform just this icon
-                    lucide.createIcons({ nodes: [iconEl] });
-                }
-            }, [name, className, size]);
-
-            return <span ref={iconRef} className="inline-flex" {...props} />;
-        };
+        // Icon - Now loaded from legacy-bridge.js (src/components/ui/Icon.jsx)
 
         // ============================================================
         // PRODUCTION CONFIGURATION - Update these values for deployment
@@ -10216,65 +10194,7 @@
             );
         }
 
-        // View Switcher Component
-        function ViewSwitcher({ currentView, onViewChange, variant = 'light' }) {
-            const containerClass = variant === 'dark'
-                ? "flex bg-black/20 p-1 rounded-lg border border-white/10"
-                : "flex bg-graystone-100 p-1 rounded-lg";
-
-            const activeClass = variant === 'dark'
-                ? "bg-white text-ocean-700 shadow-sm"
-                : "bg-white text-ocean-700 shadow-sm";
-
-            const inactiveClass = variant === 'dark'
-                ? "text-white/80 hover:text-white hover:bg-white/10"
-                : "text-graystone-600 hover:text-ocean-700";
-
-            return (
-                <div className={containerClass}>
-                    <button
-                        onClick={() => onViewChange('kanban')}
-                        className={cx(
-                            "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                            currentView === 'kanban' ? activeClass : inactiveClass
-                        )}
-                    >
-                        <i data-lucide="kanban" className="w-4 h-4"></i>
-                        Board
-                    </button>
-                    <button
-                        onClick={() => onViewChange('table')}
-                        className={cx(
-                            "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                            currentView === 'table' ? activeClass : inactiveClass
-                        )}
-                    >
-                        <i data-lucide="table" className="w-4 h-4"></i>
-                        Table
-                    </button>
-                    <button
-                        onClick={() => onViewChange('list')}
-                        className={cx(
-                            "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                            currentView === 'list' ? activeClass : inactiveClass
-                        )}
-                    >
-                        <i data-lucide="list" className="w-4 h-4"></i>
-                        List
-                    </button>
-                    <button
-                        onClick={() => onViewChange('gantt')}
-                        className={cx(
-                            "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                            currentView === 'gantt' ? activeClass : inactiveClass
-                        )}
-                    >
-                        <i data-lucide="bar-chart-2" className="w-4 h-4"></i>
-                        Gantt
-                    </button>
-                </div>
-            );
-        }
+        // ViewSwitcher - Now loaded from legacy-bridge.js (src/components/ui/ViewSwitcher.jsx)
 
         // Table View Component
         function TableView({ entries, onOpen, onBulkStatusChange, onBulkDelete }) {
