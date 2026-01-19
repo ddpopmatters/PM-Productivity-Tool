@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => {
     return {
       plugins: [react()],
       base: '/PM-Productivity-Tool/',
+      define: {
+        'process.env.NODE_ENV': '"production"'
+      },
       build: {
         outDir: 'lib',
         sourcemap: true,
