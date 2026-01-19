@@ -1302,6 +1302,207 @@
                     return false;
                 }
                 return true;
+            },
+
+            // ============ WORKSTREAMS API ============
+
+            // Fetch all accessible workstreams
+            fetchWorkstreams: async () => {
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('workstreams')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                if (error) {
+                    Logger.error(error, 'Supabase workstreams fetch error');
+                    return [];
+                }
+                return data || [];
+            },
+
+            // Save new workstream
+            saveWorkstream: async (workstream, userEmail) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('workstreams')
+                    .insert([{
+                        title: workstream.title,
+                        description: workstream.description || '',
+                        owner: workstream.owner,
+                        owner_email: userEmail,
+                        visibility: workstream.visibility || 'personal',
+                        color: workstream.color || 'blue'
+                    }])
+                    .select()
+                    .single();
+                if (error) {
+                    Logger.error(error, 'Supabase workstream save error');
+                    return null;
+                }
+                return data;
+            },
+
+            // Update workstream
+            updateWorkstream: async (id, updates) => {
+                if (!supabase) return null;
+                const updateObj = { updated_at: new Date().toISOString() };
+                if (updates.title !== undefined) updateObj.title = updates.title;
+                if (updates.description !== undefined) updateObj.description = updates.description;
+                if (updates.visibility !== undefined) updateObj.visibility = updates.visibility;
+                if (updates.color !== undefined) updateObj.color = updates.color;
+
+                const { data, error } = await supabase
+                    .from('workstreams')
+                    .update(updateObj)
+                    .eq('id', id)
+                    .select()
+                    .single();
+                if (error) {
+                    Logger.error(error, 'Supabase workstream update error');
+                    return null;
+                }
+                return data;
+            },
+
+            // Delete workstream
+            deleteWorkstream: async (id) => {
+                if (!supabase) return false;
+                const { error } = await supabase
+                    .from('workstreams')
+                    .delete()
+                    .eq('id', id);
+                if (error) {
+                    Logger.error(error, 'Supabase workstream delete error');
+                    return false;
+                }
+                return true;
+            },
+
+            // Fetch tasks for a workstream
+            fetchWorkstreamTasks: async (workstreamId) => {
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('workstream_tasks')
+                    .select('*')
+                    .eq('workstream_id', workstreamId)
+                    .order('sort_order', { ascending: true });
+                if (error) {
+                    Logger.error(error, 'Supabase workstream tasks fetch error');
+                    return [];
+                }
+                return data || [];
+            },
+
+            // Fetch all tasks assigned to user (for dashboard)
+            fetchMyWorkstreamTasks: async (userEmail) => {
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('workstream_tasks')
+                    .select('*, workstreams!inner(title, color)')
+                    .eq('assignee_email', userEmail)
+                    .neq('status', 'done')
+                    .order('deadline', { ascending: true, nullsFirst: false });
+                if (error) {
+                    Logger.error(error, 'Supabase my workstream tasks fetch error');
+                    return [];
+                }
+                return data || [];
+            },
+
+            // Save new workstream task
+            saveWorkstreamTask: async (task, userEmail) => {
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('workstream_tasks')
+                    .insert([{
+                        workstream_id: task.workstreamId,
+                        title: task.title,
+                        description: task.description || '',
+                        priority: task.priority || 'medium',
+                        sort_order: task.sortOrder || 0,
+                        deadline: task.deadline || null,
+                        assignee: task.assignee || null,
+                        assignee_email: task.assigneeEmail || null,
+                        requester: task.requester || null,
+                        tags: task.tags || [],
+                        status: task.status || 'open',
+                        linked_items: task.linkedItems || [],
+                        comments: task.comments || [],
+                        attachments: task.attachments || []
+                    }])
+                    .select()
+                    .single();
+                if (error) {
+                    Logger.error(error, 'Supabase workstream task save error');
+                    return null;
+                }
+                return data;
+            },
+
+            // Update workstream task
+            updateWorkstreamTask: async (id, updates) => {
+                if (!supabase) return null;
+                const updateObj = { updated_at: new Date().toISOString() };
+                if (updates.title !== undefined) updateObj.title = updates.title;
+                if (updates.description !== undefined) updateObj.description = updates.description;
+                if (updates.priority !== undefined) updateObj.priority = updates.priority;
+                if (updates.sortOrder !== undefined) updateObj.sort_order = updates.sortOrder;
+                if (updates.deadline !== undefined) updateObj.deadline = updates.deadline;
+                if (updates.assignee !== undefined) updateObj.assignee = updates.assignee;
+                if (updates.assigneeEmail !== undefined) updateObj.assignee_email = updates.assigneeEmail;
+                if (updates.requester !== undefined) updateObj.requester = updates.requester;
+                if (updates.tags !== undefined) updateObj.tags = updates.tags;
+                if (updates.status !== undefined) updateObj.status = updates.status;
+                if (updates.linkedItems !== undefined) updateObj.linked_items = updates.linkedItems;
+                if (updates.comments !== undefined) updateObj.comments = updates.comments;
+                if (updates.attachments !== undefined) updateObj.attachments = updates.attachments;
+
+                const { data, error } = await supabase
+                    .from('workstream_tasks')
+                    .update(updateObj)
+                    .eq('id', id)
+                    .select()
+                    .single();
+                if (error) {
+                    Logger.error(error, 'Supabase workstream task update error');
+                    return null;
+                }
+                return data;
+            },
+
+            // Delete workstream task
+            deleteWorkstreamTask: async (id) => {
+                if (!supabase) return false;
+                const { error } = await supabase
+                    .from('workstream_tasks')
+                    .delete()
+                    .eq('id', id);
+                if (error) {
+                    Logger.error(error, 'Supabase workstream task delete error');
+                    return false;
+                }
+                return true;
+            },
+
+            // Batch update task sort orders (for drag-and-drop)
+            updateTaskSortOrders: async (taskUpdates) => {
+                if (!supabase) return false;
+                // taskUpdates = [{ id, sortOrder, priority }, ...]
+                for (const update of taskUpdates) {
+                    const { error } = await supabase
+                        .from('workstream_tasks')
+                        .update({
+                            sort_order: update.sortOrder,
+                            priority: update.priority,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', update.id);
+                    if (error) {
+                        Logger.error(error, 'Supabase task sort update error');
+                        return false;
+                    }
+                }
+                return true;
             }
         };
 
