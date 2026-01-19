@@ -1989,7 +1989,7 @@
                 <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#cfebf8' }}>
                     <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
                         <div className="text-center mb-8">
-                            <h1 className="text-3xl font-bold text-ocean-900 mb-2">Workflow Manager</h1>
+                            <h1 className="text-3xl font-bold text-ocean-900 mb-2">Momentum Hub</h1>
                             <p className="text-graystone-600">
                                 {mode === 'signin' ? 'Sign in to your account' :
                                  mode === 'signup' ? 'Create your account' :
@@ -6459,7 +6459,7 @@
 
                     {/* Stats Cards - Projects, Subtasks, Jobs, Workstream Tasks */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('projects')}>
+                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => onNavigate && onNavigate('personal')}>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Projects</p>
@@ -6475,7 +6475,7 @@
                                     <i data-lucide="folder" className="w-6 h-6 text-ocean-600"></i>
                                 </div>
                             </div>
-                            <p className="text-xs text-graystone-500 mt-2">Click to view</p>
+                            <p className="text-xs text-graystone-500 mt-2">View all</p>
                         </div>
 
                         <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('subtasks')}>
@@ -6497,7 +6497,7 @@
                             <p className="text-xs text-graystone-500 mt-2">Assigned to you</p>
                         </div>
 
-                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('jobs')}>
+                        <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => onNavigate && onNavigate('jobs')}>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Jobs</p>
@@ -6513,7 +6513,7 @@
                                     <i data-lucide="briefcase" className="w-6 h-6 text-green-600"></i>
                                 </div>
                             </div>
-                            <p className="text-xs text-graystone-500 mt-2">Click to view</p>
+                            <p className="text-xs text-graystone-500 mt-2">View all</p>
                         </div>
 
                         <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group" onClick={() => openTaskList('workstream')}>
