@@ -20996,6 +20996,59 @@
                             />
                         );
 
+                    case 'workstreams':
+                        // If viewing a specific task detail
+                        if (currentWorkstreamTaskId && currentWorkstreamId) {
+                            const task = (workstreamTasks[currentWorkstreamId] || []).find(t => t.id === currentWorkstreamTaskId);
+                            const workstream = workstreams.find(w => w.id === currentWorkstreamId);
+                            return (
+                                <WorkstreamTaskDetail
+                                    task={task}
+                                    workstream={workstream}
+                                    currentUser={currentUser}
+                                    userEmail={userEmail}
+                                    onBack={() => setCurrentWorkstreamTaskId(null)}
+                                    onUpdate={handleUpdateWorkstreamTask}
+                                    onDelete={handleDeleteWorkstreamTask}
+                                />
+                            );
+                        }
+                        // If viewing a specific workstream
+                        if (currentWorkstreamId) {
+                            const workstream = workstreams.find(w => w.id === currentWorkstreamId);
+                            const tasks = workstreamTasks[currentWorkstreamId] || [];
+                            return (
+                                <WorkstreamView
+                                    workstream={workstream}
+                                    tasks={tasks}
+                                    currentUser={currentUser}
+                                    userEmail={userEmail}
+                                    onBack={() => setCurrentWorkstreamId(null)}
+                                    onCreateTask={handleCreateWorkstreamTask}
+                                    onUpdateTask={handleUpdateWorkstreamTask}
+                                    onDeleteTask={handleDeleteWorkstreamTask}
+                                    onReorderTasks={handleReorderTasks}
+                                    onOpenTask={(taskId) => setCurrentWorkstreamTaskId(taskId)}
+                                    onUpdateWorkstream={handleUpdateWorkstream}
+                                    onDeleteWorkstream={handleDeleteWorkstream}
+                                    entries={entries}
+                                />
+                            );
+                        }
+                        // Show workstream list
+                        return (
+                            <WorkstreamList
+                                workstreams={workstreams}
+                                currentUser={currentUser}
+                                userEmail={userEmail}
+                                onCreateWorkstream={handleCreateWorkstream}
+                                onOpenWorkstream={(id) => {
+                                    setCurrentWorkstreamId(id);
+                                    handleLoadWorkstreamTasks(id);
+                                }}
+                            />
+                        );
+
                     case 'manager-hub':
                         // Only managers and admins can access Manager Hub
                         if (!isManager(userEmail) && !isAdmin(userEmail)) {
