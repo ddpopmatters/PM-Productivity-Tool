@@ -453,7 +453,7 @@
     </script>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useLayoutEffect } = React;
+        const { useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback } = React;
 
         // ============================================
         // LUCIDE ICON COMPONENT (React-safe)
@@ -3537,8 +3537,8 @@
             );
         }
 
-        // Loading Spinner Component - Standardized loading indicator
-        function LoadingSpinner({ size = "md", text = "", className = "" }) {
+        // Loading Spinner Component - Standardized loading indicator (memoized)
+        const LoadingSpinner = React.memo(function LoadingSpinner({ size = "md", text = "", className = "" }) {
             const sizeClasses = {
                 sm: "w-4 h-4 border-2",
                 md: "w-8 h-8 border-3",
@@ -3558,7 +3558,7 @@
                     <span className="sr-only">{text || "Loading..."}</span>
                 </div>
             );
-        }
+        });
 
         // Constants
         const KANBAN_STATUSES = [
@@ -3601,14 +3601,20 @@
             "w-full rounded-lg border border-graystone-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200";
 
         function ManagerHub({ managers = [], teams = [], entries = [], currentUser, userEmail, openStatsModal, onOpen, onUpdateStatus, openSubtaskModal, onOpenPdfExport, onExportStatusReport, managerHubTab, setManagerHubTab, reportPeriodType, setReportPeriodType, reportStartDate, setReportStartDate, reportEndDate, setReportEndDate, reportSections, setReportSections, projectsDisplayMode, setProjectsDisplayMode, reportNarratives, setReportNarratives, workstreams = [], onNavigateToWorkstream }) {
-            const normalizedTeams = teams.length ? teams : TEAMS;
+            const normalizedTeams = useMemo(() => teams.length ? teams : TEAMS, [teams]);
 
-            // Filter to only show the logged-in manager's own hub (or all if admin)
-            const myManagerRecord = managers.find(m => m.email?.toLowerCase() === userEmail?.toLowerCase());
-            const isAdminUser = isAdmin(userEmail);
+            // Filter to only show the logged-in manager's own hub (or all if admin) - memoized
+            const myManagerRecord = useMemo(() =>
+                managers.find(m => m.email?.toLowerCase() === userEmail?.toLowerCase()),
+                [managers, userEmail]
+            );
+            const isAdminUser = useMemo(() => isAdmin(userEmail), [userEmail]);
 
             // Manager Hub always shows only your own team - use Admin Console for cross-team admin views
-            const availableManagers = myManagerRecord ? [myManagerRecord] : [];
+            const availableManagers = useMemo(() =>
+                myManagerRecord ? [myManagerRecord] : [],
+                [myManagerRecord]
+            );
 
             const [selectedManager, setSelectedManager] = useState(myManagerRecord || null);
             const [selectedReport, setSelectedReport] = useState("all");
@@ -3724,13 +3730,13 @@
                 }
             };
 
-            const getTeamEntries = (mgr) => {
+            const getTeamEntries = useCallback((mgr) => {
                 if (!mgr) return [];
                 const reports = Array.isArray(mgr.reports) ? mgr.reports : [];
                 const reportSet = new Set(reports.length ? reports : []);
                 // Only include entries owned by direct reports (not just collaborators)
                 return entries.filter((entry) => reportSet.has(entry.owner));
-            };
+            }, [entries]);
 
             const computeBottleneck = (items) => {
                 if (!items.length) return { status: "None", count: 0 };
@@ -5284,8 +5290,8 @@
             );
         }
 
-        // Components
-        const Badge = ({ variant = 'default', className = '', children }) => {
+        // Components (memoized for performance)
+        const Badge = React.memo(({ variant = 'default', className = '', children }) => {
             const styles = {
                 default: 'bg-aqua-100 text-ocean-700',
                 secondary: 'bg-graystone-100 text-graystone-700',
@@ -5298,9 +5304,9 @@
                     {children}
                 </span>
             );
-        };
+        });
 
-        const Button = ({
+        const Button = React.memo(({
             type = "button",
             variant = "solid",
             size = "md",
@@ -5338,7 +5344,7 @@
                     {children}
                 </button>
             );
-        };
+        });
 
         function KanbanBoard({ statuses, entries, onOpen, onUpdateStatus, openSubtaskModal, currentUser }) {
             const [draggedItem, setDraggedItem] = useState(null);
@@ -6252,20 +6258,22 @@
                 setEditingItemType(null);
             };
 
-            // Stats calculations
-            const myProjects = entries.filter(e =>
+            // Stats calculations (memoized for performance)
+            const myProjects = useMemo(() => entries.filter(e =>
                 (e.itemType !== 'job') &&
                 (e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)))
-            );
-            const myJobs = entries.filter(e =>
+            ), [entries, currentUser]);
+
+            const myJobs = useMemo(() => entries.filter(e =>
                 e.itemType === 'job' &&
                 (e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)))
-            );
-            const mySubtasks = entries.flatMap(e =>
+            ), [entries, currentUser]);
+
+            const mySubtasks = useMemo(() => entries.flatMap(e =>
                 (e.subtasks || [])
                     .filter(st => st.assignedTo === currentUser)
                     .map(st => ({ ...st, parentId: e.id, parentTitle: e.title }))
-            );
+            ), [entries, currentUser]);
 
             // Calendar state
             const [calendarView, setCalendarView] = useState('month');
@@ -6310,25 +6318,34 @@
                 return items;
             };
 
-            // Today's tasks - only items explicitly scheduled for today
-            const todaysTodos = (todos || []).filter(t => t.date === today && !t.completed);
-            const jobsForToday = myJobs.filter(j => {
+            // Today's tasks - only items explicitly scheduled for today (memoized)
+            const todaysTodos = useMemo(() =>
+                (todos || []).filter(t => t.date === today && !t.completed),
+                [todos, today]
+            );
+
+            const jobsForToday = useMemo(() => myJobs.filter(j => {
                 if (j.workflowStatus === 'done') return false;
                 const jobDate = j.date || j.timelineValue;
                 return jobDate && jobDate.slice(0, 10) === today;
-            });
-            const workstreamTasksForToday = (workstreamTasks || []).filter(t => {
-                if (t.status === 'done') return false;
-                return t.deadline && t.deadline.slice(0, 10) === today;
-            });
-            const todaysTasks = [
+            }), [myJobs, today]);
+
+            const workstreamTasksForToday = useMemo(() =>
+                (workstreamTasks || []).filter(t => {
+                    if (t.status === 'done') return false;
+                    return t.deadline && t.deadline.slice(0, 10) === today;
+                }),
+                [workstreamTasks, today]
+            );
+
+            const todaysTasks = useMemo(() => [
                 ...todaysTodos.map(t => ({ ...t, taskType: 'todo' })),
                 ...jobsForToday.map(j => ({ ...j, taskType: 'job' })),
                 ...workstreamTasksForToday.map(t => ({ ...t, taskType: 'workstream' }))
-            ];
+            ], [todaysTodos, jobsForToday, workstreamTasksForToday]);
 
-            // Mentions & Activity
-            const getMentionsAndActivity = () => {
+            // Mentions & Activity (memoized)
+            const mentionsAndActivity = useMemo(() => {
                 const mentions = [];
                 const currentUserLower = (currentUser || '').toLowerCase();
 
@@ -6357,9 +6374,7 @@
                     .filter(m => m.author !== currentUser) // Don't show own comments
                     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
                     .slice(0, 10);
-            };
-
-            const mentionsAndActivity = getMentionsAndActivity();
+            }, [entries, currentUser]);
 
             // Time ago helper
             const timeAgo = (timestamp) => {
@@ -21308,7 +21323,7 @@
                 }
             };
 
-            const handleAddTodo = async (newTodo) => {
+            const handleAddTodo = useCallback(async (newTodo) => {
                 const saved = await SUPABASE_API.savePersonalTodo(newTodo, userEmail);
                 if (saved) {
                     setTodos(prev => [saved, ...prev]);
@@ -21316,27 +21331,30 @@
                     // Fallback to local-only if save fails
                     setTodos(prev => [...prev, { ...newTodo, id: Date.now() }]);
                 }
-            };
+            }, [userEmail]);
 
-            const handleToggleTodo = async (todoId) => {
-                const todo = todos.find(t => t.id === todoId);
-                if (!todo) return;
+            const handleToggleTodo = useCallback(async (todoId) => {
+                // Use functional update to get current state
+                let todoToToggle = null;
+                setTodos(prev => {
+                    todoToToggle = prev.find(t => t.id === todoId);
+                    if (!todoToToggle) return prev;
+                    return prev.map(t => t.id === todoId ? { ...t, completed: !t.completed } : t);
+                });
 
-                const newCompleted = !todo.completed;
-                // Optimistically update UI
-                setTodos(todos.map(t => t.id === todoId ? { ...t, completed: newCompleted } : t));
-
-                // Persist to database
-                const updated = await SUPABASE_API.updatePersonalTodo(todoId, { completed: newCompleted });
-                if (!updated) {
-                    // Revert on failure
-                    setTodos(todos.map(t => t.id === todoId ? { ...t, completed: !newCompleted } : t));
+                // Persist to database (async, after optimistic update)
+                if (todoToToggle) {
+                    const updated = await SUPABASE_API.updatePersonalTodo(todoId, { completed: !todoToToggle.completed });
+                    if (!updated) {
+                        // Revert on failure
+                        setTodos(prev => prev.map(t => t.id === todoId ? { ...t, completed: todoToToggle.completed } : t));
+                    }
                 }
-            };
+            }, []);
 
-            const handleUpdateTodo = async (todoId, updates) => {
-                // Optimistically update UI
-                setTodos(todos.map(t => t.id === todoId ? { ...t, ...updates } : t));
+            const handleUpdateTodo = useCallback(async (todoId, updates) => {
+                // Optimistically update UI using functional update
+                setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updates } : t));
 
                 // Persist to database
                 const updated = await SUPABASE_API.updatePersonalTodo(todoId, updates);
@@ -21344,12 +21362,15 @@
                     // Note: Could revert here, but updates are less critical
                     Logger.warn('Failed to persist todo update');
                 }
-            };
+            }, []);
 
-            const handleDeleteTodo = async (todoId) => {
-                const todoToDelete = todos.find(t => t.id === todoId);
-                // Optimistically update UI
-                setTodos(todos.filter(t => t.id !== todoId));
+            const handleDeleteTodo = useCallback(async (todoId) => {
+                let todoToDelete = null;
+                // Optimistically update UI using functional update
+                setTodos(prev => {
+                    todoToDelete = prev.find(t => t.id === todoId);
+                    return prev.filter(t => t.id !== todoId);
+                });
 
                 // Persist to database
                 const success = await SUPABASE_API.deletePersonalTodo(todoId);
@@ -21357,7 +21378,7 @@
                     // Revert on failure
                     setTodos(prev => [...prev, todoToDelete]);
                 }
-            };
+            }, []);
 
             // ============ WORKSTREAM HANDLERS ============
 
