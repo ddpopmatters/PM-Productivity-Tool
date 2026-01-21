@@ -23,6 +23,9 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
 
   const getColorClasses = (colorId) => colors.find(c => c.id === colorId) || colors[0];
 
+  const personalWorkstreams = workstreams.filter(w => w.visibility === 'personal');
+  const sharedWorkstreams = workstreams.filter(w => w.visibility === 'shared');
+
   const filteredWorkstreams = workstreams.filter(w => {
     if (filter === 'personal') return w.visibility === 'personal';
     if (filter === 'shared') return w.visibility === 'shared';
@@ -48,7 +51,7 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
   };
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-6">
+    <div className="p-6 animate-in fade-in duration-500 space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex items-center justify-between">
@@ -66,112 +69,164 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2">
-        {[
-          { id: 'all', label: 'All' },
-          { id: 'personal', label: 'Personal' },
-          { id: 'shared', label: 'Shared' }
-        ].map(f => (
-          <button
-            key={f.id}
-            onClick={() => setFilter(f.id)}
-            className={cx(
-              "px-4 py-2 rounded-lg text-sm font-medium transition",
-              filter === f.id
-                ? "bg-ocean-500 text-white"
-                : "bg-white text-graystone-600 hover:bg-ocean-50 border border-graystone-200"
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div
+          onClick={() => setFilter('all')}
+          className={cx(
+            "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
+            filter === 'all' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">All</p>
+              <p className="text-3xl font-bold text-ocean-900">{workstreams.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="layers" className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xs text-graystone-500 mt-2">All workstreams</p>
+        </div>
+        <div
+          onClick={() => setFilter('personal')}
+          className={cx(
+            "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
+            filter === 'personal' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Personal</p>
+              <p className="text-3xl font-bold text-ocean-900">{personalWorkstreams.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="user" className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xs text-graystone-500 mt-2">Private to you</p>
+        </div>
+        <div
+          onClick={() => setFilter('shared')}
+          className={cx(
+            "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
+            filter === 'shared' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Shared</p>
+              <p className="text-3xl font-bold text-ocean-900">{sharedWorkstreams.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="users" className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xs text-graystone-500 mt-2">Visible to team</p>
+        </div>
       </div>
 
-      {/* New workstream form */}
+      {/* New Workstream Modal */}
       {showNewForm && (
-        <div className="bg-white rounded-xl border border-ocean-200 p-6 shadow-sm space-y-4">
-          <h3 className="text-lg font-bold text-ocean-900">Create New Workstream</h3>
-
-          <div>
-            <label className="block text-sm font-medium text-graystone-700 mb-1">Title</label>
-            <input
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="e.g., Website Requests"
-              className="w-full px-4 py-2 border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-graystone-700 mb-1">Description</label>
-            <textarea
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              placeholder="What is this workstream for?"
-              rows={2}
-              className="w-full px-4 py-2 border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-graystone-700 mb-1">Color</label>
-            <div className="flex gap-2">
-              {colors.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setNewColor(c.id)}
-                  className={cx(
-                    "w-8 h-8 rounded-full transition",
-                    c.bg,
-                    newColor === c.id ? "ring-2 ring-offset-2 ring-ocean-500" : ""
-                  )}
-                />
-              ))}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-graystone-200">
+              <h3 className="text-xl font-bold text-ocean-900">Create New Workstream</h3>
+              <button
+                onClick={() => setShowNewForm(false)}
+                className="p-2 hover:bg-graystone-100 rounded-lg transition"
+              >
+                <Icon name="x" className="w-5 h-5 text-graystone-500" />
+              </button>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-graystone-700 mb-1">Visibility</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-graystone-700 mb-1">Title</label>
                 <input
-                  type="radio"
-                  name="visibility"
-                  checked={newVisibility === 'personal'}
-                  onChange={() => setNewVisibility('personal')}
-                  className="text-ocean-500 focus:ring-ocean-500"
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="e.g., Website Requests"
+                  className="w-full px-4 py-2 border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                  autoFocus
                 />
-                <span className="text-sm">Personal</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="visibility"
-                  checked={newVisibility === 'shared'}
-                  onChange={() => setNewVisibility('shared')}
-                  className="text-ocean-500 focus:ring-ocean-500"
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-graystone-700 mb-1">Description</label>
+                <textarea
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="What is this workstream for?"
+                  rows={3}
+                  className="w-full px-4 py-2 border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
                 />
-                <span className="text-sm">Shared with team</span>
-              </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-graystone-700 mb-1">Color</label>
+                <div className="flex gap-2">
+                  {colors.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => setNewColor(c.id)}
+                      className={cx(
+                        "w-8 h-8 rounded-full transition",
+                        c.bg,
+                        newColor === c.id ? "ring-2 ring-offset-2 ring-ocean-500" : ""
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-graystone-700 mb-1">Visibility</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      checked={newVisibility === 'personal'}
+                      onChange={() => setNewVisibility('personal')}
+                      className="text-ocean-500 focus:ring-ocean-500"
+                    />
+                    <span className="text-sm">Personal</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      checked={newVisibility === 'shared'}
+                      onChange={() => setNewVisibility('shared')}
+                      className="text-ocean-500 focus:ring-ocean-500"
+                    />
+                    <span className="text-sm">Shared with team</span>
+                  </label>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="flex gap-2 pt-2">
-            <button
-              onClick={handleCreate}
-              disabled={!newTitle.trim()}
-              className="px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Create Workstream
-            </button>
-            <button
-              onClick={() => setShowNewForm(false)}
-              className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg transition"
-            >
-              Cancel
-            </button>
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-2 p-6 border-t border-graystone-200">
+              <button
+                onClick={() => setShowNewForm(false)}
+                className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={!newTitle.trim()}
+                className="px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Workstream
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -196,7 +251,7 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
             return (
               <button
                 key={ws.id}
-                onClick={() => onOpenWorkstream(ws.id)}
+                onClick={() => onOpenWorkstream && onOpenWorkstream(ws.id)}
                 className="bg-white rounded-xl border border-graystone-200 p-5 text-left hover:shadow-md hover:-translate-y-0.5 transition group"
               >
                 <div className="flex items-start gap-3">

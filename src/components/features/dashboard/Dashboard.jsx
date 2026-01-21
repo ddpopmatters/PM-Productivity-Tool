@@ -25,6 +25,7 @@ import { Icon } from '../../ui';
 export default function Dashboard({
   entries,
   currentUser,
+  userEmail,
   onOpenEntry,
   onOpenPdfExport,
   onNavigate,
@@ -140,9 +141,10 @@ export default function Dashboard({
       entries.filter(
         (e) =>
           e.itemType !== 'job' &&
-          (e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)))
+          !e.archived &&
+          (e.owner === currentUser || e.ownerEmail === userEmail || (e.collaborators && e.collaborators.includes(currentUser)))
       ),
-    [entries, currentUser]
+    [entries, currentUser, userEmail]
   );
 
   const myJobs = useMemo(
@@ -150,9 +152,10 @@ export default function Dashboard({
       entries.filter(
         (e) =>
           e.itemType === 'job' &&
-          (e.owner === currentUser || (e.collaborators && e.collaborators.includes(currentUser)))
+          !e.archived &&
+          (e.owner === currentUser || e.ownerEmail === userEmail || (e.collaborators && e.collaborators.includes(currentUser)))
       ),
-    [entries, currentUser]
+    [entries, currentUser, userEmail]
   );
 
   const mySubtasks = useMemo(
@@ -339,7 +342,7 @@ export default function Dashboard({
   };
 
   return (
-    <div className="space-y-6" id="dashboard-export-content">
+    <div className="p-6 space-y-6" id="dashboard-export-content">
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">
@@ -363,7 +366,7 @@ export default function Dashboard({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div
           className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          onClick={() => onNavigate && onNavigate('personal')}
+          onClick={() => openTaskList('projects')}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -378,8 +381,8 @@ export default function Dashboard({
                 </p>
               </div>
             </div>
-            <div className="w-12 h-12 bg-ocean-50 rounded-xl flex items-center justify-center">
-              <Icon name="folder" className="w-6 h-6 text-ocean-600" />
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="folder" className="w-6 h-6 text-white" />
             </div>
           </div>
           <p className="text-xs text-graystone-500 mt-2">View all</p>
@@ -402,8 +405,8 @@ export default function Dashboard({
                 </p>
               </div>
             </div>
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-              <Icon name="list-checks" className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="list-checks" className="w-6 h-6 text-white" />
             </div>
           </div>
           <p className="text-xs text-graystone-500 mt-2">Assigned to you</p>
@@ -411,7 +414,7 @@ export default function Dashboard({
 
         <div
           className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-          onClick={() => onNavigate && onNavigate('jobs')}
+          onClick={() => openTaskList('jobs')}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -424,8 +427,8 @@ export default function Dashboard({
                 <p className="text-3xl font-bold text-ocean-900 relative z-10">{myJobs.length}</p>
               </div>
             </div>
-            <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-              <Icon name="briefcase" className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="briefcase" className="w-6 h-6 text-white" />
             </div>
           </div>
           <p className="text-xs text-graystone-500 mt-2">View all</p>
@@ -450,8 +453,8 @@ export default function Dashboard({
                 </p>
               </div>
             </div>
-            <div className="w-12 h-12 bg-violet-50 rounded-xl flex items-center justify-center">
-              <Icon name="layers" className="w-6 h-6 text-violet-600" />
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="layers" className="w-6 h-6 text-white" />
             </div>
           </div>
           <p className="text-xs text-graystone-500 mt-2">Assigned to you</p>

@@ -1,58 +1,1821 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import clsx from 'clsx';
 import { useApp } from './contexts';
-import { APP_CONFIG } from './utils/config';
+import { initSupabase, getSupabase } from './api/supabase';
+import { Logger } from './utils/logger';
+import {
+  APP_CONFIG,
+  SUPABASE_CONFIG,
+  USERS,
+  TEAMS,
+  MANAGERS,
+  KANBAN_STATUSES,
+  TIMELINE_TYPES,
+  JOB_STATUSES,
+  STICKY_COLORS,
+  SEED_USERS,
+} from './utils/config';
 
-// Temporary App component during migration
-// This will be replaced with the full app as components are migrated
-function App() {
-  const { authChecked, isAuthenticated, userEmail, loading } = useApp();
-  const [status, setStatus] = useState('initializing');
+// Import UI components
+import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination } from './components/ui';
 
+// Import feature components
+import {
+  // Views
+  ListView,
+  GanttView,
+  TableView,
+  KanbanBoard,
+  JobsView,
+  WhiteboardsView,
+  ProductivityToolsView,
+  // Navigation
+  Sidebar,
+  // Auth
+  LoginScreen,
+  AuthCallback,
+  // Dashboard
+  Dashboard,
+  ItemDashboard,
+  // Calendar
+  CalendarScreen,
+  // Todos
+  ToDoList,
+  // Forms
+  AddItemForm,
+  // Filters
+  FilterBar,
+  // Overlays
+  NotificationsPanel,
+  KeyboardShortcutsHelp,
+  GlobalSearchModal,
+  QuickAddModal,
+  AddJobModal,
+  JobDetailModal,
+  AddItemTypeModal,
+  // Admin
+  AdminConsole,
+  // Manager
+  ManagerHub,
+  // Workstreams
+  WorkstreamList,
+  WorkstreamView,
+  WorkstreamSettings,
+  WorkstreamTaskDetail,
+  // Whiteboards
+  WhiteboardCanvas,
+  WhiteboardPreviewCard,
+  StickyNote,
+  TextBoxElement,
+  ImageElement,
+  ShapeElement,
+  WhiteboardElement,
+} from './components/features';
+
+// Helper functions
+const isAdmin = (email) => {
+  const adminEmails = ['jameen.kaur@populationmatters.org', 'daniel.davis@populationmatters.org'];
+  return adminEmails.includes(email?.toLowerCase());
+};
+
+const isManager = (email) => {
+  return MANAGERS.some(m => m.email.toLowerCase() === email?.toLowerCase());
+};
+
+const canEditItem = (entry, userEmail, currentUser) => {
+  if (!entry) return false;
+  if (isAdmin(userEmail)) return true;
+  if (entry.owner === currentUser) return true;
+  if (entry.collaborators?.includes(currentUser)) return true;
+  return false;
+};
+
+const getPreseededProfile = (email) => {
+  return SEED_USERS.find(u => u.email.toLowerCase() === email?.toLowerCase());
+};
+
+export default function App() {
+  // Get auth state and UI state from context
+  const {
+    authChecked,
+    isAuthenticated,
+    authUser,
+    userEmail,
+    currentUser,
+    setCurrentUser,
+    handleSignOut,
+    darkMode,
+    toggleDarkMode,
+  } = useApp();
+
+  // Core state
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // View state
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [viewMode, setViewMode] = useState('table');
+  const [selectedItemId, setSelectedItemId] = useState(null);
+  const [selectedTeam, setSelectedTeam] = useState('All');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+
+  // Search and filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [ownerFilter, setOwnerFilter] = useState([]);
+  const [teamFilter, setTeamFilter] = useState([]);
+  const [tagFilter, setTagFilter] = useState([]);
+  const [timelineFilter, setTimelineFilter] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+
+  // UI state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
+  const [showTagsDropdown, setShowTagsDropdown] = useState(false);
+  const [showViewDropdown, setShowViewDropdown] = useState(false);
+
+  // Modal state
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showSubtaskModal, setShowSubtaskModal] = useState(false);
+  const [subtaskModalEntryId, setSubtaskModalEntryId] = useState(null);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsModalData, setStatsModalData] = useState({ title: '', items: [] });
+  const [showPdfExportModal, setShowPdfExportModal] = useState(false);
+  const [pdfExportContext, setPdfExportContext] = useState('dashboard');
+
+  // Jobs state
+  const [showAddJobModal, setShowAddJobModal] = useState(false);
+  const [showJobDetailModal, setShowJobDetailModal] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState(null);
+
+  // Add item type modal
+  const [showAddItemTypeModal, setShowAddItemTypeModal] = useState(false);
+
+  // Todos state
+  const [todos, setTodos] = useState([]);
+
+  // Workstreams state
+  const [workstreams, setWorkstreams] = useState([]);
+  const [workstreamTasks, setWorkstreamTasks] = useState([]);
+  const [selectedWorkstreamId, setSelectedWorkstreamId] = useState(null);
+  const [selectedWorkstreamTaskId, setSelectedWorkstreamTaskId] = useState(null);
+
+  // Whiteboards state
+  const [whiteboards, setWhiteboards] = useState([]);
+  const [currentWhiteboardId, setCurrentWhiteboardId] = useState(null);
+
+  // Productivity tools state
+  const [habits, setHabits] = useState([]);
+  const [matrixTasks, setMatrixTasks] = useState([]);
+
+  // Manager Hub state
+  const [managerHubTab, setManagerHubTab] = useState('overview');
+  const [reportPeriodType, setReportPeriodType] = useState('week');
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    return start.toISOString().slice(0, 10);
+  });
+  const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportSections, setReportSections] = useState({
+    executiveSummary: true,
+    teamWorkload: true,
+    projects: true,
+    keyHighlights: true,
+    blockersRisks: true,
+  });
+  const [projectsDisplayMode, setProjectsDisplayMode] = useState('cards');
+  const [reportNarratives, setReportNarratives] = useState({
+    executiveSummary: '',
+    keyHighlights: '',
+    blockersRisks: '',
+  });
+
+  // User profiles cache
+  const [userProfilesCache, setUserProfilesCache] = useState({});
+
+  // Get supabase client
+  const supabase = getSupabase();
+
+  // SUPABASE_API object - mirrors legacy.html
+  const SUPABASE_API = useMemo(() => ({
+    fetchWorkflowItems: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('workflow_items')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) {
+        Logger.error(error, 'Supabase fetch error');
+        return [];
+      }
+      return data || [];
+    },
+
+    saveItem: async (item) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('workflow_items')
+        .insert([{
+          title: item.title,
+          caption: item.caption || '',
+          workflow_status: item.workflowStatus || 'Idea',
+          team: item.team || '',
+          timeline_value: item.timelineValue || '',
+          owner: item.owner || '',
+          owner_email: userEmail || '',
+          collaborators: item.collaborators || [],
+          tags: item.tags || [],
+          subtasks: item.subtasks || [],
+          documents: item.documents || [],
+          date: item.date || null,
+          comments: item.comments || [],
+          archived: item.archived || false,
+          dependencies: item.dependencies || [],
+          custom_fields: item.customFields || [],
+          attachments: item.attachments || [],
+          item_type: item.itemType || 'project',
+        }])
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Supabase save error');
+        return null;
+      }
+      return data;
+    },
+
+    updateItem: async (id, updates) => {
+      if (!supabase) return null;
+      const updateObj = { updated_at: new Date().toISOString() };
+      if (updates.title !== undefined) updateObj.title = updates.title;
+      if (updates.caption !== undefined) updateObj.caption = updates.caption;
+      if (updates.workflowStatus !== undefined) updateObj.workflow_status = updates.workflowStatus;
+      if (updates.team !== undefined) updateObj.team = updates.team;
+      if (updates.timelineValue !== undefined) updateObj.timeline_value = updates.timelineValue;
+      if (updates.owner !== undefined) updateObj.owner = updates.owner;
+      if (updates.collaborators !== undefined) updateObj.collaborators = updates.collaborators;
+      if (updates.tags !== undefined) updateObj.tags = updates.tags;
+      if (updates.subtasks !== undefined) updateObj.subtasks = updates.subtasks;
+      if (updates.documents !== undefined) updateObj.documents = updates.documents;
+      if (updates.date !== undefined) updateObj.date = updates.date;
+      if (updates.comments !== undefined) updateObj.comments = updates.comments;
+      if (updates.archived !== undefined) updateObj.archived = updates.archived;
+      if (updates.dependencies !== undefined) updateObj.dependencies = updates.dependencies;
+      if (updates.customFields !== undefined) updateObj.custom_fields = updates.customFields;
+      if (updates.attachments !== undefined) updateObj.attachments = updates.attachments;
+
+      const { data, error } = await supabase
+        .from('workflow_items')
+        .update(updateObj)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Supabase update error');
+        return null;
+      }
+      return data;
+    },
+
+    deleteItem: async (id) => {
+      if (!supabase) return false;
+      const { error } = await supabase
+        .from('workflow_items')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        Logger.error(error, 'Supabase delete error');
+        return false;
+      }
+      return true;
+    },
+
+    fetchPersonalTodos: async (email) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('personal_todos')
+        .select('*')
+        .eq('user_email', email)
+        .order('created_at', { ascending: false });
+      if (error) {
+        Logger.error(error, 'Fetch todos error');
+        return [];
+      }
+      return data || [];
+    },
+
+    savePersonalTodo: async (todo, email) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('personal_todos')
+        .insert([{
+          text: todo.text,
+          completed: todo.completed || false,
+          date: todo.date || null,
+          user_email: email,
+        }])
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Save todo error');
+        return null;
+      }
+      return data;
+    },
+
+    updatePersonalTodo: async (id, updates) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('personal_todos')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Update todo error');
+        return null;
+      }
+      return data;
+    },
+
+    deletePersonalTodo: async (id) => {
+      if (!supabase) return false;
+      const { error } = await supabase
+        .from('personal_todos')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        Logger.error(error, 'Delete todo error');
+        return false;
+      }
+      return true;
+    },
+
+    updateWorkstreamTask: async (id, updates) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('workstream_tasks')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Update workstream task error');
+        return null;
+      }
+      return data;
+    },
+
+    // Whiteboard methods
+    fetchWhiteboards: async (email) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('whiteboards')
+        .select('*')
+        .or(`owner_email.eq.${email},shared_with.cs.{${email}}`)
+        .order('updated_at', { ascending: false });
+      if (error) {
+        Logger.error(error, 'Fetch whiteboards error');
+        return [];
+      }
+      return data || [];
+    },
+
+    createWhiteboard: async (whiteboard) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('whiteboards')
+        .insert([{
+          title: whiteboard.title,
+          owner_email: whiteboard.owner_email,
+          owner_name: whiteboard.owner_name,
+          content: { notes: [], connections: [] },
+          shared_with: [],
+        }])
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Create whiteboard error');
+        return null;
+      }
+      return data;
+    },
+
+    deleteWhiteboard: async (id) => {
+      if (!supabase) return false;
+      const { error } = await supabase
+        .from('whiteboards')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        Logger.error(error, 'Delete whiteboard error');
+        return false;
+      }
+      return true;
+    },
+
+    updateWhiteboard: async (id, updates) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('whiteboards')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Update whiteboard error');
+        return null;
+      }
+      return data;
+    },
+
+    fetchElements: async (whiteboardId) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('whiteboard_elements')
+        .select('*')
+        .eq('whiteboard_id', whiteboardId)
+        .order('z_index', { ascending: true });
+      if (error) {
+        Logger.error(error, 'Fetch whiteboard elements error');
+        return [];
+      }
+      return data || [];
+    },
+
+    createElement: async (element) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('whiteboard_elements')
+        .insert([element])
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Create whiteboard element error');
+        return null;
+      }
+      return data;
+    },
+
+    updateElement: async (id, updates) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('whiteboard_elements')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Update whiteboard element error');
+        return null;
+      }
+      return data;
+    },
+
+    deleteElement: async (id) => {
+      if (!supabase) return false;
+      const { error } = await supabase
+        .from('whiteboard_elements')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        Logger.error(error, 'Delete whiteboard element error');
+        return false;
+      }
+      return true;
+    },
+
+    subscribeToWhiteboard: (whiteboardId, callback) => {
+      if (!supabase) return null;
+      const channel = supabase
+        .channel(`whiteboard:${whiteboardId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'whiteboard_elements',
+            filter: `whiteboard_id=eq.${whiteboardId}`,
+          },
+          callback
+        )
+        .subscribe();
+      return channel;
+    },
+
+    // Workstream methods
+    fetchWorkstreams: async (email) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('workstreams')
+        .select('*')
+        .or(`owner_email.eq.${email},visibility.eq.shared`)
+        .order('created_at', { ascending: false });
+      if (error) {
+        Logger.error(error, 'Fetch workstreams error');
+        return [];
+      }
+      return data || [];
+    },
+
+    fetchWorkstreamTasks: async (email) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('workstream_tasks')
+        .select('*')
+        .eq('assignee_email', email)
+        .order('created_at', { ascending: false });
+      if (error) {
+        // Table may not exist yet - that's okay
+        if (error.code !== '42P01') {
+          Logger.error(error, 'Fetch workstream tasks error');
+        }
+        return [];
+      }
+      return data || [];
+    },
+
+    // Productivity tools API methods
+    fetchHabits: async (email) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('habits')
+        .select('*')
+        .eq('user_email', email)
+        .order('created_at', { ascending: false });
+      if (error) {
+        Logger.error(error, 'Fetch habits error');
+        return [];
+      }
+      return data || [];
+    },
+
+    fetchCompletions: async (habitId, startDate, endDate) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('habit_completions')
+        .select('*')
+        .eq('habit_id', habitId)
+        .gte('date', startDate)
+        .lte('date', endDate);
+      if (error) {
+        Logger.error(error, 'Fetch completions error');
+        return [];
+      }
+      return data || [];
+    },
+
+    createHabit: async (habit) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('habits')
+        .insert([habit])
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Create habit error');
+        return null;
+      }
+      return data;
+    },
+
+    deleteHabit: async (habitId) => {
+      if (!supabase) return false;
+      const { error } = await supabase
+        .from('habits')
+        .delete()
+        .eq('id', habitId);
+      if (error) {
+        Logger.error(error, 'Delete habit error');
+        return false;
+      }
+      return true;
+    },
+
+    toggleCompletion: async (habitId, date) => {
+      if (!supabase) return null;
+      // Check if completion exists
+      const { data: existing } = await supabase
+        .from('habit_completions')
+        .select('*')
+        .eq('habit_id', habitId)
+        .eq('date', date)
+        .single();
+
+      if (existing) {
+        // Delete existing
+        const { error } = await supabase
+          .from('habit_completions')
+          .delete()
+          .eq('id', existing.id);
+        if (error) {
+          Logger.error(error, 'Toggle completion error');
+          return null;
+        }
+        return { deleted: true };
+      } else {
+        // Create new
+        const { data, error } = await supabase
+          .from('habit_completions')
+          .insert([{ habit_id: habitId, date }])
+          .select()
+          .single();
+        if (error) {
+          Logger.error(error, 'Toggle completion error');
+          return null;
+        }
+        return data;
+      }
+    },
+
+    fetchMatrixTasks: async (email) => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('matrix_tasks')
+        .select('*')
+        .eq('user_email', email)
+        .order('created_at', { ascending: false });
+      if (error) {
+        Logger.error(error, 'Fetch matrix tasks error');
+        return [];
+      }
+      return data || [];
+    },
+
+    createMatrixTask: async (task) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('matrix_tasks')
+        .insert([task])
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Create matrix task error');
+        return null;
+      }
+      return data;
+    },
+
+    updateMatrixTask: async (taskId, updates) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('matrix_tasks')
+        .update(updates)
+        .eq('id', taskId)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Update matrix task error');
+        return null;
+      }
+      return data;
+    },
+
+    deleteMatrixTask: async (taskId) => {
+      if (!supabase) return false;
+      const { error } = await supabase
+        .from('matrix_tasks')
+        .delete()
+        .eq('id', taskId);
+      if (error) {
+        Logger.error(error, 'Delete matrix task error');
+        return false;
+      }
+      return true;
+    },
+  }), [supabase, userEmail]);
+
+  // Transform database row to app format
+  const transformEntry = (row) => ({
+    id: row.id,
+    title: row.title,
+    caption: row.caption,
+    workflowStatus: row.workflow_status,
+    team: row.team,
+    timelineValue: row.timeline_value,
+    owner: row.owner,
+    ownerEmail: row.owner_email,
+    collaborators: row.collaborators || [],
+    tags: row.tags || [],
+    subtasks: row.subtasks || [],
+    documents: row.documents || [],
+    date: row.date,
+    comments: row.comments || [],
+    archived: row.archived || false,
+    dependencies: row.dependencies || [],
+    customFields: row.custom_fields || [],
+    attachments: row.attachments || [],
+    itemType: row.item_type || 'project',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+
+  // Load data on startup
   useEffect(() => {
-    if (authChecked) {
-      setStatus('ready');
+    if (!authChecked) return;
+    if (APP_CONFIG.AUTH_ENABLED && !isAuthenticated) return;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        await initSupabase();
+
+        // Fetch workflow items
+        const items = await SUPABASE_API.fetchWorkflowItems();
+        setEntries(items.map(transformEntry));
+
+        // Fetch personal todos
+        if (userEmail) {
+          const userTodos = await SUPABASE_API.fetchPersonalTodos(userEmail);
+          setTodos(userTodos);
+
+          // Fetch workstreams
+          const userWorkstreams = await SUPABASE_API.fetchWorkstreams(userEmail);
+          setWorkstreams(userWorkstreams);
+
+          // Fetch workstream tasks
+          const userWorkstreamTasks = await SUPABASE_API.fetchWorkstreamTasks(userEmail);
+          setWorkstreamTasks(userWorkstreamTasks);
+        }
+      } catch (error) {
+        Logger.error(error, 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [authChecked]);
+
+    loadData();
+  }, [authChecked, isAuthenticated, userEmail, SUPABASE_API]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowQuickAdd(true);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault();
+        setShowGlobalSearch(true);
+        return;
+      }
+
+      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+      if (isTyping) {
+        if (e.key === 'Escape') document.activeElement.blur();
+        return;
+      }
+
+      switch (e.key) {
+        case '?':
+          e.preventDefault();
+          setShowKeyboardHelp(true);
+          break;
+        case 'Escape':
+          setShowKeyboardHelp(false);
+          setShowNotificationsPanel(false);
+          setShowQuickAdd(false);
+          setShowGlobalSearch(false);
+          break;
+        case 'd':
+          if (!e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            setCurrentView('dashboard');
+          }
+          break;
+        case 'p':
+          if (!e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            setCurrentView('personal');
+          }
+          break;
+        case 't':
+          if (!e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            setCurrentView('todo');
+          }
+          break;
+        case 'n':
+          if (!e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            setCurrentView('add-item');
+          }
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('[data-dropdown]')) {
+        setShowFiltersDropdown(false);
+        setShowTagsDropdown(false);
+        setShowViewDropdown(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Handler functions
+  const handleNavigate = useCallback((view) => {
+    setCurrentView(view);
+    setSidebarOpen(false);
+  }, []);
+
+  const handleOpenEntry = useCallback((id) => {
+    setSelectedItemId(id);
+    setCurrentView('item-dashboard');
+  }, []);
+
+  const handleUpdateEntry = useCallback(async (entryId, updates) => {
+    const result = await SUPABASE_API.updateItem(entryId, updates);
+    if (result) {
+      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updates } : e));
+    }
+  }, [SUPABASE_API]);
+
+  const handleUpdateStatus = useCallback(async (id, newStatus) => {
+    await handleUpdateEntry(id, { workflowStatus: newStatus });
+  }, [handleUpdateEntry]);
+
+  const handleAddItem = useCallback(async (newItem) => {
+    const saved = await SUPABASE_API.saveItem({
+      ...newItem,
+      owner: currentUser,
+    });
+    if (saved) {
+      setEntries(prev => [transformEntry(saved), ...prev]);
+      setCurrentView('dashboard');
+    }
+  }, [SUPABASE_API, currentUser]);
+
+  const handleToggleSubtask = useCallback(async (entryId, subtaskId) => {
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    const updatedSubtasks = entry.subtasks.map(st =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+    await handleUpdateEntry(entryId, { subtasks: updatedSubtasks });
+  }, [entries, handleUpdateEntry]);
+
+  const handleDeleteSubtask = useCallback(async (entryId, subtaskId) => {
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    const updatedSubtasks = entry.subtasks.filter(st => st.id !== subtaskId);
+    await handleUpdateEntry(entryId, { subtasks: updatedSubtasks });
+  }, [entries, handleUpdateEntry]);
+
+  const handleEditSubtask = useCallback(async (entryId, subtaskId, updates) => {
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    const updatedSubtasks = entry.subtasks.map(st =>
+      st.id === subtaskId ? { ...st, ...updates } : st
+    );
+    await handleUpdateEntry(entryId, { subtasks: updatedSubtasks });
+  }, [entries, handleUpdateEntry]);
+
+  const openSubtaskModal = useCallback((entryId) => {
+    setSubtaskModalEntryId(entryId);
+    setShowSubtaskModal(true);
+  }, []);
+
+  const handleAddTodo = useCallback(async (newTodo) => {
+    const saved = await SUPABASE_API.savePersonalTodo(newTodo, userEmail);
+    if (saved) {
+      setTodos(prev => [saved, ...prev]);
+    }
+  }, [SUPABASE_API, userEmail]);
+
+  const handleToggleTodo = useCallback(async (todoId) => {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) return;
+
+    const updated = await SUPABASE_API.updatePersonalTodo(todoId, { completed: !todo.completed });
+    if (updated) {
+      setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
+    }
+  }, [todos, SUPABASE_API]);
+
+  const handleUpdateTodo = useCallback(async (todoId, updates) => {
+    const updated = await SUPABASE_API.updatePersonalTodo(todoId, updates);
+    if (updated) {
+      setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
+    }
+  }, [SUPABASE_API]);
+
+  const handleDeleteTodo = useCallback(async (todoId) => {
+    const success = await SUPABASE_API.deletePersonalTodo(todoId);
+    if (success) {
+      setTodos(prev => prev.filter(t => t.id !== todoId));
+    }
+  }, [SUPABASE_API]);
+
+  // Workstream task handlers
+  const handleOpenWorkstreamTask = useCallback((workstreamId, taskId) => {
+    setSelectedWorkstreamId(workstreamId);
+    setSelectedWorkstreamTaskId(taskId);
+    setCurrentView('workstream-task-detail');
+  }, []);
+
+  const handleUpdateWorkstreamTask = useCallback(async (taskId, updates) => {
+    const updated = await SUPABASE_API.updateWorkstreamTask(taskId, updates);
+    if (updated) {
+      setWorkstreamTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t));
+    }
+  }, [SUPABASE_API]);
+
+  const handleOpenPdfExport = useCallback((context) => {
+    setPdfExportContext(context);
+    setShowPdfExportModal(true);
+  }, []);
+
+  // Workstream handlers
+  const handleCreateWorkstream = useCallback(async (workstreamData) => {
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from('workstreams')
+      .insert([{
+        title: workstreamData.title,
+        description: workstreamData.description || '',
+        owner: workstreamData.owner,
+        owner_email: userEmail,
+        visibility: workstreamData.visibility || 'personal',
+        color: workstreamData.color || 'blue',
+      }])
+      .select()
+      .single();
+    if (error) {
+      Logger.error(error, 'Create workstream error');
+      return null;
+    }
+    setWorkstreams(prev => [data, ...prev]);
+    return data;
+  }, [supabase, userEmail]);
+
+  const openStatsModal = useCallback((title, items) => {
+    setStatsModalData({ title, items });
+    setShowStatsModal(true);
+  }, []);
+
+  // Filter entries
+  const filteredEntries = useMemo(() => {
+    return entries.filter(entry => {
+      if (!showArchived && entry.archived) return false;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesTitle = entry.title?.toLowerCase().includes(query);
+        const matchesCaption = entry.caption?.toLowerCase().includes(query);
+        const matchesTags = entry.tags?.some(t => t.toLowerCase().includes(query));
+        if (!matchesTitle && !matchesCaption && !matchesTags) return false;
+      }
+      if (statusFilter.length && !statusFilter.includes(entry.workflowStatus)) return false;
+      if (ownerFilter.length && !ownerFilter.includes(entry.owner)) return false;
+      if (teamFilter.length && !teamFilter.includes(entry.team)) return false;
+      if (tagFilter.length && !entry.tags?.some(t => tagFilter.includes(t))) return false;
+      return true;
+    });
+  }, [entries, showArchived, searchQuery, statusFilter, ownerFilter, teamFilter, tagFilter]);
+
+  // Auth check - show loading
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-ocean-50 to-aqua-50">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // Auth check - show login
+  if (APP_CONFIG.AUTH_ENABLED && !isAuthenticated) {
+    return (
+      <LoginScreen
+        supabase={supabase}
+        initSupabase={initSupabase}
+        Logger={Logger}
+      />
+    );
+  }
+
+  // Loading data
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-ocean-50 to-aqua-50">
+        <div className="text-center">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-graystone-600">Loading your workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render current view
+  const renderView = () => {
+    switch (currentView) {
+      case 'dashboard':
+        return (
+          <Dashboard
+            entries={entries}
+            currentUser={currentUser}
+            userEmail={userEmail}
+            onOpenEntry={handleOpenEntry}
+            onOpenPdfExport={handleOpenPdfExport}
+            onNavigate={handleNavigate}
+            todos={todos}
+            onToggleTodo={handleToggleTodo}
+            onAddTodo={handleAddTodo}
+            onUpdateTodo={handleUpdateTodo}
+            onDeleteTodo={handleDeleteTodo}
+            onUpdateEntry={handleUpdateEntry}
+            onEditSubtask={handleEditSubtask}
+            workstreamTasks={workstreamTasks}
+            onOpenWorkstreamTask={handleOpenWorkstreamTask}
+            onUpdateWorkstreamTask={handleUpdateWorkstreamTask}
+            Badge={Badge}
+          />
+        );
+
+      case 'item-dashboard':
+        const selectedEntry = entries.find(e => e.id === selectedItemId);
+        return (
+          <ItemDashboard
+            entry={selectedEntry}
+            onBack={() => handleNavigate('dashboard')}
+            onToggleSubtask={handleToggleSubtask}
+            onDeleteSubtask={handleDeleteSubtask}
+            onEditSubtask={handleEditSubtask}
+            onUpdateEntry={handleUpdateEntry}
+            openSubtaskModal={openSubtaskModal}
+            currentUser={currentUser}
+            userEmail={userEmail}
+            allEntries={entries}
+            onNavigateToWhiteboard={(id) => {
+              setCurrentWhiteboardId(id);
+              setCurrentView('whiteboards');
+            }}
+            USERS={USERS}
+            KANBAN_STATUSES={KANBAN_STATUSES}
+            userProfilesCache={userProfilesCache}
+            SUPABASE_API={SUPABASE_API}
+            Logger={Logger}
+            canEditItem={canEditItem}
+            WhiteboardPreviewCard={WhiteboardPreviewCard}
+          />
+        );
+
+      case 'personal':
+        const myPersonalProjects = filteredEntries.filter(e => (e.owner === currentUser || e.ownerEmail === userEmail) && e.itemType !== 'job');
+        const ownedProjects = filteredEntries.filter(e => (e.owner === currentUser || e.ownerEmail === userEmail) && e.itemType !== 'job' && !e.archived);
+        const collaboratorProjects = filteredEntries.filter(e => e.collaborators?.includes(currentUser) && e.owner !== currentUser && e.ownerEmail !== userEmail && e.itemType !== 'job' && !e.archived);
+        const thisMonth = new Date();
+        const thisMonthStr = `${thisMonth.getFullYear()}-${String(thisMonth.getMonth() + 1).padStart(2, '0')}`;
+        const dueThisMonth = filteredEntries.filter(e => {
+          if (e.itemType === 'job' || e.archived) return false;
+          if (e.owner !== currentUser && e.ownerEmail !== userEmail && !e.collaborators?.includes(currentUser)) return false;
+          const dateStr = e.date || e.timelineValue;
+          return dateStr && dateStr.startsWith(thisMonthStr);
+        });
+        const personalTags = [...new Set(entries.flatMap(e => e.tags || []))];
+        const activeFiltersCount = ownerFilter.length + teamFilter.length;
+        const activeTagsCount = tagFilter.length;
+        const toggleFilter = (item, currentList, setList) => {
+          if (currentList.includes(item)) {
+            setList(currentList.filter(i => i !== item));
+          } else {
+            setList([...currentList, item]);
+          }
+        };
+        return (
+          <div className="p-6 space-y-6">
+            {/* Header Card */}
+            <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold mb-1">Your Projects</h1>
+                  <p className="text-ocean-100 text-sm">View and manage your owned projects</p>
+                </div>
+                <button
+                  onClick={() => setShowAddItemModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors border border-white/20"
+                >
+                  <Icon name="plus" className="w-4 h-4" />
+                  New Project
+                </button>
+              </div>
+            </div>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Owned</p>
+                    <p className="text-3xl font-bold text-ocean-900">{ownedProjects.length}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+                    <Icon name="user" className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <p className="text-xs text-graystone-500 mt-2">Projects you own</p>
+              </div>
+              <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Collaborating</p>
+                    <p className="text-3xl font-bold text-ocean-900">{collaboratorProjects.length}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+                    <Icon name="users" className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <p className="text-xs text-graystone-500 mt-2">Projects you collaborate on</p>
+              </div>
+              <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Due This Month</p>
+                    <p className="text-3xl font-bold text-ocean-900">{dueThisMonth.length}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+                    <Icon name="calendar" className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <p className="text-xs text-graystone-500 mt-2">{thisMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</p>
+              </div>
+            </div>
+            {/* Projects Card with Filters */}
+            <div className="bg-white rounded-xl border border-ocean-100 shadow-sm">
+              {/* Header with Search and Filters */}
+              <div className="p-4 border-b border-ocean-100">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Search */}
+                    <div className="relative group">
+                      <Icon name="search" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-graystone-400" />
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 pr-4 py-2 border border-ocean-200 rounded-lg text-sm text-ocean-900 placeholder-graystone-400 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 transition-all w-40 lg:w-48"
+                      />
+                    </div>
+                    {/* Filters Dropdown */}
+                    <div className="relative" data-dropdown>
+                      <button
+                        onClick={() => { setShowFiltersDropdown(!showFiltersDropdown); setShowTagsDropdown(false); setShowViewDropdown(false); }}
+                        className={clsx(
+                          "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
+                          showFiltersDropdown || activeFiltersCount > 0
+                            ? "bg-ocean-50 text-ocean-700 border-ocean-200"
+                            : "bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
+                        )}
+                      >
+                        <Icon name="filter" className="w-4 h-4" />
+                        Filters
+                        {activeFiltersCount > 0 && (
+                          <span className="bg-ocean-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                            {activeFiltersCount}
+                          </span>
+                        )}
+                      </button>
+                      {showFiltersDropdown && (
+                        <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-4 z-50">
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Teams</h4>
+                              <div className="space-y-1">
+                                {TEAMS.map(team => (
+                                  <label key={team} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={teamFilter.includes(team)}
+                                      onChange={() => toggleFilter(team, teamFilter, setTeamFilter)}
+                                      className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                    />
+                                    <span className="text-sm text-ocean-900">{team}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="border-t border-ocean-50 pt-3">
+                              <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Users</h4>
+                              <div className="space-y-1 max-h-40 overflow-y-auto">
+                                {USERS.map(user => (
+                                  <label key={user} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={ownerFilter.includes(user)}
+                                      onChange={() => toggleFilter(user, ownerFilter, setOwnerFilter)}
+                                      className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                    />
+                                    <span className="text-sm text-ocean-900">{user}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="border-t border-ocean-50 pt-3">
+                              <label className="flex items-center justify-between p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                                <span className="text-sm text-ocean-900 flex items-center gap-2">
+                                  <Icon name="archive" className="w-4 h-4 text-graystone-500" />
+                                  Show Archived
+                                </span>
+                                <div
+                                  className={clsx(
+                                    "w-10 h-5 rounded-full transition-colors relative cursor-pointer",
+                                    showArchived ? "bg-ocean-500" : "bg-graystone-300"
+                                  )}
+                                  onClick={() => setShowArchived(!showArchived)}
+                                >
+                                  <div className={clsx(
+                                    "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                    showArchived ? "translate-x-5" : "translate-x-0.5"
+                                  )}></div>
+                                </div>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Tags Dropdown */}
+                    <div className="relative" data-dropdown>
+                      <button
+                        onClick={() => { setShowTagsDropdown(!showTagsDropdown); setShowFiltersDropdown(false); setShowViewDropdown(false); }}
+                        className={clsx(
+                          "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
+                          showTagsDropdown || activeTagsCount > 0
+                            ? "bg-ocean-50 text-ocean-700 border-ocean-200"
+                            : "bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
+                        )}
+                      >
+                        <Icon name="tag" className="w-4 h-4" />
+                        Tags
+                        {activeTagsCount > 0 && (
+                          <span className="bg-ocean-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                            {activeTagsCount}
+                          </span>
+                        )}
+                      </button>
+                      {showTagsDropdown && (
+                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-ocean-100 p-4 z-50">
+                          <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Filter by Tags</h4>
+                          <div className="space-y-1 max-h-60 overflow-y-auto">
+                            {personalTags.map(tag => (
+                              <label key={tag} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={tagFilter.includes(tag)}
+                                  onChange={() => toggleFilter(tag, tagFilter, setTagFilter)}
+                                  className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                                />
+                                <span className="text-sm text-ocean-900">{tag}</span>
+                              </label>
+                            ))}
+                            {personalTags.length === 0 && (
+                              <p className="text-xs text-graystone-400 italic p-2">No tags available</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* View Switcher */}
+                    <div className="relative" data-dropdown>
+                      <button
+                        onClick={() => { setShowViewDropdown(!showViewDropdown); setShowFiltersDropdown(false); setShowTagsDropdown(false); }}
+                        className="px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
+                      >
+                        <Icon
+                          name={
+                            viewMode === 'kanban' ? 'kanban' :
+                              viewMode === 'table' ? 'table' :
+                                viewMode === 'gantt' ? 'bar-chart-2' : 'calendar'
+                          }
+                          className="w-4 h-4"
+                        />
+                        <span className="capitalize hidden sm:inline">{viewMode === 'kanban' ? 'Board' : viewMode}</span>
+                        <Icon name="chevron-down" className="w-3 h-3 opacity-70" />
+                      </button>
+                      {showViewDropdown && (
+                        <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-ocean-100 p-1 z-50">
+                          {[
+                            { id: 'kanban', label: 'Board', icon: 'kanban' },
+                            { id: 'table', label: 'Table', icon: 'table' },
+                            { id: 'gantt', label: 'Gantt', icon: 'bar-chart-2' },
+                            { id: 'calendar', label: 'Calendar', icon: 'calendar' }
+                          ].map(view => (
+                            <button
+                              key={view.id}
+                              onClick={() => { setViewMode(view.id); setShowViewDropdown(false); }}
+                              className={clsx(
+                                "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2",
+                                viewMode === view.id
+                                  ? "bg-ocean-50 text-ocean-700"
+                                  : "text-graystone-600 hover:bg-graystone-50 hover:text-ocean-900"
+                              )}
+                            >
+                              <Icon name={view.icon} className="w-4 h-4" />
+                              {view.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                </div>
+                {/* Active Filter Chips */}
+                {(activeFiltersCount > 0 || activeTagsCount > 0) && (
+                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-ocean-100">
+                    {teamFilter.map(team => (
+                      <button
+                        key={`team-${team}`}
+                        onClick={() => toggleFilter(team, teamFilter, setTeamFilter)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors"
+                      >
+                        <span>{team}</span>
+                        <Icon name="x" className="w-3 h-3" />
+                      </button>
+                    ))}
+                    {ownerFilter.map(user => (
+                      <button
+                        key={`user-${user}`}
+                        onClick={() => toggleFilter(user, ownerFilter, setOwnerFilter)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors"
+                      >
+                        <span>{user}</span>
+                        <Icon name="x" className="w-3 h-3" />
+                      </button>
+                    ))}
+                    {tagFilter.map(tag => (
+                      <button
+                        key={`tag-${tag}`}
+                        onClick={() => toggleFilter(tag, tagFilter, setTagFilter)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors"
+                      >
+                        <Icon name="tag" className="w-3 h-3" />
+                        <span>{tag}</span>
+                        <Icon name="x" className="w-3 h-3" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* View Content */}
+              <div className="p-6">
+                {viewMode === 'kanban' && (
+                  <KanbanBoard
+                    statuses={KANBAN_STATUSES}
+                    entries={myPersonalProjects}
+                    onOpen={handleOpenEntry}
+                    onUpdateStatus={handleUpdateStatus}
+                    openSubtaskModal={openSubtaskModal}
+                    currentUser={currentUser}
+                  />
+                )}
+                {viewMode === 'table' && (
+                  <TableView
+                    entries={myPersonalProjects}
+                    onOpen={handleOpenEntry}
+                  />
+                )}
+                {viewMode === 'gantt' && (
+                  <GanttView
+                    entries={myPersonalProjects}
+                    onOpen={handleOpenEntry}
+                  />
+                )}
+                {viewMode === 'calendar' && (
+                  <CalendarScreen
+                    entries={myPersonalProjects}
+                    onOpen={handleOpenEntry}
+                    openSubtaskModal={openSubtaskModal}
+                    isEmbedded={true}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'jobs':
+        return (
+          <JobsView
+            entries={entries}
+            setEntries={setEntries}
+            currentUser={currentUser}
+            userEmail={userEmail}
+            darkMode={darkMode}
+            supabase={supabase}
+            Logger={Logger}
+            userProfiles={SEED_USERS}
+            teams={TEAMS}
+          />
+        );
+
+      case 'todo':
+        return (
+          <ToDoList
+            todos={todos}
+            onToggle={handleToggleTodo}
+            onAdd={handleAddTodo}
+            onUpdate={handleUpdateTodo}
+            onDelete={handleDeleteTodo}
+          />
+        );
+
+      case 'calendar':
+        return (
+          <CalendarScreen
+            entries={entries}
+            todos={todos}
+            currentUser={currentUser}
+            onOpenEntry={handleOpenEntry}
+            onUpdateEntry={handleUpdateEntry}
+            onToggleTodo={handleToggleTodo}
+          />
+        );
+
+      case 'add-item':
+        return (
+          <AddItemForm
+            onSubmit={handleAddItem}
+            onCancel={() => handleNavigate('dashboard')}
+            users={USERS}
+            teams={TEAMS}
+            statuses={KANBAN_STATUSES}
+            timelineTypes={TIMELINE_TYPES}
+            currentUser={currentUser}
+          />
+        );
+
+      case 'admin':
+        if (!isAdmin(userEmail)) {
+          return (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <Icon name="shield-x" className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-ocean-900 mb-2">Admin Access Required</h2>
+                <p className="text-graystone-600">You must be an administrator to access this area.</p>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <AdminConsole
+            onBack={() => handleNavigate('dashboard')}
+            currentUserEmail={userEmail}
+            SUPABASE_API={SUPABASE_API}
+            supabase={supabase}
+            Logger={Logger}
+            APP_CONFIG={APP_CONFIG}
+            TEAMS={TEAMS}
+            SEED_PROFILES={SEED_USERS}
+            isAdmin={isAdmin}
+            LoadingSpinner={LoadingSpinner}
+          />
+        );
+
+      case 'manager-hub':
+        if (!isManager(userEmail) && !isAdmin(userEmail)) {
+          return (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <Icon name="shield-x" className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-ocean-900 mb-2">Manager Access Required</h2>
+                <p className="text-graystone-600">You must be a manager to access this area.</p>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <ManagerHub
+            managers={MANAGERS}
+            teams={TEAMS}
+            entries={entries}
+            currentUser={currentUser}
+            userEmail={userEmail}
+            openStatsModal={openStatsModal}
+            onOpen={handleOpenEntry}
+            onUpdateStatus={handleUpdateStatus}
+            openSubtaskModal={openSubtaskModal}
+            onOpenPdfExport={handleOpenPdfExport}
+            managerHubTab={managerHubTab}
+            setManagerHubTab={setManagerHubTab}
+            reportPeriodType={reportPeriodType}
+            setReportPeriodType={setReportPeriodType}
+            reportStartDate={reportStartDate}
+            setReportStartDate={setReportStartDate}
+            reportEndDate={reportEndDate}
+            setReportEndDate={setReportEndDate}
+            reportSections={reportSections}
+            setReportSections={setReportSections}
+            projectsDisplayMode={projectsDisplayMode}
+            setProjectsDisplayMode={setProjectsDisplayMode}
+            reportNarratives={reportNarratives}
+            setReportNarratives={setReportNarratives}
+            workstreams={workstreams}
+            TEAMS={TEAMS}
+            isAdmin={isAdmin}
+            Badge={Badge}
+            APP_CONFIG={APP_CONFIG}
+          />
+        );
+
+      case 'whiteboards':
+        return (
+          <WhiteboardsView
+            whiteboards={whiteboards}
+            setWhiteboards={setWhiteboards}
+            onOpenWhiteboard={(id) => {
+              setCurrentWhiteboardId(id);
+              setCurrentView('whiteboard-canvas');
+            }}
+            userEmail={userEmail}
+            currentUser={currentUser}
+            WHITEBOARD_API={SUPABASE_API}
+          />
+        );
+
+      case 'whiteboard-canvas':
+        const currentWhiteboard = whiteboards.find(w => w.id === currentWhiteboardId);
+        if (!currentWhiteboard) {
+          return (
+            <div className="text-center py-12">
+              <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-ocean-900 mb-2">Whiteboard Not Found</h2>
+              <Button onClick={() => handleNavigate('whiteboards')}>Back to Whiteboards</Button>
+            </div>
+          );
+        }
+        return (
+          <WhiteboardCanvas
+            whiteboardId={currentWhiteboardId}
+            whiteboard={currentWhiteboard}
+            onBack={() => handleNavigate('whiteboards')}
+            userEmail={userEmail}
+            currentUser={currentUser}
+            WHITEBOARD_API={SUPABASE_API}
+            supabase={supabase}
+            Logger={Logger}
+            STICKY_COLORS={STICKY_COLORS}
+            StickyNote={StickyNote}
+            WhiteboardElement={WhiteboardElement}
+            TextBoxElement={TextBoxElement}
+            ImageElement={ImageElement}
+            ShapeElement={ShapeElement}
+          />
+        );
+
+      case 'workstreams':
+        return (
+          <WorkstreamList
+            workstreams={workstreams}
+            currentUser={currentUser}
+            userEmail={userEmail}
+            onOpenWorkstream={(id) => {
+              setSelectedWorkstreamId(id);
+              setCurrentView('workstream-detail');
+            }}
+            onCreateWorkstream={handleCreateWorkstream}
+          />
+        );
+
+      case 'workstream-detail':
+        const viewWorkstream = workstreams.find(w => w.id === selectedWorkstreamId);
+        if (!viewWorkstream) {
+          return (
+            <div className="text-center py-12">
+              <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-ocean-900 mb-2">Workstream Not Found</h2>
+              <Button onClick={() => handleNavigate('workstreams')}>Back to Workstreams</Button>
+            </div>
+          );
+        }
+        return (
+          <WorkstreamView
+            workstream={viewWorkstream}
+            workstreamTasks={workstreamTasks.filter(t => t.workstream_id === selectedWorkstreamId)}
+            setWorkstreamTasks={setWorkstreamTasks}
+            onBack={() => handleNavigate('workstreams')}
+            onOpenTask={(taskId) => {
+              setSelectedWorkstreamTaskId(taskId);
+              setCurrentView('workstream-task-detail');
+            }}
+            userEmail={userEmail}
+            currentUser={currentUser}
+            supabase={supabase}
+            Logger={Logger}
+            USERS={USERS}
+          />
+        );
+
+      case 'productivity-tools':
+        return (
+          <ProductivityToolsView
+            userEmail={userEmail}
+            habits={habits}
+            setHabits={setHabits}
+            matrixTasks={matrixTasks}
+            setMatrixTasks={setMatrixTasks}
+            Logger={Logger}
+            PRODUCTIVITY_API={SUPABASE_API}
+          />
+        );
+
+      case 'workstream-task-detail':
+        const selectedWorkstream = workstreams.find(w => w.id === selectedWorkstreamId);
+        const selectedTask = workstreamTasks.find(t => t.id === selectedWorkstreamTaskId);
+        if (!selectedWorkstream || !selectedTask) {
+          return (
+            <div className="text-center py-12">
+              <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-ocean-900 mb-2">Task Not Found</h2>
+              <Button onClick={() => handleNavigate('workstreams')}>Back to Workstreams</Button>
+            </div>
+          );
+        }
+        return (
+          <WorkstreamTaskDetail
+            task={selectedTask}
+            workstream={selectedWorkstream}
+            currentUser={currentUser}
+            userEmail={userEmail}
+            entries={entries}
+            onBack={() => handleNavigate('workstreams')}
+            onUpdate={async (taskId, workstreamId, updates) => {
+              await handleUpdateWorkstreamTask(taskId, updates);
+            }}
+            onDelete={async (taskId, workstreamId) => {
+              // TODO: Implement delete workstream task
+              handleNavigate('workstreams');
+            }}
+            USERS={USERS}
+            USERS_WITH_EMAILS={SEED_USERS}
+          />
+        );
+
+      default:
+        return (
+          <div className="text-center py-12">
+            <Icon name="file-question" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-ocean-900 mb-2">View Not Found</h2>
+            <Button onClick={() => handleNavigate('dashboard')}>Go to Dashboard</Button>
+          </div>
+        );
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-ocean-50 to-aqua-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-        <h1 className="text-3xl font-heading text-ocean-900 mb-4">
-          {APP_CONFIG.ORG_NAME}
-        </h1>
-        <h2 className="text-xl text-ocean-700 mb-6">Momentum Hub</h2>
-
-        {status === 'initializing' && (
-          <div className="text-graystone-600">
-            <div className="animate-spin w-8 h-8 border-4 border-ocean-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            Initializing...
-          </div>
-        )}
-
-        {status === 'ready' && (
-          <div className="text-green-600">
-            <div className="text-4xl mb-4">✓</div>
-            <p className="font-medium">Vite build working!</p>
-            {isAuthenticated && (
-              <p className="text-sm text-graystone-600 mt-2">
-                Logged in as: {userEmail}
-              </p>
-            )}
-            <p className="text-sm text-graystone-500 mt-4">
-              Migration in progress. Full app coming soon.
-            </p>
-          </div>
-        )}
-
-        <a
-          href={`${import.meta.env.BASE_URL}legacy.html`}
-          className="inline-block mt-6 px-6 py-3 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition"
+    <div className="min-h-screen bg-gradient-to-br from-ocean-50 via-aqua-50 to-white">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-ocean-100 px-4 py-3 flex items-center justify-between">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 rounded-lg hover:bg-ocean-50 text-ocean-700"
+          aria-label="Open menu"
         >
-          Go to Current App
-        </a>
-      </div>
+          <Icon name="menu" className="w-6 h-6" />
+        </button>
+        <h1 className="font-heading text-lg text-ocean-900">Momentum Hub</h1>
+        <div className="w-10" /> {/* Spacer for balance */}
+      </header>
+
+      {/* Sidebar */}
+      <Sidebar
+        currentView={currentView}
+        onNavigate={handleNavigate}
+        onSignOut={handleSignOut}
+        currentUser={currentUser}
+        userEmail={userEmail}
+        isAdmin={isAdmin}
+        isManager={isManager}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        darkMode={darkMode}
+        setDarkMode={toggleDarkMode}
+        config={APP_CONFIG}
+        onAddNewItem={() => setShowAddItemTypeModal(true)}
+      />
+
+      {/* Main content */}
+      <main className="pt-16 lg:pt-0 p-6 lg:p-8 lg:ml-64 min-h-screen overflow-auto">
+        <div className="max-w-7xl mx-auto">
+          {renderView()}
+        </div>
+      </main>
+
+      {/* Modals */}
+      {showKeyboardHelp && (
+        <KeyboardShortcutsHelp onClose={() => setShowKeyboardHelp(false)} />
+      )}
+
+      {showGlobalSearch && (
+        <GlobalSearchModal
+          entries={entries}
+          onClose={() => setShowGlobalSearch(false)}
+          onSelect={(id) => {
+            setShowGlobalSearch(false);
+            handleOpenEntry(id);
+          }}
+        />
+      )}
+
+      {showQuickAdd && (
+        <QuickAddModal
+          onClose={() => setShowQuickAdd(false)}
+          onSubmit={(item) => {
+            handleAddItem(item);
+            setShowQuickAdd(false);
+          }}
+          users={USERS}
+          teams={TEAMS}
+          currentUser={currentUser}
+        />
+      )}
+
+      {showNotificationsPanel && (
+        <NotificationsPanel
+          notifications={notifications}
+          onClose={() => setShowNotificationsPanel(false)}
+          onNotificationClick={(n) => {
+            if (n.entryId) handleOpenEntry(n.entryId);
+            setShowNotificationsPanel(false);
+          }}
+        />
+      )}
+
+      {showAddJobModal && (
+        <AddJobModal
+          onClose={() => setShowAddJobModal(false)}
+          onSubmit={async (jobData) => {
+            await handleAddItem({ ...jobData, itemType: 'job' });
+            setShowAddJobModal(false);
+          }}
+          users={USERS}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Add Project Modal (direct to project form) */}
+      {showAddItemModal && (
+        <AddItemTypeModal
+          show={showAddItemModal}
+          onClose={() => setShowAddItemModal(false)}
+          onCreateProject={handleAddItem}
+          onCreateJob={handleAddItem}
+          onCreateWorkstream={handleCreateWorkstream}
+          currentUser={currentUser}
+          userEmail={userEmail}
+          users={USERS}
+          teams={TEAMS}
+          initialStep="project"
+        />
+      )}
+
+      {showJobDetailModal && selectedJobId && (
+        <JobDetailModal
+          job={entries.find(e => e.id === selectedJobId)}
+          onClose={() => {
+            setShowJobDetailModal(false);
+            setSelectedJobId(null);
+          }}
+          onUpdate={(updates) => handleUpdateEntry(selectedJobId, updates)}
+          JOB_STATUSES={JOB_STATUSES}
+          users={USERS}
+          currentUser={currentUser}
+        />
+      )}
+
+      {showAddItemTypeModal && (
+        <AddItemTypeModal
+          show={showAddItemTypeModal}
+          onClose={() => setShowAddItemTypeModal(false)}
+          onCreateProject={handleAddItem}
+          onCreateJob={handleAddItem}
+          onCreateWorkstream={handleCreateWorkstream}
+          currentUser={currentUser}
+          userEmail={userEmail}
+          users={USERS}
+          teams={TEAMS}
+        />
+      )}
     </div>
   );
 }
-
-export default App;

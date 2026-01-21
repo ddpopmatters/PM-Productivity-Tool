@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Icon from '../../ui/Icon';
+import AddJobModal from '../overlays/AddJobModal';
+import JobDetailModal from '../overlays/JobDetailModal';
+import JobCard from '../cards/JobCard';
 
 // Local utility for conditional class names
 const cx = (...args) => args.filter(Boolean).join(' ');
@@ -22,24 +25,27 @@ const JobsView = ({
   onNavigateToWhiteboard,
   supabase,
   Logger,
-  JobCard,
-  AddJobModal,
-  JobDetailModal,
   WhiteboardPreviewCard,
   WHITEBOARD_API
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'mine'
+  const [filter, setFilter] = useState('all'); // 'all', 'mine', 'assigned'
   const [draggedJob, setDraggedJob] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
 
   // Filter only jobs from entries
   const jobs = entries.filter(e => e.itemType === 'job' && !e.archived);
 
+  // Helper filters
+  const myJobs = jobs.filter(j => j.owner === currentUser || j.ownerEmail === userEmail);
+  const assignedToMe = jobs.filter(j => j.owner !== currentUser && j.ownerEmail !== userEmail && j.collaborators?.includes(currentUser));
+
   // Apply user filter
   const filteredJobs = filter === 'mine'
-    ? jobs.filter(j => j.owner === currentUser || j.ownerEmail === userEmail)
+    ? myJobs
+    : filter === 'assigned'
+    ? assignedToMe
     : jobs;
 
   // Group by status
@@ -223,52 +229,90 @@ const JobsView = ({
   return (
     <div className={cx("h-full flex flex-col", darkMode && "dark")}>
       {/* Header */}
-      <div className="p-6 border-b border-graystone-200 dark:border-graystone-700">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-ocean-900 dark:text-white">Jobs</h1>
-            <p className="text-sm text-graystone-600 dark:text-graystone-400">Quick tasks that don't need full project tracking</p>
+      <div className="p-6 space-y-6">
+        <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Jobs</h1>
+              <p className="text-ocean-100 text-sm">Quick tasks that don't need full project tracking</p>
+            </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors border border-white/20"
+            >
+              <Icon name="plus" className="w-4 h-4" />
+              Add Job
+            </button>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors"
-          >
-            <Icon name="plus" className="w-4 h-4" />
-            Add Job
-          </button>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-2">
-          <button
+        {/* Stat Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div
             onClick={() => setFilter('all')}
             className={cx(
-              "px-3 py-1.5 text-sm rounded-lg transition-colors",
-              filter === 'all' ? "bg-ocean-100 text-ocean-700" : "text-graystone-600 hover:bg-graystone-100"
+              "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
+              filter === 'all' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
             )}
           >
-            All Jobs ({jobs.length})
-          </button>
-          <button
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">All Jobs</p>
+                <p className="text-3xl font-bold text-ocean-900">{jobs.length}</p>
+              </div>
+              <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+                <Icon name="briefcase" className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <p className="text-xs text-graystone-500 mt-2">All active jobs</p>
+          </div>
+          <div
             onClick={() => setFilter('mine')}
             className={cx(
-              "px-3 py-1.5 text-sm rounded-lg transition-colors",
-              filter === 'mine' ? "bg-ocean-100 text-ocean-700" : "text-graystone-600 hover:bg-graystone-100"
+              "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
+              filter === 'mine' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
             )}
           >
-            My Jobs ({jobs.filter(j => j.owner === currentUser || j.ownerEmail === userEmail).length})
-          </button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">My Jobs</p>
+                <p className="text-3xl font-bold text-ocean-900">{myJobs.length}</p>
+              </div>
+              <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+                <Icon name="user" className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <p className="text-xs text-graystone-500 mt-2">Jobs you created</p>
+          </div>
+          <div
+            onClick={() => setFilter('assigned')}
+            className={cx(
+              "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
+              filter === 'assigned' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Assigned to Me</p>
+                <p className="text-3xl font-bold text-ocean-900">{assignedToMe.length}</p>
+              </div>
+              <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+                <Icon name="users" className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <p className="text-xs text-graystone-500 mt-2">Jobs assigned by others</p>
+          </div>
         </div>
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto p-6">
-        <div className="flex gap-4 min-w-max h-full">
+      <div className="flex-1 overflow-hidden p-6">
+        <div className="grid grid-cols-3 gap-4 h-full">
           {JOB_STATUSES.map(status => (
             <div
               key={status.id}
               className={cx(
-                "w-80 flex flex-col rounded-xl border transition-colors",
+                "flex flex-col rounded-xl border transition-colors min-w-0",
                 dragOverColumn === status.id ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
               )}
               onDragOver={(e) => handleDragOver(e, status.id)}

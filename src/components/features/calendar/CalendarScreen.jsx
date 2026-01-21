@@ -32,12 +32,13 @@ const CalendarScreen = ({
   const [viewMode, setViewMode] = useState('board'); // 'board', 'timeline'
   const [selectedMonth, setSelectedMonth] = useState(new Date()); // For week view
 
+  const currentYear = new Date().getFullYear();
   const TIMELINE_TYPES = {
     'date': { label: 'By Date', options: [] }, // Dynamic
     'week': { label: 'By Week', options: [] }, // Dynamic based on month
     'month': { label: 'By Month', options: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] },
     'quarter': { label: 'By Quarter', options: ['Q1', 'Q2', 'Q3', 'Q4'] },
-    'year': { label: 'By Year', options: ['2024', '2025', '2026'] }
+    'year': { label: 'By Year', options: [String(currentYear - 1), String(currentYear), String(currentYear + 1)] }
   };
 
   const getWeeksInMonth = (date) => {
@@ -72,91 +73,163 @@ const CalendarScreen = ({
       const weeks = getWeeksInMonth(selectedMonth);
       return weeks.map(w => w.label);
     }
+    if (timelineType === 'date') {
+      // Get unique dates from entries
+      const dates = entries
+        .map(e => e.date || e.timelineValue)
+        .filter(d => d && !isNaN(new Date(d).getTime()))
+        .map(d => new Date(d).toISOString().slice(0, 10))
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .sort();
+      return dates.length > 0 ? dates : ['No dated items'];
+    }
     return TIMELINE_TYPES[timelineType].options;
+  };
+
+  // Helper to get entry date
+  const getEntryDate = (entry) => {
+    const dateStr = entry.date || entry.timelineValue;
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Helper to get quarter from date
+  const getQuarter = (date) => {
+    const month = date.getMonth();
+    return `Q${Math.floor(month / 3) + 1}`;
+  };
+
+  // Helper to get month name from date
+  const getMonthName = (date) => {
+    return date.toLocaleString('default', { month: 'long' });
   };
 
   const renderBoardView = () => {
     const weeks = timelineType === 'week' ? getWeeksInMonth(selectedMonth) : [];
+    const columns = getColumns();
+
+    // Pre-calculate entries for each column
+    const columnData = columns.map((column, idx) => {
+      let columnEntries;
+
+      if (timelineType === 'week') {
+        const weekData = weeks[idx];
+        columnEntries = entries.filter(e => {
+          const entryDate = getEntryDate(e);
+          if (!entryDate) return false;
+          const weekStart = new Date(weekData.value);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekEnd.getDate() + 7);
+          return entryDate >= weekStart && entryDate < weekEnd;
+        });
+      } else if (timelineType === 'quarter') {
+        columnEntries = entries.filter(e => {
+          const entryDate = getEntryDate(e);
+          return entryDate && getQuarter(entryDate) === column;
+        });
+      } else if (timelineType === 'month') {
+        columnEntries = entries.filter(e => {
+          const entryDate = getEntryDate(e);
+          return entryDate && getMonthName(entryDate) === column;
+        });
+      } else if (timelineType === 'year') {
+        columnEntries = entries.filter(e => {
+          const entryDate = getEntryDate(e);
+          return entryDate && String(entryDate.getFullYear()) === column;
+        });
+      } else {
+        columnEntries = entries.filter(e => {
+          const entryDate = getEntryDate(e);
+          return entryDate && entryDate.toISOString().slice(0, 10) === column;
+        });
+      }
+
+      return { column, entries: columnEntries };
+    });
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 overflow-x-auto pb-4">
-        {getColumns().map((column, idx) => {
-          let columnEntries;
-
-          if (timelineType === 'week') {
-            // For weeks, match based on the week start date
-            const weekData = weeks[idx];
-            columnEntries = entries.filter(e => {
-              if (e.timelineType !== 'week') return false;
-              // Check if entry's timelineValue falls within this week
-              const entryDate = new Date(e.timelineValue);
-              const weekStart = new Date(weekData.value);
-              const weekEnd = new Date(weekStart);
-              weekEnd.setDate(weekEnd.getDate() + 7);
-              return entryDate >= weekStart && entryDate < weekEnd;
-            });
-          } else {
-            columnEntries = entries.filter(e =>
-              e.timelineType === timelineType && e.timelineValue === column
-            );
-          }
-
-          return (
-            <div key={column} className="min-w-[300px] bg-graystone-50 rounded-xl p-4 border border-graystone-200 flex flex-col h-full max-h-[calc(100vh-12rem)]">
-              <div className="flex items-center justify-between mb-4 sticky top-0 bg-graystone-50 z-10 pb-2 border-b border-graystone-200">
-                <h3 className="font-bold text-ocean-900">{column}</h3>
-                <Badge variant="neutral">{columnEntries.length}</Badge>
-              </div>
-              <div className="space-y-3 overflow-y-auto flex-1 pr-2">
-                {columnEntries.map(entry => (
-                  <div key={entry.id} className="bg-white p-3 rounded-lg border border-graystone-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-start gap-2">
-                        <h4 className="font-medium text-ocean-900 group-hover:text-ocean-700 heading-font">{entry.title}</h4>
-                        {onOpen && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onOpen(entry.id); }}
-                            className="p-1.5 rounded-full hover:bg-ocean-50 transition-colors"
-                            title="Open"
-                          >
-                            <Icon name="external-link" className="w-4 h-4 text-ocean-700" />
-                          </button>
-                        )}
-                      </div>
-                      <Badge variant={entry.workflowStatus === 'Done' ? 'success' : 'default'} className="text-[10px]">
-                        {entry.workflowStatus}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-graystone-500">
-                      <span>{entry.owner}</span>
-                      {entry.team && <span className="bg-graystone-100 px-1.5 py-0.5 rounded">{entry.team}</span>}
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-graystone-100 flex justify-end">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openSubtaskModal(entry.id);
-                        }}
-                        className="text-xs text-ocean-600 hover:text-ocean-800 flex items-center gap-1"
-                      >
-                        <Icon name="plus" className="w-3 h-3" />
-                        Add Subtask
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {columnEntries.length === 0 && (
-                  <div className="text-center py-8 text-graystone-400 text-sm border-2 border-dashed border-graystone-200 rounded-lg">
-                    No items
-                  </div>
-                )}
-              </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+        {columnData.map(({ column, entries: columnEntries }) => (
+          <div
+            key={column}
+            style={{
+              flex: '1 1 280px',
+              maxWidth: '400px',
+              backgroundColor: '#f8fafc',
+              borderRadius: '12px',
+              padding: '16px',
+              border: '1px solid #e2e8f0'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0' }}>
+              <h3 style={{ fontWeight: 'bold', color: '#0c4a6e', margin: 0 }}>{column}</h3>
+              <span style={{ backgroundColor: '#e2e8f0', padding: '2px 8px', borderRadius: '9999px', fontSize: '12px' }}>{columnEntries.length}</span>
             </div>
-          );
-        })}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {columnEntries.map(entry => (
+                <div
+                  key={entry.id}
+                  onClick={() => onOpen && onOpen(entry.id)}
+                  style={{
+                    backgroundColor: 'white',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
+                    <h4 style={{ fontWeight: '500', color: '#0c4a6e', fontSize: '14px', margin: 0, lineHeight: '1.3' }}>{entry.title}</h4>
+                    <span style={{
+                      backgroundColor: entry.workflowStatus === 'Done' ? '#dcfce7' : '#f1f5f9',
+                      color: entry.workflowStatus === 'Done' ? '#166534' : '#475569',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {entry.workflowStatus}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
+                    <span>{entry.owner}</span>
+                    {entry.team && <span style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{entry.team}</span>}
+                  </div>
+                </div>
+              ))}
+              {columnEntries.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#94a3b8', fontSize: '14px', border: '2px dashed #e2e8f0', borderRadius: '8px' }}>
+                  No items
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     );
   };
+
+  // Helper to check if entry matches a column
+  const entryMatchesColumn = (entry, column) => {
+    const entryDate = getEntryDate(entry);
+    if (!entryDate) return false;
+
+    if (timelineType === 'quarter') {
+      return getQuarter(entryDate) === column;
+    } else if (timelineType === 'month') {
+      return getMonthName(entryDate) === column;
+    } else if (timelineType === 'year') {
+      return String(entryDate.getFullYear()) === column;
+    } else if (timelineType === 'date') {
+      return entryDate.toISOString().slice(0, 10) === column;
+    }
+    return false;
+  };
+
+  // Get entries that have dates
+  const entriesWithDates = entries.filter(e => getEntryDate(e) !== null);
 
   const renderTimelineView = () => {
     const columns = getColumns();
@@ -175,12 +248,16 @@ const CalendarScreen = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-graystone-100">
-              {entries.filter(e => e.timelineType === timelineType).map(entry => (
+              {entriesWithDates.map(entry => (
                 <tr key={entry.id} className="hover:bg-ocean-50/50 transition-colors">
                   <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r border-graystone-200">
                     <div className="flex items-center gap-2">
                       <div className="font-medium text-sm text-ocean-900 heading-font">{entry.title}</div>
-                      <Icon name="external-link" className="w-4 h-4 text-graystone-300" />
+                      {onOpen && (
+                        <button onClick={() => onOpen(entry.id)} className="p-1 hover:bg-ocean-50 rounded">
+                          <Icon name="external-link" className="w-4 h-4 text-graystone-400 hover:text-ocean-600" />
+                        </button>
+                      )}
                     </div>
                     <div className="text-xs text-graystone-500 flex items-center gap-2 mt-1">
                       <span>{entry.owner}</span>
@@ -188,7 +265,7 @@ const CalendarScreen = ({
                     </div>
                   </td>
                   {columns.map(col => {
-                    const isMatch = entry.timelineValue === col;
+                    const isMatch = entryMatchesColumn(entry, col);
                     return (
                       <td key={col} className="px-2 py-3 border-r border-graystone-100 last:border-r-0 relative">
                         {isMatch && (
@@ -201,15 +278,82 @@ const CalendarScreen = ({
                   })}
                 </tr>
               ))}
-              {entries.filter(e => e.timelineType === timelineType).length === 0 && (
+              {entriesWithDates.length === 0 && (
                 <tr>
                   <td colSpan={columns.length + 1} className="px-4 py-8 text-center text-graystone-400 text-sm">
-                    No items found for this timeline type.
+                    No items with dates found.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderYearHeatmap = () => {
+    const year = new Date().getFullYear();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // Count entries per month for current year
+    const monthCounts = months.map((_, monthIndex) => {
+      return entries.filter(e => {
+        const entryDate = getEntryDate(e);
+        if (!entryDate) return false;
+        return entryDate.getFullYear() === year && entryDate.getMonth() === monthIndex;
+      }).length;
+    });
+
+    const maxCount = Math.max(...monthCounts, 1);
+
+    // Color scale function
+    const getHeatColor = (count) => {
+      if (count === 0) return '#f1f5f9'; // gray-100
+      const intensity = count / maxCount;
+      if (intensity < 0.25) return '#bae6fd'; // sky-200
+      if (intensity < 0.5) return '#38bdf8'; // sky-400
+      if (intensity < 0.75) return '#0284c7'; // sky-600
+      return '#075985'; // sky-800
+    };
+
+    const totalItems = monthCounts.reduce((a, b) => a + b, 0);
+
+    return (
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '16px',
+        border: '1px solid #e2e8f0'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ fontWeight: '600', color: '#0c4a6e', margin: 0, fontSize: '14px' }}>
+            {year} Overview
+          </h3>
+          <span style={{ fontSize: '12px', color: '#64748b' }}>
+            {totalItems} items
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end' }}>
+          {months.map((month, idx) => (
+            <div key={month} style={{ flex: 1, textAlign: 'center' }}>
+              <div
+                style={{
+                  height: `${Math.max(8, (monthCounts[idx] / maxCount) * 40)}px`,
+                  backgroundColor: getHeatColor(monthCounts[idx]),
+                  borderRadius: '4px',
+                  marginBottom: '4px',
+                  transition: 'all 0.2s'
+                }}
+                title={`${month}: ${monthCounts[idx]} items`}
+              />
+              <div style={{ fontSize: '10px', color: '#64748b' }}>{month}</div>
+              {monthCounts[idx] > 0 && (
+                <div style={{ fontSize: '10px', fontWeight: '600', color: '#0c4a6e' }}>{monthCounts[idx]}</div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -256,24 +400,49 @@ const CalendarScreen = ({
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6 flex-1 flex flex-col">
+      <div className={clsx(!isEmbedded && "bg-white rounded-xl border border-ocean-100 shadow-sm p-6", "flex-1 flex flex-col")}>
 
-        {/* Timeline Type Selector */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {Object.entries(TIMELINE_TYPES).map(([type, { label }]) => (
+        {/* Timeline Type Selector and View Toggle */}
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {Object.entries(TIMELINE_TYPES).map(([type, { label }]) => (
+              <button
+                key={type}
+                onClick={() => setTimelineType(type)}
+                className={clsx(
+                  "px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap",
+                  timelineType === type
+                    ? "bg-ocean-600 text-white shadow-md"
+                    : "bg-white text-graystone-600 border border-graystone-200 hover:border-ocean-300 hover:text-ocean-700"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* View Mode Toggle for embedded */}
+          <div className="flex items-center gap-1 bg-graystone-100 p-1 rounded-lg">
             <button
-              key={type}
-              onClick={() => setTimelineType(type)}
+              onClick={() => setViewMode('board')}
               className={clsx(
-                "px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap",
-                timelineType === type
-                  ? "bg-ocean-600 text-white shadow-md"
-                  : "bg-white text-graystone-600 border border-graystone-200 hover:border-ocean-300 hover:text-ocean-700"
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                viewMode === 'board' ? "bg-white text-ocean-700 shadow-sm" : "text-graystone-600 hover:text-ocean-700"
               )}
             >
-              {label}
+              <Icon name="layout-grid" className="w-4 h-4" />
+              Board
             </button>
-          ))}
+            <button
+              onClick={() => setViewMode('timeline')}
+              className={clsx(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                viewMode === 'timeline' ? "bg-white text-ocean-700 shadow-sm" : "text-graystone-600 hover:text-ocean-700"
+              )}
+            >
+              <Icon name="gantt-chart" className="w-4 h-4" />
+              Timeline
+            </button>
+          </div>
         </div>
 
         {/* Month Navigation for Week View */}
@@ -300,6 +469,9 @@ const CalendarScreen = ({
             </select>
           </div>
         )}
+
+        {/* Year Heatmap */}
+        {renderYearHeatmap()}
 
         {viewMode === 'board' ? renderBoardView() : renderTimelineView()}
       </div>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { initSupabase, getSupabase } from '../api/supabase';
-import { APP_CONFIG, MANAGERS } from '../utils/config';
+import { APP_CONFIG, MANAGERS, SEED_USERS } from '../utils/config';
 import { Logger } from '../utils/logger';
 
 // Create context
@@ -62,8 +62,9 @@ export function AppProvider({ children }) {
       // Set global variables for activity logging
       window.__currentUserEmail = email;
 
-      // Use email username or user metadata
-      const userName = user.user_metadata?.name || email.split('@')[0] || 'User';
+      // Look up display name from SEED_USERS, fall back to user_metadata or email prefix
+      const seedUser = SEED_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+      const userName = seedUser?.name || user.user_metadata?.name || email.split('@')[0] || 'User';
       setCurrentUser(userName);
       window.__currentUserName = userName;
     } else {
@@ -86,20 +87,26 @@ export function AppProvider({ children }) {
 
     async function checkAuth() {
       try {
+        console.log('[Auth] Starting auth check...');
         await initSupabase();
+        console.log('[Auth] Supabase initialized');
         const supabase = getSupabase();
 
         if (!supabase) {
+          console.log('[Auth] Supabase unavailable');
           Logger.warn('Supabase unavailable - authentication may not work');
           setAuthChecked(true);
           return;
         }
 
         // Check for existing session
+        console.log('[Auth] Checking session...');
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Auth] Session result:', session ? 'found' : 'none');
         if (session?.user) {
           await handleAuthChange(session.user);
         }
+        console.log('[Auth] Setting authChecked=true');
         setAuthChecked(true);
 
         // Listen for auth state changes

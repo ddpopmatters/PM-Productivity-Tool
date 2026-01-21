@@ -5,6 +5,22 @@ const EisenhowerMatrix = ({ onBack, userEmail, matrixTasks, setMatrixTasks, PROD
   const [newTask, setNewTask] = useState({ do: '', schedule: '', delegate: '', eliminate: '' });
   const [loading, setLoading] = useState(true);
   const [draggedTask, setDraggedTask] = useState(null);
+  const [showExample, setShowExample] = useState(false);
+
+  const exampleTasks = [
+    { id: 'ex1', title: 'Client presentation due tomorrow', quadrant: 'do', completed: false },
+    { id: 'ex2', title: 'Fix critical bug in production', quadrant: 'do', completed: false },
+    { id: 'ex3', title: 'Respond to urgent email from manager', quadrant: 'do', completed: true },
+    { id: 'ex4', title: 'Plan Q2 strategy', quadrant: 'schedule', completed: false },
+    { id: 'ex5', title: 'Learn new framework', quadrant: 'schedule', completed: false },
+    { id: 'ex6', title: 'Write documentation', quadrant: 'schedule', completed: false },
+    { id: 'ex7', title: 'Schedule team meetings', quadrant: 'delegate', completed: false },
+    { id: 'ex8', title: 'Data entry tasks', quadrant: 'delegate', completed: false },
+    { id: 'ex9', title: 'Organize shared drive', quadrant: 'delegate', completed: true },
+    { id: 'ex10', title: 'Attend optional webinar', quadrant: 'eliminate', completed: false },
+    { id: 'ex11', title: 'Check social media', quadrant: 'eliminate', completed: false },
+    { id: 'ex12', title: 'Reorganize desk again', quadrant: 'eliminate', completed: false },
+  ];
 
   const quadrants = [
     { id: 'do', title: 'Do First', subtitle: 'Urgent & Important', color: 'red', icon: 'alert-circle' },
@@ -114,22 +130,38 @@ const EisenhowerMatrix = ({ onBack, userEmail, matrixTasks, setMatrixTasks, PROD
           <Icon name="arrow-left" className="w-5 h-5" />
           Back
         </button>
-        {completedCount > 0 && (
+        <div className="flex items-center gap-4">
           <button
-            onClick={clearCompleted}
-            className="text-sm text-graystone-500 hover:text-red-500"
+            onClick={() => setShowExample(!showExample)}
+            className={`text-sm ${showExample ? 'text-ocean-600 font-medium' : 'text-ocean-500 hover:text-ocean-600'}`}
           >
-            Clear {completedCount} completed
+            {showExample ? 'Hide Example' : 'Show Example'}
           </button>
-        )}
+          {!showExample && completedCount > 0 && (
+            <button
+              onClick={clearCompleted}
+              className="text-sm text-graystone-500 hover:text-red-500"
+            >
+              Clear {completedCount} completed
+            </button>
+          )}
+        </div>
       </div>
 
       <h1 className="text-2xl font-bold text-ocean-900 mb-2">Eisenhower Matrix</h1>
-      <p className="text-graystone-600 mb-6">Prioritize tasks by urgency and importance</p>
+      <p className="text-graystone-600 mb-4">Prioritize tasks by urgency and importance</p>
+
+      {showExample && (
+        <div className="mb-4 p-3 bg-ocean-50 border border-ocean-200 rounded-lg text-sm text-ocean-700">
+          <strong>Example:</strong> This shows how tasks can be organized. Your actual tasks will appear when you dismiss this example.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {quadrants.map(q => {
-          const tasks = matrixTasks.filter(t => t.quadrant === q.id);
+          const tasks = showExample
+            ? exampleTasks.filter(t => t.quadrant === q.id)
+            : matrixTasks.filter(t => t.quadrant === q.id);
           return (
             <div
               key={q.id}
@@ -152,52 +184,56 @@ const EisenhowerMatrix = ({ onBack, userEmail, matrixTasks, setMatrixTasks, PROD
                   {tasks.map(task => (
                     <div
                       key={task.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, task)}
-                      className={`flex items-center gap-2 p-2 bg-white rounded-lg shadow-sm cursor-move group ${
+                      draggable={!showExample}
+                      onDragStart={(e) => !showExample && handleDragStart(e, task)}
+                      className={`flex items-center gap-2 p-2 bg-white rounded-lg shadow-sm ${showExample ? 'cursor-default' : 'cursor-move'} group ${
                         task.completed ? 'opacity-60' : ''
                       }`}
                     >
-                      <button
-                        onClick={() => handleToggleComplete(task)}
+                      <div
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
                           task.completed
                             ? 'bg-green-500 border-green-500 text-white'
-                            : 'border-graystone-300 hover:border-green-500'
-                        }`}
+                            : 'border-graystone-300'
+                        } ${!showExample ? 'cursor-pointer hover:border-green-500' : ''}`}
+                        onClick={() => !showExample && handleToggleComplete(task)}
                       >
                         {task.completed && <Icon name="check" className="w-3 h-3" />}
-                      </button>
+                      </div>
                       <span className={`flex-1 text-sm ${task.completed ? 'line-through text-graystone-400' : 'text-graystone-700'}`}>
                         {task.title}
                       </span>
-                      <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        className="opacity-0 group-hover:opacity-100 text-graystone-400 hover:text-red-500"
-                      >
-                        <Icon name="x" className="w-4 h-4" />
-                      </button>
+                      {!showExample && (
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="opacity-0 group-hover:opacity-100 text-graystone-400 hover:text-red-500"
+                        >
+                          <Icon name="x" className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newTask[q.id]}
-                    onChange={(e) => setNewTask(prev => ({ ...prev, [q.id]: e.target.value }))}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddTask(q.id)}
-                    placeholder="Add task..."
-                    className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg bg-white"
-                  />
-                  <button
-                    onClick={() => handleAddTask(q.id)}
-                    disabled={!newTask[q.id].trim()}
-                    className="px-3 py-2 bg-white border border-graystone-200 rounded-lg hover:bg-graystone-50 disabled:opacity-50"
-                  >
-                    <Icon name="plus" className="w-4 h-4" />
-                  </button>
-                </div>
+                {!showExample && (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newTask[q.id]}
+                      onChange={(e) => setNewTask(prev => ({ ...prev, [q.id]: e.target.value }))}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddTask(q.id)}
+                      placeholder="Add task..."
+                      className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg bg-white"
+                    />
+                    <button
+                      onClick={() => handleAddTask(q.id)}
+                      disabled={!newTask[q.id].trim()}
+                      className="px-3 py-2 bg-white border border-graystone-200 rounded-lg hover:bg-graystone-50 disabled:opacity-50"
+                    >
+                      <Icon name="plus" className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );

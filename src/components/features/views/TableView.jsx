@@ -196,7 +196,7 @@ function TableView({
               return (
                 <tr
                   key={entry.id}
-                  onClick={() => onOpen(entry.id)}
+                  onClick={() => onOpen && onOpen(entry.id)}
                   className={clsx(
                     "hover:bg-ocean-50 cursor-pointer transition-colors",
                     isSelected && "bg-ocean-50/50"

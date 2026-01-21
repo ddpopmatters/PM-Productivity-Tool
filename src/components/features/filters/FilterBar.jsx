@@ -311,8 +311,8 @@ const FilterBar = ({
                 name={
                   viewMode === 'kanban' ? 'kanban' :
                     viewMode === 'table' ? 'table' :
-                      viewMode === 'list' ? 'list' :
-                        viewMode === 'gantt' ? 'bar-chart-2' : 'layout-grid'
+                      viewMode === 'gantt' ? 'bar-chart-2' :
+                        viewMode === 'calendar' ? 'calendar' : 'layout-grid'
                 }
                 className="w-4 h-4"
               />
@@ -328,7 +328,6 @@ const FilterBar = ({
                 {[
                   { id: 'kanban', label: 'Board', icon: 'kanban' },
                   { id: 'table', label: 'Table', icon: 'table' },
-                  { id: 'list', label: 'List', icon: 'list' },
                   { id: 'gantt', label: 'Gantt', icon: 'bar-chart-2' },
                   { id: 'calendar', label: 'Calendar', icon: 'calendar' }
                 ].map(view => (

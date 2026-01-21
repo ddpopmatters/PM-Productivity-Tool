@@ -159,8 +159,9 @@ function KanbanBoard({ statuses, entries, onOpen, onUpdateStatus, openSubtaskMod
                       onDragStart={(e) => handleDragStart(e, entry)}
                       onDrag={handleDrag}
                       onDragEnd={handleDragEnd}
+                      onClick={() => onOpen && onOpen(entry.id)}
                       className={clsx(
-                        "rounded-2xl border p-4 shadow-sm transition-all cursor-move hover:shadow-md",
+                        "rounded-2xl border p-4 shadow-sm transition-all cursor-pointer hover:shadow-md",
                         cardBorderClass,
                         isBeingDragged ? "opacity-50 scale-95" : "opacity-100"
                       )}

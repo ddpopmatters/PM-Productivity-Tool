@@ -7,6 +7,7 @@ const cx = (...args) => args.filter(Boolean).join(' ');
 const WorkstreamView = ({
   workstream,
   tasks,
+  workstreamTasks, // Alternative prop name from App.jsx
   currentUser,
   userEmail,
   onBack,
@@ -18,8 +19,13 @@ const WorkstreamView = ({
   onUpdateWorkstream,
   onDeleteWorkstream,
   onOpenTask,
-  WorkstreamSettings
+  WorkstreamSettings,
+  supabase,
+  Logger,
+  setWorkstreamTasks
 }) => {
+  // Use tasks or workstreamTasks (for backwards compatibility)
+  const taskList = tasks || workstreamTasks || [];
   const [showSettings, setShowSettings] = useState(false);
   const [showNewTaskForm, setShowNewTaskForm] = useState(null); // 'deadline' or 'backlog'
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -32,15 +38,15 @@ const WorkstreamView = ({
 
   // Default task types + any custom types used in this workstream
   const defaultTaskTypes = ['Issue', 'Feature Request', 'Feature Improvement'];
-  const existingTypes = [...new Set((tasks || []).map(t => t.task_type).filter(Boolean))];
+  const existingTypes = [...new Set((taskList || []).map(t => t.task_type).filter(Boolean))];
   const allTaskTypes = [...new Set([...defaultTaskTypes, ...existingTypes])];
 
   // Load tasks when component mounts
   useEffect(() => {
-    if (workstream?.id) {
+    if (workstream?.id && onLoadTasks) {
       onLoadTasks(workstream.id);
     }
-  }, [workstream?.id]);
+  }, [workstream?.id, onLoadTasks]);
 
   const colors = [
     { id: 'blue', bg: 'bg-blue-500' },
@@ -52,11 +58,11 @@ const WorkstreamView = ({
   ];
 
   // Split tasks into time-sensitive and backlog
-  const timeSensitiveTasks = (tasks || [])
+  const timeSensitiveTasks = (taskList || [])
     .filter(t => t.deadline && t.status !== 'done')
     .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
 
-  const backlogTasks = (tasks || [])
+  const backlogTasks = (taskList || [])
     .filter(t => !t.deadline && t.status !== 'done');
 
   const highPriority = backlogTasks.filter(t => t.priority === 'high').sort((a, b) => a.sort_order - b.sort_order);

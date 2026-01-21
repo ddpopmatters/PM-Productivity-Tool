@@ -14,6 +14,27 @@ const MindMapTool = ({ onBack }) => {
 
   const nodeColors = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4'];
 
+  const exampleNodes = [
+    { id: 'root', text: 'Product Launch', x: 400, y: 250, color: '#8b5cf6', parentId: null },
+    { id: 'marketing', text: 'Marketing', x: 200, y: 150, color: '#3b82f6', parentId: 'root' },
+    { id: 'development', text: 'Development', x: 600, y: 150, color: '#22c55e', parentId: 'root' },
+    { id: 'operations', text: 'Operations', x: 400, y: 400, color: '#f59e0b', parentId: 'root' },
+    { id: 'social', text: 'Social Media', x: 80, y: 80, color: '#ec4899', parentId: 'marketing' },
+    { id: 'email', text: 'Email Campaign', x: 200, y: 50, color: '#ec4899', parentId: 'marketing' },
+    { id: 'pr', text: 'Press Release', x: 320, y: 80, color: '#ec4899', parentId: 'marketing' },
+    { id: 'features', text: 'Core Features', x: 520, y: 50, color: '#06b6d4', parentId: 'development' },
+    { id: 'testing', text: 'QA Testing', x: 680, y: 50, color: '#06b6d4', parentId: 'development' },
+    { id: 'docs', text: 'Documentation', x: 720, y: 120, color: '#06b6d4', parentId: 'development' },
+    { id: 'logistics', text: 'Logistics', x: 280, y: 480, color: '#ef4444', parentId: 'operations' },
+    { id: 'support', text: 'Customer Support', x: 520, y: 480, color: '#ef4444', parentId: 'operations' },
+  ];
+
+  const handleLoadExample = () => {
+    setNodes(exampleNodes);
+    setSelectedNodeId(null);
+    setEditingNodeId(null);
+  };
+
   const handleAddChild = (parentId) => {
     const parent = nodes.find(n => n.id === parentId);
     if (!parent) return;
@@ -165,6 +186,12 @@ const MindMapTool = ({ onBack }) => {
               )}
             </>
           )}
+          <button
+            onClick={handleLoadExample}
+            className="text-sm text-ocean-500 hover:text-ocean-600"
+          >
+            Load Example
+          </button>
           <button
             onClick={handleReset}
             className="text-sm text-graystone-500 hover:text-red-500"

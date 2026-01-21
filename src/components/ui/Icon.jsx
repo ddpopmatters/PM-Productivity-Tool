@@ -15,6 +15,10 @@ import React, { useRef, useLayoutEffect } from 'react';
 const Icon = ({ name, className = "", size, ...props }) => {
   const iconRef = useRef(null);
 
+  // Extract only size classes for the SVG, rest goes on wrapper
+  const sizeMatch = className.match(/[wh]-\d+|[wh]-\[\d+px\]/g) || [];
+  const sizeClasses = sizeMatch.join(' ');
+
   useLayoutEffect(() => {
     if (iconRef.current && window.lucide) {
       // Clear any existing content
@@ -22,7 +26,8 @@ const Icon = ({ name, className = "", size, ...props }) => {
       // Create the icon element
       const iconEl = document.createElement('i');
       iconEl.setAttribute('data-lucide', name);
-      if (className) iconEl.className = className;
+      // Only apply size classes to inner element
+      if (sizeClasses) iconEl.className = sizeClasses;
       if (size) {
         iconEl.style.width = typeof size === 'number' ? `${size}px` : size;
         iconEl.style.height = typeof size === 'number' ? `${size}px` : size;
@@ -31,9 +36,9 @@ const Icon = ({ name, className = "", size, ...props }) => {
       // Transform just this icon
       window.lucide.createIcons({ nodes: [iconEl] });
     }
-  }, [name, className, size]);
+  }, [name, sizeClasses, size]);
 
-  return <span ref={iconRef} className="inline-flex" {...props} />;
+  return <span ref={iconRef} className={`inline-flex ${className}`} {...props} />;
 };
 
 export default Icon;

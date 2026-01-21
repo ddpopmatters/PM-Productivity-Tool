@@ -26,6 +26,7 @@ import Icon from '../../ui/Icon';
  * @param {function} isAdmin - Function to check if user is admin
  * @param {function} isManager - Function to check if user is manager
  * @param {object} config - App configuration (LOGO_URL, ORG_NAME, AUTH_ENABLED)
+ * @param {function} onAddNewItem - Callback to open add new item modal
  */
 const Sidebar = ({
   currentView,
@@ -39,7 +40,8 @@ const Sidebar = ({
   onClose,
   isAdmin,
   isManager,
-  config = {}
+  config = {},
+  onAddNewItem
 }) => {
   const userIsAdmin = isAdmin ? isAdmin(userEmail) : false;
   const userIsManager = isManager ? isManager(userEmail) : false;
@@ -79,15 +81,25 @@ const Sidebar = ({
       )}>
         {/* Logo/Header */}
         <div className="p-6 border-b border-ocean-100">
-          {config.LOGO_URL && (
+          {config.LOGO_URL ? (
             <img
               src={config.LOGO_URL}
               alt={config.ORG_NAME || 'Organization'}
               className="h-10 mb-4"
             />
+          ) : (
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-ocean-500 to-ocean-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Icon name="zap" className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-ocean-900 leading-tight">Momentum</h2>
+                <p className="text-xs text-ocean-500 font-medium -mt-0.5">Hub</p>
+              </div>
+            </div>
           )}
-          <h1 className="text-2xl text-ocean-900">{(currentUser || 'User').split(' ')[0]}'s Project Hub</h1>
-          <p className="text-xs text-ocean-600 mt-1">Workflow Management</p>
+          <h1 className="text-lg text-ocean-900 font-medium">{(currentUser || 'User').split(' ')[0]}'s Workspace</h1>
+          <p className="text-xs text-ocean-500 mt-0.5">{config.ORG_NAME || 'Workflow Management'}</p>
         </div>
 
         {/* Navigation Items */}
@@ -104,19 +116,27 @@ const Sidebar = ({
                   : "text-ocean-900 hover:bg-ocean-50"
               )}
             >
-              <div className="relative flex items-center justify-center">
+              <div className="relative w-5 h-5 flex-shrink-0">
                 {/* Hover Circle - Behind Icon */}
                 <div
                   className={clsx(
-                    "absolute w-10 h-10 rounded-full transition-all duration-300",
+                    "absolute -inset-2 rounded-full transition-all duration-300",
                     currentView === item.id
                       ? "scale-0 opacity-0"
                       : "scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
                   )}
                   style={{ backgroundColor: '#0CFFFF' }}
-                ></div>
-
-                <Icon name={item.icon} className="w-5 h-5 relative z-10" />
+                />
+                <Icon
+                  name={item.icon}
+                  className={clsx(
+                    "w-5 h-5 relative z-10 transition-colors duration-300",
+                    currentView === item.id
+                      ? "text-white"
+                      : "text-ocean-900 group-hover:text-white"
+                  )}
+                  style={{ color: currentView === item.id ? 'white' : '#11607d' }}
+                />
               </div>
               <span className="font-heading text-sm tracking-wide">{item.label}</span>
             </button>
@@ -145,13 +165,15 @@ const Sidebar = ({
         {/* Add New Item - Special Button */}
         <div className="p-4 border-t border-ocean-100">
           <button
-            onClick={() => handleNavigation('add-item')}
-            className={clsx(
-              "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-left transition-all font-semibold",
-              currentView === 'add-item'
-                ? "bg-ocean-600 text-white shadow-lg"
-                : "bg-ocean-500 text-white hover:bg-ocean-600 shadow-md"
-            )}
+            onClick={() => {
+              if (onAddNewItem) {
+                onAddNewItem();
+                if (onClose) onClose();
+              } else {
+                handleNavigation('add-item');
+              }
+            }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-left transition-all font-semibold bg-ocean-500 text-white hover:bg-ocean-600 shadow-md"
           >
             <Icon name="plus-circle" className="w-5 h-5" />
             <span className="font-heading text-sm tracking-wide">Add New Item</span>

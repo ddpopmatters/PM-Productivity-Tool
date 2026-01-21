@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Icon from '../../ui/Icon';
+import WhiteboardThumbnail from '../whiteboards/WhiteboardThumbnail';
 
 const WhiteboardsView = ({
   whiteboards,
@@ -55,59 +56,96 @@ const WhiteboardsView = ({
     return true;
   });
 
+  const myWhiteboards = whiteboards.filter(wb => wb.owner_email === userEmail);
+  const sharedWhiteboards = whiteboards.filter(wb => wb.owner_email !== userEmail);
+
   return (
-    <div className="flex flex-col animate-in fade-in duration-500 space-y-6">
+    <div className="p-6 animate-in fade-in duration-500 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-graystone-900 dark:text-white">Whiteboards</h1>
-          <p className="text-graystone-600 dark:text-graystone-400">Create and collaborate on visual boards</p>
+      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">Whiteboards</h1>
+            <p className="text-ocean-100 text-sm">Create and collaborate on visual boards</p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors border border-white/20"
+          >
+            <Icon name="plus" className="w-4 h-4" />
+            New Whiteboard
+          </button>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors"
-        >
-          <Icon name="plus" className="w-4 h-4" />
-          New Whiteboard
-        </button>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 border-b border-graystone-200 dark:border-graystone-700">
-        {[
-          { id: 'all', label: 'All' },
-          { id: 'mine', label: 'My Whiteboards' },
-          { id: 'shared', label: 'Shared With Me' }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setFilter(tab.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              filter === tab.id
-                ? 'border-ocean-600 text-ocean-600 dark:text-ocean-400'
-                : 'border-transparent text-graystone-600 hover:text-graystone-900 dark:text-graystone-400'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div
+          onClick={() => setFilter('all')}
+          className={`bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
+            filter === 'all' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-ocean-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">All</p>
+              <p className="text-3xl font-bold text-ocean-900">{whiteboards.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="layout" className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xs text-graystone-500 mt-2">All whiteboards</p>
+        </div>
+        <div
+          onClick={() => setFilter('mine')}
+          className={`bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
+            filter === 'mine' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-ocean-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">My Whiteboards</p>
+              <p className="text-3xl font-bold text-ocean-900">{myWhiteboards.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="user" className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xs text-graystone-500 mt-2">Created by you</p>
+        </div>
+        <div
+          onClick={() => setFilter('shared')}
+          className={`bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
+            filter === 'shared' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-ocean-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Shared With Me</p>
+              <p className="text-3xl font-bold text-ocean-900">{sharedWhiteboards.length}</p>
+            </div>
+            <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+              <Icon name="users" className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xs text-graystone-500 mt-2">Shared by others</p>
+        </div>
       </div>
 
       {/* Whiteboard Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
+        <div className="bg-white rounded-xl border border-ocean-100 p-12 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ocean-600"></div>
         </div>
       ) : filteredWhiteboards.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-graystone-100 dark:bg-graystone-800 mb-4">
-            <Icon name="layout" className="w-8 h-8 text-graystone-400" />
-          </div>
-          <h3 className="text-lg font-medium text-graystone-900 dark:text-white mb-2">No whiteboards yet</h3>
-          <p className="text-graystone-600 dark:text-graystone-400 mb-4">Create your first whiteboard to get started</p>
+        <div className="bg-white rounded-xl border border-ocean-100 p-12 text-center">
+          <Icon name="layout" className="w-12 h-12 text-graystone-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-graystone-600 mb-2">No whiteboards yet</h3>
+          <p className="text-graystone-400 mb-4">Create your first whiteboard to get started</p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors"
+            className="px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition-colors"
           >
             Create Whiteboard
           </button>
@@ -118,21 +156,24 @@ const WhiteboardsView = ({
             <div
               key={whiteboard.id}
               onClick={() => onOpenWhiteboard(whiteboard.id)}
-              className="bg-white dark:bg-graystone-800 rounded-xl border border-graystone-200 dark:border-graystone-700 p-4 cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all group"
+              className="bg-white rounded-xl border border-ocean-100 p-4 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 hover:border-ocean-300 transition-all group"
             >
               {/* Preview Area */}
-              <div className="aspect-video bg-graystone-50 dark:bg-graystone-900 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                <Icon name="layout" className="w-12 h-12 text-graystone-300 dark:text-graystone-600" />
+              <div className="mb-3">
+                <WhiteboardThumbnail
+                  whiteboardId={whiteboard.id}
+                  WHITEBOARD_API={WHITEBOARD_API}
+                />
               </div>
 
               {/* Info */}
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-graystone-900 dark:text-white truncate">{whiteboard.title}</h3>
-                  <p className="text-sm text-graystone-500 dark:text-graystone-400">
+                  <h3 className="font-bold text-ocean-900 truncate">{whiteboard.title}</h3>
+                  <p className="text-sm text-graystone-500">
                     {whiteboard.owner_email === userEmail ? 'You' : whiteboard.owner_name || 'Unknown'}
                   </p>
-                  <p className="text-xs text-graystone-400 dark:text-graystone-500 mt-1">
+                  <p className="text-xs text-graystone-400 mt-1">
                     Updated {new Date(whiteboard.updated_at).toLocaleDateString()}
                   </p>
                 </div>
@@ -151,7 +192,7 @@ const WhiteboardsView = ({
 
               {/* Shared Badge */}
               {whiteboard.is_shared && (
-                <div className="mt-2 flex items-center gap-1 text-xs text-ocean-600 dark:text-ocean-400">
+                <div className="mt-2 flex items-center gap-1 text-xs text-ocean-600">
                   <Icon name="users" className="w-3 h-3" />
                   Shared
                 </div>
@@ -163,31 +204,47 @@ const WhiteboardsView = ({
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white dark:bg-graystone-800 rounded-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-bold text-graystone-900 dark:text-white mb-4">Create New Whiteboard</h2>
-            <input
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Whiteboard name"
-              className="w-full px-4 py-2 border border-graystone-300 dark:border-graystone-600 rounded-lg bg-white dark:bg-graystone-900 text-graystone-900 dark:text-white focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-            />
-            <div className="flex justify-end gap-2 mt-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-graystone-200">
+              <h3 className="text-xl font-bold text-ocean-900">Create New Whiteboard</h3>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-graystone-600 dark:text-graystone-400 hover:bg-graystone-100 dark:hover:bg-graystone-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-graystone-100 rounded-lg transition"
+              >
+                <Icon name="x" className="w-5 h-5 text-graystone-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              <label className="block text-sm font-medium text-graystone-700 mb-1">Name</label>
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="e.g., Project Brainstorm"
+                className="w-full px-4 py-2 border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-2 p-6 border-t border-graystone-200">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
                 disabled={!newTitle.trim()}
-                className="px-4 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create
+                Create Whiteboard
               </button>
             </div>
           </div>

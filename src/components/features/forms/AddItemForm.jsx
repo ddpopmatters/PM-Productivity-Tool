@@ -73,14 +73,14 @@ const AddItemForm = ({
   };
 
   return (
-    <div className="max-w-xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-white rounded-xl shadow-sm border border-ocean-100 p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-ocean-900">Add New Item</h2>
-          <Button variant="ghost" onClick={onBack} className="text-graystone-500 hover:text-ocean-600">
-            <Icon name="x" className="w-5 h-5" />
-          </Button>
-        </div>
+    <div className="animate-in fade-in duration-300">
+      <div className="flex items-center justify-between p-6 border-b border-graystone-200">
+        <h2 className="text-xl font-bold text-ocean-900">Add New Project</h2>
+        <button onClick={onBack} className="p-2 hover:bg-graystone-100 rounded-lg transition">
+          <Icon name="x" className="w-5 h-5 text-graystone-500" />
+        </button>
+      </div>
+      <div className="p-6">
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Form Error */}
           {formError && (
@@ -423,9 +423,9 @@ const AddItemForm = ({
             </div>
           </div>
 
-          <div className="pt-4 flex gap-3">
-            <Button type="submit" variant="solid" className="flex-1">Create Item</Button>
+          <div className="pt-4 flex justify-end gap-3 border-t border-graystone-200 mt-6">
             <Button type="button" variant="ghost" onClick={onBack}>Cancel</Button>
+            <Button type="submit" variant="solid">Create Project</Button>
           </div>
         </form>
       </div>

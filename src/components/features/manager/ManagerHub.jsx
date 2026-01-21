@@ -72,6 +72,59 @@ const ManagerHub = ({
   const [memberFilter, setMemberFilter] = useState('all');
   const [expandedProjectSubtasks, setExpandedProjectSubtasks] = useState({});
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [previewMembers, setPreviewMembers] = useState([]);
+  const [previewTimeFilter, setPreviewTimeFilter] = useState('all');
+  const [previewSelectedMonth, setPreviewSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [previewSelectedYear, setPreviewSelectedYear] = useState(new Date().getFullYear());
+
+  const togglePreviewMember = (email) => {
+    setPreviewMembers(prev =>
+      prev.includes(email)
+        ? prev.filter(e => e !== email)
+        : [...prev, email]
+    );
+  };
+
+  const filterItemsByTime = (itemsList) => {
+    if (previewTimeFilter === 'all') return itemsList;
+
+    const now = new Date();
+
+    return itemsList.filter(item => {
+      const itemDate = item.date || item.timelineValue;
+      if (!itemDate) return previewTimeFilter === 'all';
+
+      const date = new Date(itemDate);
+
+      if (previewTimeFilter === 'week') {
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        return date >= startOfWeek && date <= endOfWeek;
+      }
+
+      if (previewTimeFilter === 'month') {
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+      }
+
+      if (previewTimeFilter === 'select-month') {
+        const [year, month] = previewSelectedMonth.split('-');
+        return date.getFullYear() === parseInt(year) && date.getMonth() === parseInt(month) - 1;
+      }
+
+      if (previewTimeFilter === 'select-year') {
+        return date.getFullYear() === previewSelectedYear;
+      }
+
+      return true;
+    });
+  };
 
   const getCurrentPeriod = (type) => {
     const now = new Date();
@@ -168,39 +221,6 @@ const ManagerHub = ({
     return memberItems;
   };
 
-  const computeBottleneck = (items) => {
-    const counts = {};
-    items.forEach(i => {
-      const st = i.workflowStatus || "Unknown";
-      counts[st] = (counts[st] || 0) + 1;
-    });
-    let maxSt = "";
-    let maxC = 0;
-    Object.entries(counts).forEach(([st, c]) => {
-      if (c > maxC) { maxC = c; maxSt = st; }
-    });
-    return { status: maxSt, count: maxC };
-  };
-
-  const computeImminent = (items) => {
-    const now = new Date();
-    const fourteenDays = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-    return items.filter(i => {
-      if (!i.date) return false;
-      const d = new Date(i.date);
-      return d >= now && d <= fourteenDays;
-    });
-  };
-
-  const computeOverdue = (items) => {
-    const now = new Date();
-    return items.filter(i => {
-      if (!i.date) return false;
-      const d = new Date(i.date);
-      return d < now && (i.workflowStatus || "").toLowerCase() !== "done";
-    });
-  };
-
   const managerName = selectedManager?.name || currentUser || "Manager";
 
   if (!myManagerRecord && !isAdminUser) {
@@ -227,80 +247,63 @@ const ManagerHub = ({
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: 'layout-list' },
-    { id: 'yearly', label: 'Yearly Overview', icon: 'calendar-range' },
-    { id: 'reports', label: 'Reports', icon: 'file-text' }
+    { id: 'yearly', label: 'Yearly Overview', icon: 'calendar-range' }
   ];
 
   const items = selectedManager ? getTeamEntries(selectedManager) : [];
-  const bottleneck = computeBottleneck(items);
-  const imminent = computeImminent(items);
-  const overdue = computeOverdue(items);
-  const inProgress = items.filter((i) => (i.workflowStatus || "").toLowerCase() !== "done");
-  const bottleneckItems = items.filter((i) => (i.workflowStatus || "Unknown") === bottleneck.status);
+  const now = new Date();
+  const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const dueThisMonth = items.filter(item => {
+    const itemDate = item.date || item.timelineValue;
+    if (!itemDate) return false;
+    return itemDate.startsWith(thisMonthStr) && (item.workflowStatus || '').toLowerCase() !== 'done';
+  });
 
   const openModal = (title, data) => {
     if (openStatsModal) openStatsModal(title, data);
   };
 
-  const getYearlyData = () => {
-    const allItems = selectedManager ? getTeamEntries(selectedManager) : [];
-    const yearItems = allItems.filter(item => {
-      const tv = item.timelineValue || '';
-      const d = item.date || '';
-      return tv.startsWith(String(selectedYear)) || d.startsWith(String(selectedYear));
-    });
-
-    const quarters = [1, 2, 3, 4].map(q => {
-      const qItems = yearItems.filter(item => {
-        const tv = item.timelineValue || '';
-        if (tv.includes(`Q${q}`)) return true;
-        const d = item.date || '';
-        if (d) {
-          const month = parseInt(d.split('-')[1]);
-          const qStart = (q - 1) * 3 + 1;
-          const qEnd = q * 3;
-          return month >= qStart && month <= qEnd;
-        }
-        return false;
-      });
-      return {
-        quarter: q,
-        label: `Q${q}`,
-        items: qItems,
-        completed: qItems.filter(i => (i.workflowStatus || '').toLowerCase() === 'done').length,
-        total: qItems.length
-      };
-    });
-    return quarters;
+  // Generate timeframe label for print header
+  const getPrintTimeframe = () => {
+    if ((managerHubTab || 'overview') === 'yearly') {
+      return `${selectedYear} - ${timelineFilter === 'week' ? 'Weekly' : timelineFilter === 'month' ? 'Monthly' : 'Quarterly'} View`;
+    }
+    if (previewTimeFilter === 'all') return 'All Time';
+    if (previewTimeFilter === 'week') return 'This Week';
+    if (previewTimeFilter === 'month') return 'This Month';
+    if (previewTimeFilter === 'select-month') {
+      const [year, month] = previewSelectedMonth.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return date.toLocaleString('default', { month: 'long', year: 'numeric' });
+    }
+    if (previewTimeFilter === 'select-year') return String(previewSelectedYear);
+    return '';
   };
-
-  const yearlyData = getYearlyData();
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6" id="manager-hub-export-content">
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+      {/* Print-only header */}
+      <div className="hidden print:block print:mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Project Report</h1>
+        <p className="text-lg text-gray-600 mt-1">{getPrintTimeframe()}</p>
+        <p className="text-sm text-gray-500 mt-1">{selectedManager?.team || teams[0] || "Team"} Team</p>
+        <hr className="mt-4 border-gray-300" />
+      </div>
+
+      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl print:hidden">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold heading-font">{managerName}'s Manager Hub</h2>
             <p className="text-ocean-100 text-sm">See team workloads, bottlenecks, and near-term risk.</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-xs uppercase tracking-wide text-ocean-100">Team</div>
-              <div className="text-lg font-semibold">{selectedManager?.team || teams[0] || "Team"}</div>
-            </div>
-            <button
-              onClick={() => onOpenPdfExport && onOpenPdfExport('manager-hub')}
-              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition text-sm font-medium border border-white/20"
-            >
-              <Icon name="download" className="w-4 h-4" />
-              Export PDF
-            </button>
+          <div className="text-right">
+            <div className="text-xs uppercase tracking-wide text-ocean-100">Team</div>
+            <div className="text-lg font-semibold">{selectedManager?.team || teams[0] || "Team"}</div>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-1 border-b border-graystone-200">
+      <div className="flex gap-1 border-b border-graystone-200 print:hidden">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -320,173 +323,440 @@ const ManagerHub = ({
 
       {(managerHubTab || 'overview') === 'overview' && selectedManager && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          {/* Stat cards - hidden in print */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:hidden">
             <button type="button" onClick={() => openModal(`Items: ${selectedManager.name}`, items)}
               className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
               <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">Team items</div>
               <div className="text-3xl font-bold text-ocean-900">{items.length}</div>
             </button>
-            <button type="button" onClick={() => openModal("In progress", inProgress)}
+            <button type="button" onClick={() => openModal("Due This Month", dueThisMonth)}
               className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
-              <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">In progress</div>
-              <div className="text-3xl font-bold text-ocean-900">{inProgress.length}</div>
-            </button>
-            <button type="button" onClick={() => openModal(`Bottleneck: ${bottleneck.status}`, bottleneckItems)}
-              className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
-              <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">Top bottleneck</div>
-              <div className="text-3xl font-bold text-ocean-900">{bottleneck.count}</div>
-            </button>
-            <button type="button" onClick={() => openModal("Imminent (14 days)", imminent)}
-              className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
-              <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">Imminent</div>
-              <div className="text-3xl font-bold text-ocean-900">{imminent.length}</div>
-            </button>
-            <button type="button" onClick={() => openModal("Overdue", overdue)}
-              className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
-              <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">Overdue</div>
-              <div className="text-3xl font-bold text-red-600">{overdue.length}</div>
+              <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">Due This Month</div>
+              <div className="text-3xl font-bold text-ocean-900">{dueThisMonth.length}</div>
             </button>
           </div>
 
-          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+          {/* Team Members Selection - hidden in print */}
+          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6 print:hidden">
             <h3 className="text-lg font-semibold text-ocean-900 mb-4 flex items-center gap-2">
               <Icon name="users" className="w-5 h-5" />
               Team Members
+              {previewMembers.length > 0 && (
+                <span className="text-sm font-normal text-graystone-500">
+                  ({previewMembers.length} selected)
+                </span>
+              )}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {(selectedManager?.reports || []).map(email => {
                 const memberItems = items.filter(i => i.owner?.toLowerCase() === email.toLowerCase());
-                const memberOverdue = memberItems.filter(i => {
-                  if (!i.date) return false;
-                  return new Date(i.date) < new Date() && (i.workflowStatus || '').toLowerCase() !== 'done';
-                });
+                const isSelected = previewMembers.includes(email);
                 return (
-                  <div key={email} className="p-4 bg-graystone-50 rounded-lg border border-graystone-200">
-                    <div className="font-medium text-ocean-900">{email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>
+                  <div
+                    key={email}
+                    onClick={() => togglePreviewMember(email)}
+                    className={cx(
+                      "p-4 rounded-lg border cursor-pointer transition-all",
+                      isSelected
+                        ? "bg-ocean-50 border-ocean-500 ring-2 ring-ocean-200"
+                        : "bg-graystone-50 border-graystone-200 hover:border-ocean-300 hover:bg-ocean-50/50"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-ocean-900">{email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>
+                      {isSelected && <Icon name="check" className="w-5 h-5 text-ocean-600" />}
+                    </div>
                     <div className="text-xs text-graystone-500 mb-2">{email}</div>
                     <div className="flex gap-4 text-sm">
                       <span className="text-ocean-600">{memberItems.length} items</span>
-                      {memberOverdue.length > 0 && (
-                        <span className="text-red-600">{memberOverdue.length} overdue</span>
-                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
+
+          {/* Print-only: Simple list of included team members */}
+          {previewMembers.length > 0 && (
+            <div className="hidden print:block mb-4">
+              <p className="text-sm text-gray-600">
+                <span className="font-medium">Team members included: </span>
+                {previewMembers.map(email => email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase())).join(', ')}
+              </p>
+            </div>
+          )}
+
+          {/* Export Current View */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition text-sm font-medium"
+            >
+              <Icon name="download" className="w-4 h-4" />
+              Export Overview
+            </button>
+          </div>
+
+          {/* Selected Members Preview */}
+          {previewMembers.length > 0 && (
+            <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6 print:border-0 print:shadow-none print:p-0">
+              {/* Header and controls - hidden in print */}
+              <div className="flex items-center justify-between mb-4 print:hidden">
+                <h3 className="text-lg font-semibold text-ocean-900 flex items-center gap-2">
+                  <Icon name="folder" className="w-5 h-5" />
+                  Projects from Selected Members
+                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={previewTimeFilter}
+                      onChange={(e) => setPreviewTimeFilter(e.target.value)}
+                      className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                    >
+                      <option value="all">All time</option>
+                      <option value="week">This week</option>
+                      <option value="month">This month</option>
+                      <option value="select-month">Select month</option>
+                      <option value="select-year">Select year</option>
+                    </select>
+                    {previewTimeFilter === 'select-month' && (
+                      <input
+                        type="month"
+                        value={previewSelectedMonth}
+                        onChange={(e) => setPreviewSelectedMonth(e.target.value)}
+                        className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                      />
+                    )}
+                    {previewTimeFilter === 'select-year' && (
+                      <select
+                        value={previewSelectedYear}
+                        onChange={(e) => setPreviewSelectedYear(parseInt(e.target.value))}
+                        className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                      >
+                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setPreviewMembers([])}
+                    className="text-sm text-graystone-500 hover:text-ocean-600 transition"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-4 max-h-[32rem] overflow-y-auto">
+                {(() => {
+                  const filteredItems = filterItemsByTime(items
+                    .filter(item => previewMembers.some(email => item.owner?.toLowerCase() === email.toLowerCase())));
+
+                  if (filteredItems.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-graystone-500">
+                        No projects found for selected members{previewTimeFilter !== 'all' ? ' in this time period' : ''}
+                      </div>
+                    );
+                  }
+
+                  // Group by month when year is selected
+                  if (previewTimeFilter === 'select-year') {
+                    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                                   'July', 'August', 'September', 'October', 'November', 'December'];
+                    const groupedByMonth = {};
+
+                    filteredItems.forEach(item => {
+                      const itemDate = item.date || item.timelineValue;
+                      if (itemDate) {
+                        const month = new Date(itemDate).getMonth();
+                        if (!groupedByMonth[month]) groupedByMonth[month] = [];
+                        groupedByMonth[month].push(item);
+                      } else {
+                        if (!groupedByMonth[-1]) groupedByMonth[-1] = [];
+                        groupedByMonth[-1].push(item);
+                      }
+                    });
+
+                    return (
+                      <>
+                        {months.map((monthName, monthIndex) => {
+                          const monthItems = groupedByMonth[monthIndex] || [];
+                          if (monthItems.length === 0) return null;
+                          return (
+                            <div key={monthIndex} className="space-y-2">
+                              <div className="sticky top-0 bg-white py-2 border-b border-graystone-200">
+                                <h4 className="font-semibold text-ocean-900 flex items-center justify-between">
+                                  {monthName} {previewSelectedYear}
+                                  <span className="text-sm font-normal text-graystone-500">{monthItems.length} project{monthItems.length !== 1 ? 's' : ''}</span>
+                                </h4>
+                              </div>
+                              {monthItems.map(item => (
+                                <div
+                                  key={item.id}
+                                  onClick={() => onOpen && onOpen(item.id)}
+                                  className="p-4 bg-graystone-50 rounded-lg border border-graystone-200 hover:border-ocean-300 cursor-pointer transition"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-ocean-900 truncate">{item.title}</div>
+                                      <div className="text-sm text-graystone-500 mt-1">
+                                        {item.owner} • {item.workflowStatus || 'No status'}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {item.date && (
+                                        <span className="text-xs px-2 py-1 bg-ocean-100 text-ocean-700 rounded-full">
+                                          {new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                        </span>
+                                      )}
+                                      {Badge && item.workflowStatus && (
+                                        <Badge status={item.workflowStatus} />
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                        {groupedByMonth[-1] && groupedByMonth[-1].length > 0 && (
+                          <div className="space-y-2">
+                            <div className="sticky top-0 bg-white py-2 border-b border-graystone-200">
+                              <h4 className="font-semibold text-graystone-600 flex items-center justify-between">
+                                No date set
+                                <span className="text-sm font-normal text-graystone-500">{groupedByMonth[-1].length} project{groupedByMonth[-1].length !== 1 ? 's' : ''}</span>
+                              </h4>
+                            </div>
+                            {groupedByMonth[-1].map(item => (
+                              <div
+                                key={item.id}
+                                onClick={() => onOpen && onOpen(item.id)}
+                                className="p-4 bg-graystone-50 rounded-lg border border-graystone-200 hover:border-ocean-300 cursor-pointer transition"
+                              >
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-ocean-900 truncate">{item.title}</div>
+                                    <div className="text-sm text-graystone-500 mt-1">
+                                      {item.owner} • {item.workflowStatus || 'No status'}
+                                    </div>
+                                  </div>
+                                  {Badge && item.workflowStatus && (
+                                    <Badge status={item.workflowStatus} />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  }
+
+                  // Flat list for other filters
+                  return filteredItems.map(item => (
+                    <div
+                      key={item.id}
+                      onClick={() => onOpen && onOpen(item.id)}
+                      className="p-4 bg-graystone-50 rounded-lg border border-graystone-200 hover:border-ocean-300 cursor-pointer transition"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-ocean-900 truncate">{item.title}</div>
+                          <div className="text-sm text-graystone-500 mt-1">
+                            {item.owner} • {item.workflowStatus || 'No status'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {item.date && (
+                            <span className="text-xs px-2 py-1 bg-ocean-100 text-ocean-700 rounded-full">
+                              {new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                          {Badge && item.workflowStatus && (
+                            <Badge status={item.workflowStatus} />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {(managerHubTab || 'overview') === 'yearly' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <h3 className="text-lg font-semibold text-ocean-900">Yearly Overview</h3>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setSelectedYear(y => y - 1)} className="p-2 hover:bg-graystone-100 rounded-lg">
-                <Icon name="chevron-left" className="w-4 h-4" />
-              </button>
-              <span className="font-semibold text-ocean-900 min-w-[60px] text-center">{selectedYear}</span>
-              <button onClick={() => setSelectedYear(y => y + 1)} className="p-2 hover:bg-graystone-100 rounded-lg">
-                <Icon name="chevron-right" className="w-4 h-4" />
+            <div className="flex items-center gap-4">
+              <select
+                value={timelineFilter}
+                onChange={(e) => setTimelineFilter(e.target.value)}
+                className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+              >
+                <option value="week">By Week</option>
+                <option value="month">By Month</option>
+                <option value="quarter">By Quarter</option>
+              </select>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedYear(y => y - 1)} className="p-2 hover:bg-graystone-100 rounded-lg">
+                  <Icon name="chevron-left" className="w-4 h-4" />
+                </button>
+                <span className="font-semibold text-ocean-900 min-w-[60px] text-center">{selectedYear}</span>
+                <button onClick={() => setSelectedYear(y => y + 1)} className="p-2 hover:bg-graystone-100 rounded-lg">
+                  <Icon name="chevron-right" className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition text-sm font-medium"
+              >
+                <Icon name="download" className="w-4 h-4" />
+                Export {selectedYear}
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {yearlyData.map(q => (
-              <div key={q.quarter} className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5">
-                <div className="text-lg font-semibold text-ocean-900 mb-2">{q.label} {selectedYear}</div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-graystone-600">Total Items</span>
-                    <span className="font-medium">{q.total}</span>
+          {(() => {
+            const yearItems = items.filter(item => {
+              const itemDate = item.date || item.timelineValue;
+              if (!itemDate) return false;
+              return itemDate.startsWith(String(selectedYear));
+            });
+
+            // Generate periods based on selected view
+            const getPeriods = () => {
+              if (timelineFilter === 'quarter') {
+                return [1, 2, 3, 4].map(q => ({
+                  key: `Q${q}`,
+                  label: `Q${q}`,
+                  filter: (item) => {
+                    const itemDate = item.date || item.timelineValue;
+                    if (!itemDate) return false;
+                    if (itemDate.includes(`Q${q}`)) return true;
+                    const month = parseInt(itemDate.split('-')[1]);
+                    const qStart = (q - 1) * 3 + 1;
+                    const qEnd = q * 3;
+                    return month >= qStart && month <= qEnd;
+                  }
+                }));
+              }
+              if (timelineFilter === 'month') {
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return months.map((m, i) => ({
+                  key: m,
+                  label: m,
+                  filter: (item) => {
+                    const itemDate = item.date || item.timelineValue;
+                    if (!itemDate) return false;
+                    const month = parseInt(itemDate.split('-')[1]);
+                    return month === i + 1;
+                  }
+                }));
+              }
+              // Week view - show weeks with at least one item
+              const weeks = [];
+              for (let w = 1; w <= 52; w++) {
+                const startDate = new Date(selectedYear, 0, 1 + (w - 1) * 7);
+                const endDate = new Date(selectedYear, 0, 1 + w * 7 - 1);
+                weeks.push({
+                  key: `W${w}`,
+                  label: `W${w}`,
+                  sublabel: `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+                  filter: (item) => {
+                    const itemDate = item.date || item.timelineValue;
+                    if (!itemDate) return false;
+                    const d = new Date(itemDate);
+                    return d >= startDate && d <= endDate;
+                  }
+                });
+              }
+              return weeks;
+            };
+
+            const periods = getPeriods();
+            const periodData = periods.map(p => ({
+              ...p,
+              count: yearItems.filter(p.filter).length,
+              items: yearItems.filter(p.filter)
+            })).filter(p => timelineFilter !== 'week' || p.count > 0);
+
+            const maxCount = Math.max(...periodData.map(p => p.count), 1);
+
+            return (
+              <div className="space-y-6">
+                {/* Period breakdown */}
+                <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                  <h4 className="font-semibold text-ocean-900 mb-4 flex items-center gap-2">
+                    <Icon name="bar-chart-2" className="w-5 h-5" />
+                    {timelineFilter === 'week' ? 'Busy Weeks' : timelineFilter === 'month' ? 'Monthly Breakdown' : 'Quarterly Breakdown'}
+                    <span className="text-sm font-normal text-graystone-500">({yearItems.length} total projects)</span>
+                  </h4>
+                  <div className={cx(
+                    "grid gap-2",
+                    timelineFilter === 'quarter' ? "grid-cols-4" : timelineFilter === 'month' ? "grid-cols-6 md:grid-cols-12" : "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-13"
+                  )}>
+                    {periodData.map(p => (
+                      <div
+                        key={p.key}
+                        className="relative group"
+                        title={`${p.label}: ${p.count} project${p.count !== 1 ? 's' : ''}`}
+                      >
+                        <div className="text-center">
+                          <div className="text-xs font-medium text-graystone-600 mb-1">{p.label}</div>
+                          <div
+                            className={cx(
+                              "mx-auto rounded-lg transition-all",
+                              p.count === 0 ? "bg-graystone-100" : p.count >= maxCount * 0.75 ? "bg-red-400" : p.count >= maxCount * 0.5 ? "bg-amber-400" : "bg-ocean-400"
+                            )}
+                            style={{
+                              height: `${Math.max(20, (p.count / maxCount) * 60)}px`,
+                              width: '100%'
+                            }}
+                          />
+                          <div className="text-sm font-bold text-ocean-900 mt-1">{p.count}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-graystone-600">Completed</span>
-                    <span className="font-medium text-green-600">{q.completed}</span>
-                  </div>
-                  <div className="w-full bg-graystone-200 rounded-full h-2 mt-2">
-                    <div
-                      className="bg-ocean-500 h-2 rounded-full transition-all"
-                      style={{ width: `${q.total > 0 ? (q.completed / q.total) * 100 : 0}%` }}
-                    />
+                  {timelineFilter === 'week' && periodData.length === 0 && (
+                    <div className="text-center py-8 text-graystone-500">No projects scheduled for {selectedYear}</div>
+                  )}
+                </div>
+
+                {/* Team Members breakdown */}
+                <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                  <h4 className="font-semibold text-ocean-900 mb-4 flex items-center gap-2">
+                    <Icon name="users" className="w-5 h-5" />
+                    Team Members
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {(selectedManager?.reports || []).map(email => {
+                      const memberYearItems = yearItems.filter(i => i.owner?.toLowerCase() === email.toLowerCase());
+                      return (
+                        <div key={email} className="flex items-center justify-between p-3 bg-graystone-50 rounded-lg border border-graystone-200">
+                          <div>
+                            <div className="font-medium text-ocean-900">
+                              {email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                            </div>
+                            <div className="text-xs text-graystone-500">{email}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-ocean-900">{memberYearItems.length}</div>
+                            <div className="text-xs text-graystone-500">projects</div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(managerHubTab || 'overview') === 'reports' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-ocean-900 mb-4 flex items-center gap-2">
-              <Icon name="file-text" className="w-5 h-5" />
-              Generate Reports
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-graystone-700 mb-1">Period Type</label>
-                <select
-                  value={reportPeriodType || 'quarter'}
-                  onChange={(e) => setReportPeriodType && setReportPeriodType(e.target.value)}
-                  className={cx(selectBaseClasses, "w-full")}
-                >
-                  <option value="month">Monthly</option>
-                  <option value="quarter">Quarterly</option>
-                  <option value="year">Yearly</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-graystone-700 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={reportStartDate || ''}
-                  onChange={(e) => setReportStartDate && setReportStartDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-graystone-700 mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={reportEndDate || ''}
-                  onChange={(e) => setReportEndDate && setReportEndDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500"
-                />
-              </div>
-            </div>
-            <button
-              onClick={() => onExportStatusReport && onExportStatusReport()}
-              className="flex items-center gap-2 px-6 py-3 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition font-medium"
-            >
-              <Icon name="download" className="w-4 h-4" />
-              Export Status Report
-            </button>
-          </div>
-
-          {workstreams.length > 0 && (
-            <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-ocean-900 mb-4 flex items-center gap-2">
-                <Icon name="folder-kanban" className="w-5 h-5" />
-                Workstreams
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {workstreams.map(ws => (
-                  <button
-                    key={ws.id}
-                    onClick={() => onNavigateToWorkstream && onNavigateToWorkstream(ws.id)}
-                    className="p-4 bg-graystone-50 rounded-lg border border-graystone-200 text-left hover:border-ocean-300 hover:bg-ocean-50 transition"
-                  >
-                    <div className="font-medium text-ocean-900">{ws.title}</div>
-                    <div className="text-sm text-graystone-500 mt-1">{ws.tasks?.length || 0} tasks</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
