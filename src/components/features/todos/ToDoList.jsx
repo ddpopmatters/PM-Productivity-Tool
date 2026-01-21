@@ -161,9 +161,9 @@ const ToDoList = ({
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-8 text-white shadow-xl mb-6">
-        <h1 className="text-3xl font-bold mb-2">My To-Do Calendar</h1>
-        <p className="text-ocean-100">Plan tasks by date and mark them done.</p>
+      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl mb-6">
+        <h1 className="text-2xl font-bold">My To-Do Calendar</h1>
+        <p className="text-ocean-100 text-sm">Plan tasks by date and mark them done.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -344,13 +344,13 @@ export default function Dashboard({
   return (
     <div className="p-6 space-y-6" id="dashboard-export-content">
       {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-8 text-white shadow-xl">
+      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-2xl font-bold">
               Welcome back, {(currentUser || 'User').split(' ')[0]}!
             </h1>
-            <p className="text-ocean-100">Here's your momentum for today</p>
+            <p className="text-ocean-100 text-sm">Here's your momentum for today</p>
           </div>
           <button
             onClick={() => onOpenPdfExport && onOpenPdfExport('dashboard')}
