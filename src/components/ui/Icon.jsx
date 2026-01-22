@@ -21,8 +21,10 @@ const Icon = ({ name, className = "", size, ...props }) => {
 
   useLayoutEffect(() => {
     if (iconRef.current && window.lucide) {
-      // Clear any existing content
-      iconRef.current.innerHTML = '';
+      // Clear any existing content safely (avoid innerHTML for security)
+      while (iconRef.current.firstChild) {
+        iconRef.current.removeChild(iconRef.current.firstChild);
+      }
       // Create the icon element
       const iconEl = document.createElement('i');
       iconEl.setAttribute('data-lucide', name);

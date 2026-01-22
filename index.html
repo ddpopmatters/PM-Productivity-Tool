@@ -4,9 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Momentum Hub</title>
+
+    <!-- Security Headers -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' https://unpkg.com;
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: https: blob:;
+      font-src 'self';
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co;
+      frame-ancestors 'none';
+      base-uri 'self';
+      form-action 'self';
+    " />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
     <link rel="icon" type="image/svg+xml" href="/PM-Productivity-Tool/favicon.svg" />
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons (pinned version for security) -->
+    <script src="https://unpkg.com/lucide@0.294.0"></script>
   </head>
   <body>
     <div id="root"></div>
