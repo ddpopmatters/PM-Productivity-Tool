@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Icon from '../../ui/Icon';
+import { Logger } from '../../../utils/logger';
 
 const WhiteboardThumbnail = ({ whiteboardId, WHITEBOARD_API }) => {
   const [elements, setElements] = useState([]);
@@ -15,7 +16,7 @@ const WhiteboardThumbnail = ({ whiteboardId, WHITEBOARD_API }) => {
         const data = await WHITEBOARD_API.fetchElements(whiteboardId);
         setElements(data || []);
       } catch (err) {
-        console.error('Failed to load whiteboard elements:', err);
+        Logger.error(err, 'Failed to load whiteboard elements');
       }
       setLoading(false);
     };

@@ -63,9 +63,11 @@ const WorkstreamTaskDetail = ({
     setNewComment('');
   };
 
-  const handleDelete = () => {
-    onDelete(task.id, workstream.id);
-    onBack();
+  const handleDelete = async () => {
+    const deleted = await onDelete(task.id, workstream.id);
+    if (deleted) {
+      onBack();
+    }
   };
 
   return (

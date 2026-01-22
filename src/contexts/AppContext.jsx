@@ -87,26 +87,26 @@ export function AppProvider({ children }) {
 
     async function checkAuth() {
       try {
-        console.log('[Auth] Starting auth check...');
+        Logger.debug('[Auth] Starting auth check...');
         await initSupabase();
-        console.log('[Auth] Supabase initialized');
+        Logger.debug('[Auth] Supabase initialized');
         const supabase = getSupabase();
 
         if (!supabase) {
-          console.log('[Auth] Supabase unavailable');
+          Logger.debug('[Auth] Supabase unavailable');
           Logger.warn('Supabase unavailable - authentication may not work');
           setAuthChecked(true);
           return;
         }
 
         // Check for existing session
-        console.log('[Auth] Checking session...');
+        Logger.debug('[Auth] Checking session...');
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('[Auth] Session result:', session ? 'found' : 'none');
+        Logger.debug('[Auth] Session result:', session ? 'found' : 'none');
         if (session?.user) {
           await handleAuthChange(session.user);
         }
-        console.log('[Auth] Setting authChecked=true');
+        Logger.debug('[Auth] Setting authChecked=true');
         setAuthChecked(true);
 
         // Listen for auth state changes

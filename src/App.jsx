@@ -18,7 +18,7 @@ import {
 } from './utils/config';
 
 // Import UI components
-import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination } from './components/ui';
+import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination, ErrorBoundary } from './components/ui';
 
 // Import feature components
 import {
@@ -291,14 +291,14 @@ export default function App() {
     },
 
     deleteItem: async (id) => {
-      if (!supabase) return false;
+      if (!supabase) return null;
       const { error } = await supabase
         .from('workflow_items')
         .delete()
         .eq('id', id);
       if (error) {
         Logger.error(error, 'Supabase delete error');
-        return false;
+        return null;
       }
       return true;
     },
@@ -352,14 +352,14 @@ export default function App() {
     },
 
     deletePersonalTodo: async (id) => {
-      if (!supabase) return false;
+      if (!supabase) return null;
       const { error } = await supabase
         .from('personal_todos')
         .delete()
         .eq('id', id);
       if (error) {
         Logger.error(error, 'Delete todo error');
-        return false;
+        return null;
       }
       return true;
     },
@@ -377,6 +377,19 @@ export default function App() {
         return null;
       }
       return data;
+    },
+
+    deleteWorkstreamTask: async (id) => {
+      if (!supabase) return null;
+      const { error } = await supabase
+        .from('workstream_tasks')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        Logger.error(error, 'Delete workstream task error');
+        return null;
+      }
+      return true;
     },
 
     // Whiteboard methods
@@ -420,14 +433,14 @@ export default function App() {
     },
 
     deleteWhiteboard: async (id) => {
-      if (!supabase) return false;
+      if (!supabase) return null;
       const { error } = await supabase
         .from('whiteboards')
         .delete()
         .eq('id', id);
       if (error) {
         Logger.error(error, 'Delete whiteboard error');
-        return false;
+        return null;
       }
       return true;
     },
@@ -491,14 +504,14 @@ export default function App() {
     },
 
     deleteElement: async (id) => {
-      if (!supabase) return false;
+      if (!supabase) return null;
       const { error } = await supabase
         .from('whiteboard_elements')
         .delete()
         .eq('id', id);
       if (error) {
         Logger.error(error, 'Delete whiteboard element error');
-        return false;
+        return null;
       }
       return true;
     },
@@ -604,14 +617,14 @@ export default function App() {
     },
 
     deleteHabit: async (habitId) => {
-      if (!supabase) return false;
+      if (!supabase) return null;
       const { error } = await supabase
         .from('habits')
         .delete()
         .eq('id', habitId);
       if (error) {
         Logger.error(error, 'Delete habit error');
-        return false;
+        return null;
       }
       return true;
     },
@@ -696,14 +709,14 @@ export default function App() {
     },
 
     deleteMatrixTask: async (taskId) => {
-      if (!supabase) return false;
+      if (!supabase) return null;
       const { error } = await supabase
         .from('matrix_tasks')
         .delete()
         .eq('id', taskId);
       if (error) {
         Logger.error(error, 'Delete matrix task error');
-        return false;
+        return null;
       }
       return true;
     },
@@ -955,6 +968,16 @@ export default function App() {
     if (updated) {
       setWorkstreamTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t));
     }
+  }, [SUPABASE_API]);
+
+  const handleDeleteWorkstreamTask = useCallback(async (taskId) => {
+    // Note: Confirmation is handled by the UI component (WorkstreamTaskDetail)
+    const result = await SUPABASE_API.deleteWorkstreamTask(taskId);
+    if (result) {
+      setWorkstreamTasks(prev => prev.filter(t => t.id !== taskId));
+      return true;
+    }
+    return false;
   }, [SUPABASE_API]);
 
   const handleOpenPdfExport = useCallback((context) => {
@@ -1675,8 +1698,7 @@ export default function App() {
               await handleUpdateWorkstreamTask(taskId, updates);
             }}
             onDelete={async (taskId, workstreamId) => {
-              // TODO: Implement delete workstream task
-              handleNavigate('workstreams');
+              return await handleDeleteWorkstreamTask(taskId);
             }}
             USERS={USERS}
             USERS_WITH_EMAILS={SEED_USERS}
@@ -1729,7 +1751,9 @@ export default function App() {
       {/* Main content */}
       <main className="pt-16 lg:pt-0 p-6 lg:p-8 lg:ml-64 min-h-screen overflow-auto">
         <div className="max-w-7xl mx-auto">
-          {renderView()}
+          <ErrorBoundary message="This view encountered an error. Please try again or navigate to a different section.">
+            {renderView()}
+          </ErrorBoundary>
         </div>
       </main>
 

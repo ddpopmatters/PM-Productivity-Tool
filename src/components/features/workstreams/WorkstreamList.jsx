@@ -33,10 +33,17 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
   });
 
   const handleCreate = async () => {
-    if (!newTitle.trim()) return;
+    const trimmedTitle = newTitle.trim();
+    const trimmedDescription = newDescription.trim();
+
+    // Validate inputs
+    if (!trimmedTitle) return;
+    if (trimmedTitle.length > 200) return; // Max title length
+    if (trimmedDescription.length > 2000) return; // Max description length
+
     const result = await onCreateWorkstream({
-      title: newTitle.trim(),
-      description: newDescription.trim(),
+      title: trimmedTitle,
+      description: trimmedDescription,
       owner: currentUser,
       visibility: newVisibility,
       color: newColor

@@ -55,14 +55,20 @@ export default function Dashboard({
   const [editingItemType, setEditingItemType] = useState(null); // 'project', 'job', 'subtask'
 
   const handleAddTask = () => {
-    if (newTaskText.trim() && onAddTodo) {
-      onAddTodo({
-        text: newTaskText.trim(),
-        date: today,
-        completed: false,
-      });
-      setNewTaskText('');
+    const trimmed = newTaskText.trim();
+    if (!trimmed || !onAddTodo) return;
+
+    // Validate length (max 500 characters)
+    if (trimmed.length > 500) {
+      return; // Silently reject - UI should prevent this
     }
+
+    onAddTodo({
+      text: trimmed,
+      date: today,
+      completed: false,
+    });
+    setNewTaskText('');
   };
 
   const handleMarkJobComplete = (jobId) => {
