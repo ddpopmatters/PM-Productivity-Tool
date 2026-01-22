@@ -187,6 +187,94 @@ export function validateFilesForUpload(files) {
   return { validFiles, invalidFiles };
 }
 
+/**
+ * Password strength requirements
+ */
+export const PASSWORD_REQUIREMENTS = {
+  minLength: 8,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumber: true,
+  requireSpecial: true,
+};
+
+/**
+ * Validate password strength
+ * @param {string} password - Password to validate
+ * @returns {{ valid: boolean, errors: string[], strength: 'weak'|'fair'|'good'|'strong' }}
+ */
+export function validatePassword(password) {
+  const errors = [];
+  let score = 0;
+
+  if (!password || typeof password !== 'string') {
+    return { valid: false, errors: ['Password is required'], strength: 'weak' };
+  }
+
+  // Check minimum length
+  if (password.length < PASSWORD_REQUIREMENTS.minLength) {
+    errors.push(`At least ${PASSWORD_REQUIREMENTS.minLength} characters`);
+  } else {
+    score += 1;
+    if (password.length >= 12) score += 1;
+    if (password.length >= 16) score += 1;
+  }
+
+  // Check for uppercase
+  if (PASSWORD_REQUIREMENTS.requireUppercase && !/[A-Z]/.test(password)) {
+    errors.push('At least one uppercase letter');
+  } else if (/[A-Z]/.test(password)) {
+    score += 1;
+  }
+
+  // Check for lowercase
+  if (PASSWORD_REQUIREMENTS.requireLowercase && !/[a-z]/.test(password)) {
+    errors.push('At least one lowercase letter');
+  } else if (/[a-z]/.test(password)) {
+    score += 1;
+  }
+
+  // Check for number
+  if (PASSWORD_REQUIREMENTS.requireNumber && !/[0-9]/.test(password)) {
+    errors.push('At least one number');
+  } else if (/[0-9]/.test(password)) {
+    score += 1;
+  }
+
+  // Check for special character
+  if (PASSWORD_REQUIREMENTS.requireSpecial && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('At least one special character (!@#$%^&*...)');
+  } else if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    score += 1;
+  }
+
+  // Determine strength
+  let strength = 'weak';
+  if (score >= 6) strength = 'strong';
+  else if (score >= 4) strength = 'good';
+  else if (score >= 2) strength = 'fair';
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    strength,
+  };
+}
+
+/**
+ * Get password requirements as human-readable list
+ * @returns {string[]} - Array of requirement descriptions
+ */
+export function getPasswordRequirements() {
+  const requirements = [];
+  requirements.push(`At least ${PASSWORD_REQUIREMENTS.minLength} characters`);
+  if (PASSWORD_REQUIREMENTS.requireUppercase) requirements.push('One uppercase letter');
+  if (PASSWORD_REQUIREMENTS.requireLowercase) requirements.push('One lowercase letter');
+  if (PASSWORD_REQUIREMENTS.requireNumber) requirements.push('One number');
+  if (PASSWORD_REQUIREMENTS.requireSpecial) requirements.push('One special character');
+  return requirements;
+}
+
 export default {
   sanitizeEmailForQuery,
   isSafeIdentifier,
@@ -194,5 +282,8 @@ export default {
   validateFileForUpload,
   validateFilesForUpload,
   getAllowedExtensions,
+  validatePassword,
+  getPasswordRequirements,
   ALLOWED_FILE_TYPES,
+  PASSWORD_REQUIREMENTS,
 };

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { validatePassword, getPasswordRequirements } from '../../../utils/security';
 
 /**
  * LoginScreen - Authentication screen with sign in, sign up, and password reset
@@ -80,8 +81,9 @@ const LoginScreen = ({
       setError('Passwords do not match.');
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      setError('Password requirements not met: ' + passwordValidation.errors.join(', '));
       return;
     }
 
@@ -265,8 +267,42 @@ const LoginScreen = ({
                 minLength={8}
                 autoComplete="new-password"
               />
-              {password && password.length < 8 && (
-                <p className="validation-message validation-error">Password must be at least 8 characters</p>
+              {/* Password strength indicator */}
+              {password && (() => {
+                const validation = validatePassword(password);
+                const strengthColors = {
+                  weak: 'bg-red-500',
+                  fair: 'bg-amber-500',
+                  good: 'bg-lime-500',
+                  strong: 'bg-green-500'
+                };
+                const strengthWidths = {
+                  weak: 'w-1/4',
+                  fair: 'w-2/4',
+                  good: 'w-3/4',
+                  strong: 'w-full'
+                };
+                return (
+                  <div className="mt-2">
+                    <div className="h-1 w-full bg-graystone-200 rounded-full overflow-hidden">
+                      <div className={`h-full ${strengthColors[validation.strength]} ${strengthWidths[validation.strength]} transition-all duration-300`} />
+                    </div>
+                    <p className={`text-xs mt-1 ${validation.valid ? 'text-green-600' : 'text-graystone-500'}`}>
+                      Strength: {validation.strength.charAt(0).toUpperCase() + validation.strength.slice(1)}
+                    </p>
+                    {!validation.valid && validation.errors.length > 0 && (
+                      <ul className="mt-1 text-xs text-red-600 list-disc list-inside">
+                        {validation.errors.map((err, i) => <li key={i}>{err}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
+              {/* Password requirements hint */}
+              {!password && (
+                <ul className="mt-2 text-xs text-graystone-500 list-disc list-inside">
+                  {getPasswordRequirements().map((req, i) => <li key={i}>{req}</li>)}
+                </ul>
               )}
             </div>
             <div>
