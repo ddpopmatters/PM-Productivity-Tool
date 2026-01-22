@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../../ui';
 
 /**
@@ -347,6 +347,17 @@ export default function Dashboard({
     setShowTaskListModal(true);
   };
 
+  // Escape key handler for modal
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && showTaskListModal) {
+        setShowTaskListModal(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showTaskListModal]);
+
   return (
     <div className="p-6 space-y-6" id="dashboard-export-content">
       {/* Welcome Header */}
@@ -373,6 +384,10 @@ export default function Dashboard({
         <div
           className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => openTaskList('projects')}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTaskList('projects'); } }}
+          role="button"
+          tabIndex={0}
+          aria-label={`View ${myProjects.length} projects`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -397,6 +412,10 @@ export default function Dashboard({
         <div
           className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => openTaskList('subtasks')}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTaskList('subtasks'); } }}
+          role="button"
+          tabIndex={0}
+          aria-label={`View ${mySubtasks.length} subtasks`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -421,6 +440,10 @@ export default function Dashboard({
         <div
           className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => openTaskList('jobs')}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTaskList('jobs'); } }}
+          role="button"
+          tabIndex={0}
+          aria-label={`View ${myJobs.length} jobs`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -443,6 +466,10 @@ export default function Dashboard({
         <div
           className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => openTaskList('workstream')}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTaskList('workstream'); } }}
+          role="button"
+          tabIndex={0}
+          aria-label={`View ${(workstreamTasks || []).filter((t) => t.status !== 'done').length} workstream tasks`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -736,7 +763,9 @@ export default function Dashboard({
 
           {/* Add Task Input */}
           <div className="flex gap-2 mb-4">
+            <label htmlFor="new-task-input" className="sr-only">New task</label>
             <input
+              id="new-task-input"
               type="text"
               value={newTaskText}
               onChange={(e) => setNewTaskText(e.target.value)}
@@ -747,13 +776,14 @@ export default function Dashboard({
             <button
               onClick={handleAddTask}
               disabled={!newTaskText.trim()}
+              aria-label="Add task"
               className="px-4 py-2 bg-ocean-500 hover:bg-ocean-600 disabled:bg-graystone-300 text-white rounded-lg transition text-sm font-medium"
             >
-              <Icon name="plus" className="w-4 h-4" />
+              <Icon name="plus" className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="space-y-2 max-h-[50vh] md:max-h-64 overflow-y-auto">
             {todaysTasks.length > 0 ? (
               todaysTasks.map((task, idx) => (
                 <div

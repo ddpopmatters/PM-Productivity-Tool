@@ -85,7 +85,7 @@ const FilterBar = ({
             </button>
 
             {showFilters && (
-              <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
+              <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 md:p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Teams</h4>
@@ -212,7 +212,7 @@ const FilterBar = ({
               </button>
 
               {showSavedFilters && (
-                <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-200">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-xs font-bold text-graystone-500 uppercase">Saved Filters</h4>
                     {(searchQuery || filterTags.length > 0 || filterUsers.length > 0 || filterTeams.length > 0) && (
