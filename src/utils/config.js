@@ -7,11 +7,11 @@ export const APP_CONFIG = {
   AUTH_ENABLED: true,
 };
 
-// Supabase Configuration
+// Supabase Configuration - credentials loaded from environment variables
 export const SUPABASE_CONFIG = {
   ENABLED: true,
-  SUPABASE_URL: "https://jzalaltexmotkusvqoew.supabase.co",
-  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6YWxhbHRleG1vdGt1c3Zxb2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NDAxMDUsImV4cCI6MjA4MzQxNjEwNX0.hr4GB0m7GU2mWS_MBu_8JykWtmRGY_aI6cPe8jjhTx0",
+  SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || "",
+  SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || "",
 };
 
 // Team definitions

@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
 import { Logger } from './utils/logger';
+import { sanitizeEmailForQuery } from './utils/security';
 import {
   APP_CONFIG,
   SUPABASE_CONFIG,
@@ -381,10 +382,16 @@ export default function App() {
     // Whiteboard methods
     fetchWhiteboards: async (email) => {
       if (!supabase) return [];
+      // Sanitize email to prevent query injection
+      const safeEmail = sanitizeEmailForQuery(email);
+      if (!safeEmail) {
+        Logger.error({ email }, 'Invalid email for whiteboard fetch');
+        return [];
+      }
       const { data, error } = await supabase
         .from('whiteboards')
         .select('*')
-        .or(`owner_email.eq.${email},shared_with.cs.{${email}}`)
+        .or(`owner_email.eq.${safeEmail},shared_with.cs.{${safeEmail}}`)
         .order('updated_at', { ascending: false });
       if (error) {
         Logger.error(error, 'Fetch whiteboards error');
@@ -517,10 +524,16 @@ export default function App() {
     // Workstream methods
     fetchWorkstreams: async (email) => {
       if (!supabase) return [];
+      // Sanitize email to prevent query injection
+      const safeEmail = sanitizeEmailForQuery(email);
+      if (!safeEmail) {
+        Logger.error({ email }, 'Invalid email for workstream fetch');
+        return [];
+      }
       const { data, error } = await supabase
         .from('workstreams')
         .select('*')
-        .or(`owner_email.eq.${email},visibility.eq.shared`)
+        .or(`owner_email.eq.${safeEmail},visibility.eq.shared`)
         .order('created_at', { ascending: false });
       if (error) {
         Logger.error(error, 'Fetch workstreams error');
