@@ -401,7 +401,6 @@ export default function App() {
           title: whiteboard.title,
           owner_email: whiteboard.owner_email,
           owner_name: whiteboard.owner_name,
-          content: { notes: [], connections: [] },
           shared_with: [],
         }])
         .select()
