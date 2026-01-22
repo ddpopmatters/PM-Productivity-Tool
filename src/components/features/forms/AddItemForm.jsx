@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 import Button from '../../ui/Button';
+import { getAllowedExtensions } from '../../../utils/security';
 
 const AddItemForm = ({
   onSubmit,
@@ -384,6 +385,7 @@ const AddItemForm = ({
                   onChange={e => setDocuments(Array.from(e.target.files).map(f => f.name))}
                   className="hidden"
                   id="file-upload"
+                  accept={getAllowedExtensions()}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
                   <div className="bg-ocean-50 p-3 rounded-full">

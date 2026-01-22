@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon, Button, Badge, LoadingSpinner } from '../../ui';
+import { validateFilesForUpload, getAllowedExtensions } from '../../../utils/security';
 
 // Local className joining utility
 const cx = (...classes) => classes.filter(Boolean).join(' ');
@@ -430,9 +431,18 @@ export default function ItemDashboard({
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    // Validate file sizes
-    const oversizedFiles = files.filter((f) => f.size > MAX_FILE_SIZE);
-    const validFiles = files.filter((f) => f.size <= MAX_FILE_SIZE);
+    // Step 1: Validate file types (security check)
+    const { validFiles: typeValidFiles, invalidFiles: typeInvalidFiles } = validateFilesForUpload(files);
+
+    if (typeInvalidFiles.length > 0) {
+      alert(
+        `${typeInvalidFiles.length} file(s) have invalid types and will be skipped:\n${typeInvalidFiles.map((f) => `${f.file.name}: ${f.error}`).join('\n')}`
+      );
+    }
+
+    // Step 2: Validate file sizes
+    const oversizedFiles = typeValidFiles.filter((f) => f.size > MAX_FILE_SIZE);
+    const validFiles = typeValidFiles.filter((f) => f.size <= MAX_FILE_SIZE);
 
     if (oversizedFiles.length > 0) {
       alert(
@@ -1486,7 +1496,7 @@ export default function ItemDashboard({
                   multiple
                   onChange={handleFileUpload}
                   className="hidden"
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                  accept={getAllowedExtensions()}
                 />
               </div>
               {entry.attachments && entry.attachments.length > 0 ? (

@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../ui/Icon';
+import { validateFileForUpload } from '../../../utils/security';
+
+// Allowed image types for whiteboard
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB for images
 
 // Default sticky colors if not provided
 const DEFAULT_STICKY_COLORS = [
@@ -264,6 +269,18 @@ const WhiteboardCanvas = ({
   const handleImageInputChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate image type
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        alert('Please upload a valid image file (JPEG, PNG, GIF, or WebP)');
+        e.target.value = '';
+        return;
+      }
+      // Validate size
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert('Image must be less than 5MB');
+        e.target.value = '';
+        return;
+      }
       handleImageUpload(file);
       e.target.value = ''; // Reset input
     }
