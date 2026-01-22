@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Icon from '../../ui/Icon';
 import { Logger } from '../../../utils/logger';
 
@@ -23,55 +23,48 @@ const WhiteboardThumbnail = ({ whiteboardId, WHITEBOARD_API }) => {
     loadElements();
   }, [whiteboardId, WHITEBOARD_API]);
 
-  if (loading) {
-    return (
-      <div className="aspect-video bg-ocean-50 rounded-lg flex items-center justify-center">
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-ocean-400"></div>
-      </div>
+  // All hooks must be called unconditionally (before any early returns)
+  // Memoize bounds calculation - returns safe defaults when no elements
+  const bounds = useMemo(() => {
+    if (!elements || elements.length === 0) {
+      return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+    }
+    const padding = 20;
+    const raw = elements.reduce(
+      (acc, el) => ({
+        minX: Math.min(acc.minX, el.x || 0),
+        minY: Math.min(acc.minY, el.y || 0),
+        maxX: Math.max(acc.maxX, (el.x || 0) + (el.width || 100)),
+        maxY: Math.max(acc.maxY, (el.y || 0) + (el.height || 100)),
+      }),
+      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
     );
-  }
+    return {
+      minX: raw.minX - padding,
+      minY: raw.minY - padding,
+      maxX: raw.maxX + padding,
+      maxY: raw.maxY + padding,
+    };
+  }, [elements]);
 
-  if (elements.length === 0) {
-    return (
-      <div className="aspect-video bg-ocean-50 rounded-lg flex items-center justify-center">
-        <Icon name="layout" className="w-12 h-12 text-ocean-300" />
-      </div>
-    );
-  }
+  // Memoize scale and offset calculations
+  const { scale, offsetX, offsetY } = useMemo(() => {
+    const contentWidth = bounds.maxX - bounds.minX;
+    const contentHeight = bounds.maxY - bounds.minY;
+    const previewWidth = 280;
+    const previewHeight = previewWidth * (9 / 16);
+    const scaleX = previewWidth / contentWidth;
+    const scaleY = previewHeight / contentHeight;
+    const calculatedScale = Math.min(scaleX, scaleY, 1);
+    return {
+      scale: calculatedScale,
+      offsetX: (previewWidth - contentWidth * calculatedScale) / 2 - bounds.minX * calculatedScale,
+      offsetY: (previewHeight - contentHeight * calculatedScale) / 2 - bounds.minY * calculatedScale,
+    };
+  }, [bounds]);
 
-  // Calculate bounds to fit all elements
-  const bounds = elements.reduce(
-    (acc, el) => ({
-      minX: Math.min(acc.minX, el.x || 0),
-      minY: Math.min(acc.minY, el.y || 0),
-      maxX: Math.max(acc.maxX, (el.x || 0) + (el.width || 100)),
-      maxY: Math.max(acc.maxY, (el.y || 0) + (el.height || 100)),
-    }),
-    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
-  );
-
-  // Add padding
-  const padding = 20;
-  bounds.minX -= padding;
-  bounds.minY -= padding;
-  bounds.maxX += padding;
-  bounds.maxY += padding;
-
-  const contentWidth = bounds.maxX - bounds.minX;
-  const contentHeight = bounds.maxY - bounds.minY;
-
-  // Preview container is aspect-video (16:9), calculate scale
-  const previewWidth = 280; // approximate width of the card
-  const previewHeight = previewWidth * (9 / 16);
-  const scaleX = previewWidth / contentWidth;
-  const scaleY = previewHeight / contentHeight;
-  const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
-
-  // Center the content
-  const offsetX = (previewWidth - contentWidth * scale) / 2 - bounds.minX * scale;
-  const offsetY = (previewHeight - contentHeight * scale) / 2 - bounds.minY * scale;
-
-  const renderElement = (el) => {
+  // Memoize render function
+  const renderElement = useCallback((el) => {
     const style = {
       position: 'absolute',
       left: el.x * scale + offsetX,
@@ -189,16 +182,38 @@ const WhiteboardThumbnail = ({ whiteboardId, WHITEBOARD_API }) => {
           />
         );
     }
-  };
+  }, [scale, offsetX, offsetY]);
+
+  // Memoize sorted elements
+  const sortedElements = useMemo(() =>
+    [...elements].sort((a, b) => (a.z_index || 0) - (b.z_index || 0)),
+    [elements]
+  );
+
+  // Render loading state
+  if (loading) {
+    return (
+      <div className="aspect-video bg-ocean-50 rounded-lg flex items-center justify-center">
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-ocean-400"></div>
+      </div>
+    );
+  }
+
+  // Render empty state
+  if (elements.length === 0) {
+    return (
+      <div className="aspect-video bg-ocean-50 rounded-lg flex items-center justify-center">
+        <Icon name="layout" className="w-12 h-12 text-ocean-300" />
+      </div>
+    );
+  }
 
   return (
     <div
       className="aspect-video bg-white rounded-lg relative overflow-hidden border border-ocean-100"
       style={{ width: '100%' }}
     >
-      {elements
-        .sort((a, b) => (a.z_index || 0) - (b.z_index || 0))
-        .map(renderElement)}
+      {sortedElements.map(renderElement)}
     </div>
   );
 };

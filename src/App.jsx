@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
@@ -24,7 +24,6 @@ import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination, ErrorBou
 import {
   // Views
   ListView,
-  GanttView,
   TableView,
   KanbanBoard,
   JobsView,
@@ -38,8 +37,6 @@ import {
   // Dashboard
   Dashboard,
   ItemDashboard,
-  // Calendar
-  CalendarScreen,
   // Todos
   ToDoList,
   // Forms
@@ -54,17 +51,11 @@ import {
   AddJobModal,
   JobDetailModal,
   AddItemTypeModal,
-  // Admin
-  AdminConsole,
-  // Manager
-  ManagerHub,
   // Workstreams
   WorkstreamList,
   WorkstreamView,
-  WorkstreamSettings,
   WorkstreamTaskDetail,
   // Whiteboards
-  WhiteboardCanvas,
   WhiteboardPreviewCard,
   StickyNote,
   TextBoxElement,
@@ -72,6 +63,13 @@ import {
   ShapeElement,
   WhiteboardElement,
 } from './components/features';
+
+// Lazy-loaded components for code splitting
+const GanttView = lazy(() => import('./components/features/views/GanttView'));
+const CalendarScreen = lazy(() => import('./components/features/calendar/CalendarScreen'));
+const WhiteboardCanvas = lazy(() => import('./components/features/whiteboards/WhiteboardCanvas'));
+const AdminConsole = lazy(() => import('./components/features/admin/AdminConsole'));
+const ManagerHub = lazy(() => import('./components/features/manager/ManagerHub'));
 
 // Helper functions
 const isAdmin = (email) => {
@@ -1431,18 +1429,22 @@ export default function App() {
                   />
                 )}
                 {viewMode === 'gantt' && (
-                  <GanttView
-                    entries={myPersonalProjects}
-                    onOpen={handleOpenEntry}
-                  />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <GanttView
+                      entries={myPersonalProjects}
+                      onOpen={handleOpenEntry}
+                    />
+                  </Suspense>
                 )}
                 {viewMode === 'calendar' && (
-                  <CalendarScreen
-                    entries={myPersonalProjects}
-                    onOpen={handleOpenEntry}
-                    openSubtaskModal={openSubtaskModal}
-                    isEmbedded={true}
-                  />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <CalendarScreen
+                      entries={myPersonalProjects}
+                      onOpen={handleOpenEntry}
+                      openSubtaskModal={openSubtaskModal}
+                      isEmbedded={true}
+                    />
+                  </Suspense>
                 )}
               </div>
             </div>
@@ -1477,14 +1479,16 @@ export default function App() {
 
       case 'calendar':
         return (
-          <CalendarScreen
-            entries={entries}
-            todos={todos}
-            currentUser={currentUser}
-            onOpenEntry={handleOpenEntry}
-            onUpdateEntry={handleUpdateEntry}
-            onToggleTodo={handleToggleTodo}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <CalendarScreen
+              entries={entries}
+              todos={todos}
+              currentUser={currentUser}
+              onOpenEntry={handleOpenEntry}
+              onUpdateEntry={handleUpdateEntry}
+              onToggleTodo={handleToggleTodo}
+            />
+          </Suspense>
         );
 
       case 'add-item':
@@ -1513,18 +1517,20 @@ export default function App() {
           );
         }
         return (
-          <AdminConsole
-            onBack={() => handleNavigate('dashboard')}
-            currentUserEmail={userEmail}
-            SUPABASE_API={SUPABASE_API}
-            supabase={supabase}
-            Logger={Logger}
-            APP_CONFIG={APP_CONFIG}
-            TEAMS={TEAMS}
-            SEED_PROFILES={SEED_USERS}
-            isAdmin={isAdmin}
-            LoadingSpinner={LoadingSpinner}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <AdminConsole
+              onBack={() => handleNavigate('dashboard')}
+              currentUserEmail={userEmail}
+              SUPABASE_API={SUPABASE_API}
+              supabase={supabase}
+              Logger={Logger}
+              APP_CONFIG={APP_CONFIG}
+              TEAMS={TEAMS}
+              SEED_PROFILES={SEED_USERS}
+              isAdmin={isAdmin}
+              LoadingSpinner={LoadingSpinner}
+            />
+          </Suspense>
         );
 
       case 'manager-hub':
@@ -1540,37 +1546,39 @@ export default function App() {
           );
         }
         return (
-          <ManagerHub
-            managers={MANAGERS}
-            teams={TEAMS}
-            entries={entries}
-            currentUser={currentUser}
-            userEmail={userEmail}
-            openStatsModal={openStatsModal}
-            onOpen={handleOpenEntry}
-            onUpdateStatus={handleUpdateStatus}
-            openSubtaskModal={openSubtaskModal}
-            onOpenPdfExport={handleOpenPdfExport}
-            managerHubTab={managerHubTab}
-            setManagerHubTab={setManagerHubTab}
-            reportPeriodType={reportPeriodType}
-            setReportPeriodType={setReportPeriodType}
-            reportStartDate={reportStartDate}
-            setReportStartDate={setReportStartDate}
-            reportEndDate={reportEndDate}
-            setReportEndDate={setReportEndDate}
-            reportSections={reportSections}
-            setReportSections={setReportSections}
-            projectsDisplayMode={projectsDisplayMode}
-            setProjectsDisplayMode={setProjectsDisplayMode}
-            reportNarratives={reportNarratives}
-            setReportNarratives={setReportNarratives}
-            workstreams={workstreams}
-            TEAMS={TEAMS}
-            isAdmin={isAdmin}
-            Badge={Badge}
-            APP_CONFIG={APP_CONFIG}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <ManagerHub
+              managers={MANAGERS}
+              teams={TEAMS}
+              entries={entries}
+              currentUser={currentUser}
+              userEmail={userEmail}
+              openStatsModal={openStatsModal}
+              onOpen={handleOpenEntry}
+              onUpdateStatus={handleUpdateStatus}
+              openSubtaskModal={openSubtaskModal}
+              onOpenPdfExport={handleOpenPdfExport}
+              managerHubTab={managerHubTab}
+              setManagerHubTab={setManagerHubTab}
+              reportPeriodType={reportPeriodType}
+              setReportPeriodType={setReportPeriodType}
+              reportStartDate={reportStartDate}
+              setReportStartDate={setReportStartDate}
+              reportEndDate={reportEndDate}
+              setReportEndDate={setReportEndDate}
+              reportSections={reportSections}
+              setReportSections={setReportSections}
+              projectsDisplayMode={projectsDisplayMode}
+              setProjectsDisplayMode={setProjectsDisplayMode}
+              reportNarratives={reportNarratives}
+              setReportNarratives={setReportNarratives}
+              workstreams={workstreams}
+              TEAMS={TEAMS}
+              isAdmin={isAdmin}
+              Badge={Badge}
+              APP_CONFIG={APP_CONFIG}
+            />
+          </Suspense>
         );
 
       case 'whiteboards':
@@ -1600,22 +1608,24 @@ export default function App() {
           );
         }
         return (
-          <WhiteboardCanvas
-            whiteboardId={currentWhiteboardId}
-            whiteboard={currentWhiteboard}
-            onBack={() => handleNavigate('whiteboards')}
-            userEmail={userEmail}
-            currentUser={currentUser}
-            WHITEBOARD_API={SUPABASE_API}
-            supabase={supabase}
-            Logger={Logger}
-            STICKY_COLORS={STICKY_COLORS}
-            StickyNote={StickyNote}
-            WhiteboardElement={WhiteboardElement}
-            TextBoxElement={TextBoxElement}
-            ImageElement={ImageElement}
-            ShapeElement={ShapeElement}
-          />
+          <Suspense fallback={<LoadingSpinner />}>
+            <WhiteboardCanvas
+              whiteboardId={currentWhiteboardId}
+              whiteboard={currentWhiteboard}
+              onBack={() => handleNavigate('whiteboards')}
+              userEmail={userEmail}
+              currentUser={currentUser}
+              WHITEBOARD_API={SUPABASE_API}
+              supabase={supabase}
+              Logger={Logger}
+              STICKY_COLORS={STICKY_COLORS}
+              StickyNote={StickyNote}
+              WhiteboardElement={WhiteboardElement}
+              TextBoxElement={TextBoxElement}
+              ImageElement={ImageElement}
+              ShapeElement={ShapeElement}
+            />
+          </Suspense>
         );
 
       case 'workstreams':
