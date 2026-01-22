@@ -99,7 +99,6 @@ const Sidebar = ({
             </div>
           )}
           <h1 className="text-lg text-ocean-900 font-medium">{(currentUser || 'User').split(' ')[0]}'s Workspace</h1>
-          <p className="text-xs text-ocean-500 mt-0.5">{config.ORG_NAME || 'Workflow Management'}</p>
         </div>
 
         {/* Navigation Items */}
