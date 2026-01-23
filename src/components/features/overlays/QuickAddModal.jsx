@@ -113,7 +113,7 @@ function QuickAddModal({ show, onClose, onAddTodo, onAddProject, onAddJob, curre
                   type === 'job' ? 'bg-white shadow text-ocean-600 font-medium' : 'text-graystone-600'
                 }`}
               >
-                Job
+                Task
               </button>
               <button
                 type="button"
@@ -164,7 +164,7 @@ function QuickAddModal({ show, onClose, onAddTodo, onAddProject, onAddJob, curre
                 disabled={!title.trim()}
                 className="px-4 py-2 text-sm bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors disabled:opacity-50"
               >
-                Create {type === 'todo' ? 'To-Do' : type === 'job' ? 'Job' : 'Project'}
+                Create {type === 'todo' ? 'To-Do' : type === 'job' ? 'Task' : 'Project'}
               </button>
             </div>
           </div>

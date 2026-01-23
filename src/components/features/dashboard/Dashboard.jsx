@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../../ui';
-import AnalyticsWidget from './AnalyticsWidget';
 
 /**
  * Dashboard - Main dashboard view with stats, calendar, tasks, and activity feed
@@ -444,11 +443,11 @@ export default function Dashboard({
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTaskList('jobs'); } }}
           role="button"
           tabIndex={0}
-          aria-label={`View ${myJobs.length} jobs`}
+          aria-label={`View ${myJobs.length} tasks`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Jobs</p>
+              <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Tasks</p>
               <div className="relative inline-flex items-center justify-center">
                 <div
                   className="absolute rounded-full transition-all duration-300 scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
@@ -492,34 +491,6 @@ export default function Dashboard({
             </div>
           </div>
           <p className="text-xs text-graystone-500 mt-2">Assigned to you</p>
-        </div>
-      </div>
-
-      {/* Analytics Widget */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AnalyticsWidget todos={todos} entries={entries} />
-        <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading text-lg text-ocean-900">Quick Stats</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center p-4 bg-ocean-50 rounded-lg">
-              <p className="text-3xl font-bold text-ocean-900">{entries.filter(e => e.workflowStatus?.toLowerCase() === 'done').length}</p>
-              <p className="text-xs text-graystone-600">Projects Done</p>
-            </div>
-            <div className="text-center p-4 bg-ocean-50 rounded-lg">
-              <p className="text-3xl font-bold text-ocean-900">{entries.filter(e => e.workflowStatus?.toLowerCase() === 'in delivery').length}</p>
-              <p className="text-xs text-graystone-600">In Delivery</p>
-            </div>
-            <div className="text-center p-4 bg-ocean-50 rounded-lg">
-              <p className="text-3xl font-bold text-ocean-900">{todos.filter(t => t.completed).length}</p>
-              <p className="text-xs text-graystone-600">Tasks Done</p>
-            </div>
-            <div className="text-center p-4 bg-ocean-50 rounded-lg">
-              <p className="text-3xl font-bold text-ocean-900">{todos.filter(t => !t.completed).length}</p>
-              <p className="text-xs text-graystone-600">Tasks Pending</p>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -902,7 +873,7 @@ export default function Dashboard({
                         }`}
                       >
                         {task.taskType === 'job'
-                          ? 'Job'
+                          ? 'Task'
                           : task.taskType === 'workstream'
                             ? 'Workstream'
                             : 'Personal'}

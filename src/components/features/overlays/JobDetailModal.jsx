@@ -89,7 +89,7 @@ const JobDetailModal = ({
             <div className="p-2 bg-ocean-50 rounded-lg">
               <Icon name="clipboard-list" className="w-5 h-5 text-ocean-600" />
             </div>
-            <span className="text-sm font-medium text-graystone-500">Job</span>
+            <span className="text-sm font-medium text-graystone-500">Task</span>
           </div>
           <div className="flex items-center gap-2">
             {!editing && (

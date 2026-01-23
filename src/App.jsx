@@ -1476,10 +1476,15 @@ export default function App() {
         return (
           <ToDoList
             todos={todos}
-            onToggle={handleToggleTodo}
-            onAdd={handleAddTodo}
-            onUpdate={handleUpdateTodo}
-            onDelete={handleDeleteTodo}
+            onToggleTodo={handleToggleTodo}
+            onAddTodo={handleAddTodo}
+            onUpdateTodo={handleUpdateTodo}
+            onDeleteTodo={handleDeleteTodo}
+            entries={entries}
+            workstreamTasks={workstreamTasks}
+            workstreams={workstreams}
+            currentUser={currentUser}
+            onOpenEntry={handleOpenEntry}
           />
         );
 

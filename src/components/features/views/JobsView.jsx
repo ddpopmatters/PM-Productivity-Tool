@@ -233,7 +233,7 @@ const JobsView = ({
         <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Jobs</h1>
+              <h1 className="text-2xl font-bold">Tasks</h1>
               <p className="text-ocean-100 text-sm">Quick tasks that don't need full project tracking</p>
             </div>
             <button
@@ -241,7 +241,7 @@ const JobsView = ({
               className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors border border-white/20"
             >
               <Icon name="plus" className="w-4 h-4" />
-              Add Job
+              Add Task
             </button>
           </div>
         </div>

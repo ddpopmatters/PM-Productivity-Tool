@@ -159,7 +159,7 @@ function GlobalSearchModal({ show, onClose, entries, whiteboards, onSelectItem, 
                           "text-xs px-1.5 py-0.5 rounded",
                           isJob ? "bg-amber-100 text-amber-700" : "bg-ocean-100 text-ocean-700"
                         )}>
-                          {isJob ? 'Job' : 'Project'}
+                          {isJob ? 'Task' : 'Project'}
                         </span>
                       </div>
                       <div className="text-sm text-graystone-500 truncate">

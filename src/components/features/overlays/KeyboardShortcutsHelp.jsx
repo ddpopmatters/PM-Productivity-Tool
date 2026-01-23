@@ -20,7 +20,7 @@ function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts: customShortcuts }) 
     { category: 'Navigation', items: [
       { key: 'D', description: 'Go to Dashboard' },
       { key: 'P', description: 'Go to Your Projects' },
-      { key: 'T', description: 'Go to To-Do List' },
+      { key: 'T', description: 'Go to My Planner' },
       { key: 'W', description: 'Go to Whiteboards' },
     ]},
     { category: 'Actions', items: [

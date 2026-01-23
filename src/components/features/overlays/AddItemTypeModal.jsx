@@ -205,7 +205,7 @@ function AddItemTypeModal({
 
   const options = [
     { id: 'project', title: 'Project', description: 'Track goals, milestones, and deliverables', icon: 'folder' },
-    { id: 'job', title: 'Job', description: 'Quick task or request to complete', icon: 'clipboard-list' },
+    { id: 'job', title: 'Task', description: 'Quick task or request to complete', icon: 'clipboard-list' },
     { id: 'workstream', title: 'Workstream', description: 'Organize ongoing work and backlogs', icon: 'layers' }
   ];
 
@@ -417,7 +417,7 @@ function AddItemTypeModal({
         <button type="button" onClick={handleBack} className="p-1 hover:bg-graystone-100 rounded-full">
           <Icon name="arrow-left" className="w-5 h-5 text-graystone-500" />
         </button>
-        <h2 className="text-lg font-bold text-ocean-900">New Job</h2>
+        <h2 className="text-lg font-bold text-ocean-900">New Task</h2>
       </div>
 
       <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
@@ -480,7 +480,7 @@ function AddItemTypeModal({
         <button type="button" onClick={handleClose} className="px-4 py-2 text-graystone-600 hover:bg-graystone-100 rounded-lg transition-colors">Cancel</button>
         <button type="submit" disabled={!title.trim() || saving} className="px-6 py-2 bg-ocean-600 text-white rounded-lg hover:bg-ocean-700 transition-colors disabled:opacity-50 flex items-center gap-2">
           {saving && <Icon name="loader-2" className="w-4 h-4 animate-spin" />}
-          Create Job
+          Create Task
         </button>
       </div>
     </form>

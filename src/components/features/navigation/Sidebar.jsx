@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 
@@ -46,17 +46,30 @@ const Sidebar = ({
   const userIsAdmin = isAdmin ? isAdmin(userEmail) : false;
   const userIsManager = isManager ? isManager(userEmail) : false;
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
-    { id: 'personal', label: 'Your Projects', icon: 'folder' },
-    { id: 'jobs', label: 'Jobs', icon: 'clipboard-list' },
-    { id: 'workstreams', label: 'Workstreams', icon: 'layers' },
-    // Manager Hub only visible to managers and admins
-    ...(userIsManager || userIsAdmin ? [{ id: 'manager-hub', label: 'Manager Hub', icon: 'briefcase' }] : []),
-    { id: 'todo', label: 'To-Do List', icon: 'check-square' },
-    { id: 'whiteboards', label: 'Whiteboards', icon: 'layout' },
-    { id: 'productivity-tools', label: 'Productivity Tools', icon: 'wrench' }
+  // Dashboard is standalone at top
+  const dashboardItem = { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' };
+
+  const menuSections = [
+    {
+      title: 'YOUR WORK',
+      items: [
+        { id: 'personal', label: 'Your Projects', icon: 'folder', description: 'Bigger work that moves through stages' },
+        { id: 'jobs', label: 'Tasks', icon: 'clipboard-list', description: 'Simple items to tick off' },
+        { id: 'workstreams', label: 'Workstreams', icon: 'layers', description: 'Requests that come in from others' },
+        ...(userIsManager || userIsAdmin ? [{ id: 'manager-hub', label: 'Manager Hub', icon: 'briefcase' }] : []),
+      ]
+    },
+    {
+      title: 'TOOLS',
+      items: [
+        { id: 'whiteboards', label: 'Whiteboards', icon: 'layout' },
+        { id: 'productivity-tools', label: 'Productivity Tools', icon: 'wrench' },
+      ]
+    }
   ];
+
+  // Track which menu item is being hovered
+  const [hoveredItem, setHoveredItem] = useState(null);
 
   const handleNavigation = (id) => {
     onNavigate(id);
@@ -102,67 +115,149 @@ const Sidebar = ({
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto" role="navigation" aria-label="Main navigation">
-          {menuItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => handleNavigation(item.id)}
-              aria-current={currentView === item.id ? 'page' : undefined}
-              className={clsx(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all group",
-                currentView === item.id
-                  ? "bg-ocean-500 text-white shadow-lg"
-                  : "text-ocean-900 hover:bg-ocean-50"
-              )}
-            >
-              <div className="relative w-5 h-5 flex-shrink-0">
-                {/* Hover Circle - Behind Icon */}
-                <div
-                  className={clsx(
-                    "absolute -inset-2 rounded-full transition-all duration-300",
-                    currentView === item.id
-                      ? "scale-0 opacity-0"
-                      : "scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
-                  )}
-                  style={{ backgroundColor: '#0CFFFF' }}
-                />
-                <Icon
-                  name={item.icon}
-                  className={clsx(
-                    "w-5 h-5 relative z-10 transition-colors duration-300",
-                    currentView === item.id
-                      ? "text-white"
-                      : "text-ocean-900 group-hover:text-white"
-                  )}
-                  style={{ color: currentView === item.id ? 'white' : '#11607d' }}
-                />
+        <nav className="flex-1 p-4 space-y-4 overflow-y-auto" role="navigation" aria-label="Main navigation">
+          {/* Dashboard - Standalone at top */}
+          <button
+            onClick={() => handleNavigation(dashboardItem.id)}
+            aria-current={currentView === dashboardItem.id ? 'page' : undefined}
+            className={clsx(
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all group",
+              currentView === dashboardItem.id
+                ? "bg-ocean-500 text-white shadow-lg"
+                : "text-ocean-900 hover:bg-ocean-50"
+            )}
+          >
+            <div className="relative w-5 h-5 flex-shrink-0">
+              <div
+                className={clsx(
+                  "absolute -inset-2 rounded-full transition-all duration-300",
+                  currentView === dashboardItem.id
+                    ? "scale-0 opacity-0"
+                    : "scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
+                )}
+                style={{ backgroundColor: '#0CFFFF' }}
+              />
+              <Icon
+                name={dashboardItem.icon}
+                className={clsx(
+                  "w-5 h-5 relative z-10 transition-colors duration-300",
+                  currentView === dashboardItem.id
+                    ? "text-white"
+                    : "text-ocean-900 group-hover:text-white"
+                )}
+                style={{ color: currentView === dashboardItem.id ? 'white' : '#11607d' }}
+              />
+            </div>
+            <span className="font-heading text-sm tracking-wide">{dashboardItem.label}</span>
+          </button>
+
+          {/* Sectioned menu items */}
+          {menuSections.map((section, sectionIdx) => (
+            <div key={section.title}>
+              {/* Section Header */}
+              <h3 className="px-4 mb-2 text-[10px] font-bold text-graystone-400 tracking-wider uppercase">
+                {section.title}
+              </h3>
+              <div className="space-y-1">
+                {section.items.map(item => (
+                  <div
+                    key={item.id}
+                    onMouseEnter={() => item.description && setHoveredItem(item.id)}
+                    onMouseLeave={() => setHoveredItem(null)}
+                  >
+                    <button
+                      onClick={() => handleNavigation(item.id)}
+                      aria-current={currentView === item.id ? 'page' : undefined}
+                      className={clsx(
+                        "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all group",
+                        currentView === item.id
+                          ? "bg-ocean-500 text-white shadow-lg"
+                          : "text-ocean-900 hover:bg-ocean-50"
+                      )}
+                    >
+                      <div className="relative w-5 h-5 flex-shrink-0">
+                        <div
+                          className={clsx(
+                            "absolute -inset-2 rounded-full transition-all duration-300",
+                            currentView === item.id
+                              ? "scale-0 opacity-0"
+                              : "scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
+                          )}
+                          style={{ backgroundColor: '#0CFFFF' }}
+                        />
+                        <Icon
+                          name={item.icon}
+                          className={clsx(
+                            "w-5 h-5 relative z-10 transition-colors duration-300",
+                            currentView === item.id
+                              ? "text-white"
+                              : "text-ocean-900 group-hover:text-white"
+                          )}
+                          style={{ color: currentView === item.id ? 'white' : '#11607d' }}
+                        />
+                      </div>
+                      <span className="font-heading text-sm tracking-wide">{item.label}</span>
+                    </button>
+                    {/* Accordion description on hover */}
+                    {item.description && (
+                      <div
+                        className={clsx(
+                          "overflow-hidden transition-all duration-300 ease-in-out",
+                          hoveredItem === item.id ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
+                        )}
+                      >
+                        <p className="px-4 py-2 ml-8 text-xs text-ocean-600 leading-relaxed">
+                          {item.description}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <span className="font-heading text-sm tracking-wide">{item.label}</span>
-            </button>
+            </div>
           ))}
 
           {/* Admin Console - Only visible to admin */}
           {userIsAdmin && (
-            <button
-              onClick={() => handleNavigation('admin')}
-              aria-current={currentView === 'admin' ? 'page' : undefined}
-              className={clsx(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all group mt-4 border-t border-ocean-100 pt-4",
-                currentView === 'admin'
-                  ? "bg-amber-500 text-white shadow-lg"
-                  : "text-amber-700 hover:bg-amber-50 bg-amber-50/50"
-              )}
-            >
-              <div className="relative flex items-center justify-center">
-                <Icon name="shield" className="w-5 h-5 relative z-10" />
-              </div>
-              <span className="font-heading text-sm tracking-wide">Admin Console</span>
-            </button>
+            <div className="pt-2 border-t border-ocean-100">
+              <h3 className="px-4 mb-2 text-[10px] font-bold text-ocean-500 tracking-wider uppercase">
+                ADMIN
+              </h3>
+              <button
+                onClick={() => handleNavigation('admin')}
+                aria-current={currentView === 'admin' ? 'page' : undefined}
+                className={clsx(
+                  "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all group",
+                  currentView === 'admin'
+                    ? "bg-ocean-500 text-white shadow-lg"
+                    : "text-ocean-700 hover:bg-ocean-50"
+                )}
+              >
+                <div className="relative flex items-center justify-center">
+                  <Icon name="shield" className="w-5 h-5 relative z-10" />
+                </div>
+                <span className="font-heading text-sm tracking-wide">Admin Console</span>
+              </button>
+            </div>
           )}
         </nav>
 
-        {/* Add New Item - Special Button */}
-        <div className="p-4 border-t border-ocean-100">
+        {/* Action Buttons */}
+        <div className="p-4 border-t border-ocean-100 space-y-2">
+          <button
+            onClick={() => {
+              handleNavigation('todo');
+            }}
+            className={clsx(
+              "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all font-semibold shadow-md",
+              currentView === 'todo'
+                ? "bg-ocean-600 text-white hover:bg-ocean-700"
+                : "bg-ocean-50 text-ocean-700 hover:bg-ocean-100 border border-ocean-200"
+            )}
+          >
+            <Icon name="calendar" className="w-5 h-5" />
+            <span className="font-heading text-sm tracking-wide">My Planner</span>
+          </button>
           <button
             onClick={() => {
               if (onAddNewItem) {
@@ -172,7 +267,7 @@ const Sidebar = ({
                 handleNavigation('add-item');
               }
             }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-left transition-all font-semibold bg-ocean-500 text-white hover:bg-ocean-600 shadow-md"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all font-semibold bg-ocean-500 text-white hover:bg-ocean-600 shadow-md"
           >
             <Icon name="plus-circle" className="w-5 h-5" />
             <span className="font-heading text-sm tracking-wide">Add New Item</span>
