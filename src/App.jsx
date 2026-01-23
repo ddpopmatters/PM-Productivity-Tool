@@ -976,7 +976,9 @@ export default function App() {
     setCurrentView('workstream-task-detail');
   }, []);
 
-  const handleUpdateWorkstreamTask = useCallback(async (taskId, updates) => {
+  const handleUpdateWorkstreamTask = useCallback(async (taskId, workstreamIdOrUpdates, maybeUpdates) => {
+    // Support both (taskId, updates) and (taskId, workstreamId, updates) signatures
+    const updates = maybeUpdates !== undefined ? maybeUpdates : workstreamIdOrUpdates;
     const updated = await SUPABASE_API.updateWorkstreamTask(taskId, updates);
     if (updated) {
       setWorkstreamTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t));
@@ -1204,6 +1206,36 @@ export default function App() {
     setWorkstreams(prev => [data, ...prev]);
     return data;
   }, [supabase, userEmail]);
+
+  // Create workstream task
+  const handleCreateWorkstreamTask = useCallback(async (taskData) => {
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from('workstream_tasks')
+      .insert([{
+        workstream_id: taskData.workstreamId,
+        title: taskData.title,
+        description: taskData.description || '',
+        priority: taskData.priority || 'medium',
+        status: 'open',
+        deadline: taskData.deadline || null,
+        assignee: taskData.assignee || '',
+        assignee_email: taskData.assigneeEmail || '',
+        requester: taskData.requester || '',
+        task_type: taskData.taskType || 'Issue',
+        tags: taskData.tags || [],
+        comments: [],
+        sort_order: taskData.sortOrder || 0
+      }])
+      .select()
+      .single();
+    if (error) {
+      Logger.error(error, 'Create workstream task error');
+      return null;
+    }
+    setWorkstreamTasks(prev => [data, ...prev]);
+    return data;
+  }, [supabase]);
 
   const openStatsModal = useCallback((title, items) => {
     setStatsModalData({ title, items });
@@ -1873,6 +1905,8 @@ export default function App() {
               setSelectedWorkstreamTaskId(taskId);
               setCurrentView('workstream-task-detail');
             }}
+            onCreateTask={handleCreateWorkstreamTask}
+            onUpdateTask={handleUpdateWorkstreamTask}
             userEmail={userEmail}
             currentUser={currentUser}
             supabase={supabase}
