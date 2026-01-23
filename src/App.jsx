@@ -901,7 +901,7 @@ export default function App() {
     });
     if (saved) {
       setEntries(prev => [transformEntry(saved), ...prev]);
-      setCurrentView('dashboard');
+      // Stay on current view - don't redirect
     }
   }, [SUPABASE_API, currentUser]);
 
