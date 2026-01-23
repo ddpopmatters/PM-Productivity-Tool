@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../../ui';
+import AnalyticsWidget from './AnalyticsWidget';
 
 /**
  * Dashboard - Main dashboard view with stats, calendar, tasks, and activity feed
@@ -491,6 +492,34 @@ export default function Dashboard({
             </div>
           </div>
           <p className="text-xs text-graystone-500 mt-2">Assigned to you</p>
+        </div>
+      </div>
+
+      {/* Analytics Widget */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <AnalyticsWidget todos={todos} entries={entries} />
+        <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-heading text-lg text-ocean-900">Quick Stats</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center p-4 bg-ocean-50 rounded-lg">
+              <p className="text-3xl font-bold text-ocean-900">{entries.filter(e => e.workflowStatus?.toLowerCase() === 'done').length}</p>
+              <p className="text-xs text-graystone-600">Projects Done</p>
+            </div>
+            <div className="text-center p-4 bg-ocean-50 rounded-lg">
+              <p className="text-3xl font-bold text-ocean-900">{entries.filter(e => e.workflowStatus?.toLowerCase() === 'in delivery').length}</p>
+              <p className="text-xs text-graystone-600">In Delivery</p>
+            </div>
+            <div className="text-center p-4 bg-ocean-50 rounded-lg">
+              <p className="text-3xl font-bold text-ocean-900">{todos.filter(t => t.completed).length}</p>
+              <p className="text-xs text-graystone-600">Tasks Done</p>
+            </div>
+            <div className="text-center p-4 bg-ocean-50 rounded-lg">
+              <p className="text-3xl font-bold text-ocean-900">{todos.filter(t => !t.completed).length}</p>
+              <p className="text-xs text-graystone-600">Tasks Pending</p>
+            </div>
+          </div>
         </div>
       </div>
 

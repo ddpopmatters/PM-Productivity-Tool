@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
 import { Logger } from './utils/logger';
+import { useNotifications } from './hooks/useNotifications';
 import { sanitizeEmailForQuery } from './utils/security';
 import {
   APP_CONFIG,
@@ -107,6 +108,9 @@ export default function App() {
     toggleDarkMode,
   } = useApp();
 
+  // Real-time notifications
+  const { notifications, unreadCount, markAsRead } = useNotifications(userEmail);
+
   // Core state
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +142,6 @@ export default function App() {
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [notifications, setNotifications] = useState([]);
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
   const [showTagsDropdown, setShowTagsDropdown] = useState(false);
   const [showViewDropdown, setShowViewDropdown] = useState(false);
@@ -1741,7 +1744,18 @@ export default function App() {
           <Icon name="menu" className="w-6 h-6" />
         </button>
         <h1 className="font-heading text-lg text-ocean-900">Momentum Hub</h1>
-        <div className="w-10" /> {/* Spacer for balance */}
+        <button
+          onClick={() => setShowNotificationsPanel(true)}
+          className="relative p-2 rounded-lg hover:bg-ocean-50 text-ocean-700"
+          aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+        >
+          <Icon name="bell" className="w-6 h-6" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
       </header>
 
       {/* Sidebar */}
@@ -1804,9 +1818,11 @@ export default function App() {
           notifications={notifications}
           onClose={() => setShowNotificationsPanel(false)}
           onNotificationClick={(n) => {
+            markAsRead(n.id);
             if (n.entryId) handleOpenEntry(n.entryId);
             setShowNotificationsPanel(false);
           }}
+          isOpen={showNotificationsPanel}
         />
       )}
 
