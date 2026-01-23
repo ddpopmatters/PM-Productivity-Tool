@@ -878,9 +878,15 @@ export default function App() {
   }, []);
 
   const handleUpdateEntry = useCallback(async (entryId, updates) => {
-    const result = await SUPABASE_API.updateItem(entryId, updates);
+    // Auto-archive when status is set to Complete or done
+    const finalUpdates = { ...updates };
+    if (updates.workflowStatus === 'Complete' || updates.workflowStatus === 'done') {
+      finalUpdates.archived = true;
+    }
+
+    const result = await SUPABASE_API.updateItem(entryId, finalUpdates);
     if (result) {
-      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updates } : e));
+      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...finalUpdates } : e));
     }
   }, [SUPABASE_API]);
 

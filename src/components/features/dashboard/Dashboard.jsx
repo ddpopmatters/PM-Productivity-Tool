@@ -73,7 +73,8 @@ export default function Dashboard({
 
   const handleMarkJobComplete = (jobId) => {
     if (onUpdateEntry) {
-      onUpdateEntry(jobId, { workflowStatus: 'done' });
+      // Mark as done AND archive so it no longer shows as outstanding work
+      onUpdateEntry(jobId, { workflowStatus: 'done', archived: true });
     }
   };
 
@@ -179,36 +180,42 @@ export default function Dashboard({
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // Get all scheduled items for calendar
+  // Get all scheduled items for calendar (excluding archived/completed items)
   const getScheduledItems = (dateStr) => {
     const items = [];
 
-    // Projects/Jobs with dates
+    // Projects/Jobs with dates (exclude archived and completed)
     entries.forEach((e) => {
+      if (e.archived) return;
+      if (e.workflowStatus === 'Complete' || e.workflowStatus === 'done') return;
       const itemDate = e.date || e.timelineValue;
       if (itemDate && itemDate.slice(0, 10) === dateStr) {
         items.push({ type: e.itemType === 'job' ? 'job' : 'project', ...e });
       }
     });
 
-    // Subtasks with deadlines
+    // Subtasks with deadlines (exclude completed, only from non-archived entries)
     entries.forEach((e) => {
+      if (e.archived) return;
       (e.subtasks || []).forEach((st) => {
+        if (st.completed) return;
         if (st.deadline && st.deadline.slice(0, 10) === dateStr) {
           items.push({ type: 'subtask', parentTitle: e.title, parentId: e.id, ...st });
         }
       });
     });
 
-    // Personal todos
+    // Personal todos (exclude completed)
     (todos || []).forEach((t) => {
+      if (t.completed) return;
       if (t.date === dateStr) {
         items.push({ type: 'todo', ...t });
       }
     });
 
-    // Workstream tasks with deadlines
+    // Workstream tasks with deadlines (exclude done)
     (workstreamTasks || []).forEach((t) => {
+      if (t.status === 'done') return;
       if (t.deadline && t.deadline.slice(0, 10) === dateStr) {
         items.push({ type: 'workstream', ...t });
       }

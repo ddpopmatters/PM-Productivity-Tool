@@ -113,10 +113,10 @@ const ToDoList = ({
       });
     }
 
-    // Projects (entries where itemType !== 'job')
+    // Projects (entries where itemType !== 'job') - exclude archived and completed
     if (showProjects) {
       entries
-        .filter(e => e.itemType !== 'job' && !e.archived)
+        .filter(e => e.itemType !== 'job' && !e.archived && e.workflowStatus !== 'Complete')
         .forEach(entry => {
           const dateStr = entry.date || entry.timelineValue;
           if (dateStr) {
@@ -129,10 +129,10 @@ const ToDoList = ({
         });
     }
 
-    // Tasks (entries where itemType === 'job')
+    // Tasks (entries where itemType === 'job') - exclude archived and done
     if (showTasks) {
       entries
-        .filter(e => e.itemType === 'job' && !e.archived)
+        .filter(e => e.itemType === 'job' && !e.archived && e.workflowStatus !== 'done')
         .forEach(entry => {
           const dateStr = entry.date || entry.timelineValue;
           if (dateStr) {

@@ -208,13 +208,15 @@ const ManagerHub = ({
   const getTeamEntries = (manager) => {
     if (!manager || !manager.reports) return [];
     const reportEmails = manager.reports.map(r => r.toLowerCase());
+    // Filter out archived and completed items
+    const isActiveItem = (e) => !e.archived && e.workflowStatus !== 'Complete' && e.workflowStatus !== 'done';
     const memberItems = entries.filter(e =>
-      e.owner && reportEmails.includes(e.owner.toLowerCase()) && e.itemType !== 'job'
+      e.owner && reportEmails.includes(e.owner.toLowerCase()) && e.itemType !== 'job' && isActiveItem(e)
     );
     if (includeCollaborations) {
       const collabItems = entries.filter(e =>
         e.collaborators?.some(c => reportEmails.includes(c.toLowerCase())) &&
-        !memberItems.includes(e) && e.itemType !== 'job'
+        !memberItems.includes(e) && e.itemType !== 'job' && isActiveItem(e)
       );
       return [...memberItems, ...collabItems];
     }
