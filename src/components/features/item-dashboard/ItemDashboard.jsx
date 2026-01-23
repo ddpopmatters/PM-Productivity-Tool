@@ -42,6 +42,7 @@ export default function ItemDashboard({
   userEmail,
   allEntries = [],
   onNavigateToWhiteboard,
+  onConvert,
   USERS,
   KANBAN_STATUSES,
   userProfilesCache,
@@ -549,6 +550,16 @@ export default function ItemDashboard({
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Convert Button */}
+            {canEdit && onConvert && (
+              <button
+                onClick={() => onConvert(entry, 'project')}
+                className="px-4 py-3 rounded-xl border-2 bg-ocean-50 border-ocean-200 text-ocean-700 hover:bg-ocean-100 hover:border-ocean-300 font-medium transition-all flex items-center gap-2"
+              >
+                <Icon name="refresh-cw" className="w-5 h-5" />
+                Convert
+              </button>
+            )}
             {/* Archive/Restore Button */}
             {canEdit && (
               <button

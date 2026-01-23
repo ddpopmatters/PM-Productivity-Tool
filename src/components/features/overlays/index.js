@@ -5,3 +5,4 @@ export { default as QuickAddModal } from './QuickAddModal';
 export { default as AddJobModal } from './AddJobModal';
 export { default as JobDetailModal } from './JobDetailModal';
 export { default as AddItemTypeModal } from './AddItemTypeModal';
+export { default as ConvertItemModal } from './ConvertItemModal';

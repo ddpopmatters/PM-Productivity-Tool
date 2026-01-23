@@ -13,6 +13,7 @@ const WorkstreamTaskDetail = ({
   onBack,
   onUpdate,
   onDelete,
+  onConvert,
   USERS,
   USERS_WITH_EMAILS
 }) => {
@@ -339,6 +340,19 @@ const WorkstreamTaskDetail = ({
               </button>
             </div>
           </div>
+
+          {/* Convert */}
+          {onConvert && (
+            <div className="bg-white rounded-xl border border-ocean-200 p-4">
+              <button
+                onClick={() => onConvert(task, 'workstream')}
+                className="w-full flex items-center justify-center gap-2 text-sm text-ocean-600 hover:text-ocean-700 hover:bg-ocean-50 py-2 rounded-lg transition"
+              >
+                <Icon name="refresh-cw" className="w-4 h-4" />
+                Convert to Task or Project
+              </button>
+            </div>
+          )}
 
           {/* Delete */}
           <div className="bg-white rounded-xl border border-red-200 p-4">

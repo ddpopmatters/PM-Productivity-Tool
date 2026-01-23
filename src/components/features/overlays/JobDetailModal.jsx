@@ -18,6 +18,7 @@ const JobDetailModal = ({
   onUpdate,
   onDelete,
   onPromote,
+  onConvert,
   userProfiles,
   teams,
   userEmail,
@@ -262,21 +263,21 @@ const JobDetailModal = ({
         {/* Footer */}
         <div className="px-6 py-4 bg-graystone-50 border-t border-graystone-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (confirm('Promote this Job to a full Project? It will appear in the Projects view with Idea status.')) {
-                  onPromote(job.id);
+            {onConvert && (
+              <button
+                onClick={() => {
+                  onConvert(job, 'task');
                   onClose();
-                }
-              }}
-              className="px-3 py-1.5 text-sm text-ocean-600 hover:bg-ocean-50 rounded-lg transition-colors flex items-center gap-1"
-            >
-              <Icon name="arrow-up-circle" className="w-4 h-4" />
-              Promote to Project
-            </button>
+                }}
+                className="px-3 py-1.5 text-sm text-ocean-600 hover:bg-ocean-50 rounded-lg transition-colors flex items-center gap-1"
+              >
+                <Icon name="refresh-cw" className="w-4 h-4" />
+                Convert
+              </button>
+            )}
             <button
               onClick={() => {
-                if (confirm('Delete this job? This cannot be undone.')) {
+                if (confirm('Delete this task? This cannot be undone.')) {
                   onDelete(job.id);
                   onClose();
                 }

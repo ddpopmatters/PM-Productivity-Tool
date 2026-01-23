@@ -52,6 +52,7 @@ import {
   AddJobModal,
   JobDetailModal,
   AddItemTypeModal,
+  ConvertItemModal,
   // Workstreams
   WorkstreamList,
   WorkstreamView,
@@ -162,6 +163,11 @@ export default function App() {
 
   // Add item type modal
   const [showAddItemTypeModal, setShowAddItemTypeModal] = useState(false);
+
+  // Convert item modal
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertSourceItem, setConvertSourceItem] = useState(null);
+  const [convertSourceType, setConvertSourceType] = useState(null);
 
   // Todos state
   const [todos, setTodos] = useState([]);
@@ -981,6 +987,190 @@ export default function App() {
     return false;
   }, [SUPABASE_API]);
 
+  // Open convert modal
+  const handleOpenConvertModal = useCallback((item, sourceType) => {
+    setConvertSourceItem(item);
+    setConvertSourceType(sourceType);
+    setShowConvertModal(true);
+  }, []);
+
+  // Convert to Task
+  const handleConvertToTask = useCallback(async (sourceItem, sourceType, formData) => {
+    if (!supabase) return;
+
+    // Create new task (job) entry
+    const { data, error } = await supabase
+      .from('workflow_items')
+      .insert([{
+        title: formData.title,
+        caption: formData.caption || '',
+        workflow_status: formData.workflowStatus || 'todo',
+        team: formData.team || '',
+        owner: formData.owner || currentUser,
+        owner_email: formData.ownerEmail || userEmail,
+        tags: formData.tags || [],
+        date: formData.date || null,
+        item_type: 'job',
+        archived: false,
+        collaborators: [],
+        subtasks: [],
+        documents: [],
+        comments: [],
+        dependencies: [],
+        custom_fields: {},
+        attachments: []
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      Logger.error(error, 'Convert to task error');
+      return;
+    }
+
+    // Add to entries
+    const newEntry = {
+      id: data.id,
+      title: data.title,
+      caption: data.caption,
+      workflowStatus: data.workflow_status,
+      team: data.team,
+      owner: data.owner,
+      ownerEmail: data.owner_email,
+      tags: data.tags || [],
+      date: data.date,
+      itemType: 'job',
+      archived: false,
+      collaborators: [],
+      subtasks: [],
+      documents: [],
+      comments: [],
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+    setEntries(prev => [newEntry, ...prev]);
+
+    // Archive/delete the source item
+    if (sourceType === 'project' || sourceType === 'task') {
+      await supabase.from('workflow_items').update({ archived: true }).eq('id', sourceItem.id);
+      setEntries(prev => prev.map(e => e.id === sourceItem.id ? { ...e, archived: true } : e));
+    } else if (sourceType === 'workstream') {
+      await SUPABASE_API.deleteWorkstreamTask(sourceItem.id);
+      setWorkstreamTasks(prev => prev.filter(t => t.id !== sourceItem.id));
+    }
+  }, [supabase, currentUser, userEmail, SUPABASE_API]);
+
+  // Convert to Project
+  const handleConvertToProject = useCallback(async (sourceItem, sourceType, formData) => {
+    if (!supabase) return;
+
+    // Create new project entry
+    const { data, error } = await supabase
+      .from('workflow_items')
+      .insert([{
+        title: formData.title,
+        caption: formData.caption || '',
+        workflow_status: formData.workflowStatus || 'Idea',
+        team: formData.team || '',
+        timeline_value: formData.timelineValue || '',
+        owner: formData.owner || currentUser,
+        owner_email: formData.ownerEmail || userEmail,
+        collaborators: formData.collaborators || [],
+        tags: formData.tags || [],
+        date: formData.date || null,
+        item_type: 'project',
+        archived: false,
+        subtasks: [],
+        documents: [],
+        comments: formData.comments || [],
+        dependencies: [],
+        custom_fields: {},
+        attachments: []
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      Logger.error(error, 'Convert to project error');
+      return;
+    }
+
+    // Add to entries
+    const newEntry = {
+      id: data.id,
+      title: data.title,
+      caption: data.caption,
+      workflowStatus: data.workflow_status,
+      team: data.team,
+      timelineValue: data.timeline_value,
+      owner: data.owner,
+      ownerEmail: data.owner_email,
+      collaborators: data.collaborators || [],
+      tags: data.tags || [],
+      date: data.date,
+      itemType: 'project',
+      archived: false,
+      subtasks: [],
+      documents: [],
+      comments: data.comments || [],
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+    setEntries(prev => [newEntry, ...prev]);
+
+    // Archive/delete the source item
+    if (sourceType === 'project' || sourceType === 'task') {
+      await supabase.from('workflow_items').update({ archived: true }).eq('id', sourceItem.id);
+      setEntries(prev => prev.map(e => e.id === sourceItem.id ? { ...e, archived: true } : e));
+    } else if (sourceType === 'workstream') {
+      await SUPABASE_API.deleteWorkstreamTask(sourceItem.id);
+      setWorkstreamTasks(prev => prev.filter(t => t.id !== sourceItem.id));
+    }
+  }, [supabase, currentUser, userEmail, SUPABASE_API]);
+
+  // Convert to Workstream Task
+  const handleConvertToWorkstream = useCallback(async (sourceItem, sourceType, formData, workstreamId) => {
+    if (!supabase) return;
+
+    // Create new workstream task
+    const { data, error } = await supabase
+      .from('workstream_tasks')
+      .insert([{
+        workstream_id: workstreamId,
+        title: formData.title,
+        description: formData.description || '',
+        priority: formData.priority || 'medium',
+        status: formData.status || 'open',
+        deadline: formData.deadline || null,
+        assignee: formData.assignee || '',
+        assignee_email: formData.assigneeEmail || '',
+        requester: formData.requester || '',
+        tags: formData.tags || [],
+        comments: [],
+        sort_order: 0
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      Logger.error(error, 'Convert to workstream task error');
+      return;
+    }
+
+    // Add to workstream tasks
+    setWorkstreamTasks(prev => [data, ...prev]);
+
+    // Archive/delete the source item
+    if (sourceType === 'project' || sourceType === 'task') {
+      await supabase.from('workflow_items').update({ archived: true }).eq('id', sourceItem.id);
+      setEntries(prev => prev.map(e => e.id === sourceItem.id ? { ...e, archived: true } : e));
+    } else if (sourceType === 'workstream') {
+      // Moving between workstreams - delete from old
+      await SUPABASE_API.deleteWorkstreamTask(sourceItem.id);
+      setWorkstreamTasks(prev => prev.filter(t => t.id !== sourceItem.id));
+    }
+  }, [supabase, SUPABASE_API]);
+
   const handleOpenPdfExport = useCallback((context) => {
     setPdfExportContext(context);
     setShowPdfExportModal(true);
@@ -1108,6 +1298,9 @@ export default function App() {
             onNavigateToWhiteboard={(id) => {
               setCurrentWhiteboardId(id);
               setCurrentView('whiteboards');
+            }}
+            onConvert={(item, type) => {
+              handleOpenConvertModal(item, type);
             }}
             USERS={USERS}
             KANBAN_STATUSES={KANBAN_STATUSES}
@@ -1721,6 +1914,9 @@ export default function App() {
             onDelete={async (taskId, workstreamId) => {
               return await handleDeleteWorkstreamTask(taskId);
             }}
+            onConvert={(item, type) => {
+              handleOpenConvertModal(item, type);
+            }}
             USERS={USERS}
             USERS_WITH_EMAILS={SEED_USERS}
           />
@@ -1862,13 +2058,21 @@ export default function App() {
       {showJobDetailModal && selectedJobId && (
         <JobDetailModal
           job={entries.find(e => e.id === selectedJobId)}
+          show={showJobDetailModal}
           onClose={() => {
             setShowJobDetailModal(false);
             setSelectedJobId(null);
           }}
           onUpdate={(updates) => handleUpdateEntry(selectedJobId, updates)}
-          JOB_STATUSES={JOB_STATUSES}
-          users={USERS}
+          onDelete={handleDeleteEntry}
+          onConvert={(item, type) => {
+            setShowJobDetailModal(false);
+            setSelectedJobId(null);
+            handleOpenConvertModal(item, type);
+          }}
+          userProfiles={Object.values(userProfilesCache)}
+          teams={TEAMS}
+          userEmail={userEmail}
           currentUser={currentUser}
         />
       )}
@@ -1884,6 +2088,27 @@ export default function App() {
           userEmail={userEmail}
           users={USERS}
           teams={TEAMS}
+        />
+      )}
+
+      {showConvertModal && convertSourceItem && (
+        <ConvertItemModal
+          show={showConvertModal}
+          onClose={() => {
+            setShowConvertModal(false);
+            setConvertSourceItem(null);
+            setConvertSourceType(null);
+          }}
+          sourceItem={convertSourceItem}
+          sourceType={convertSourceType}
+          workstreams={workstreams}
+          teams={TEAMS}
+          userProfiles={Object.values(userProfilesCache)}
+          currentUser={currentUser}
+          userEmail={userEmail}
+          onConvertToTask={handleConvertToTask}
+          onConvertToProject={handleConvertToProject}
+          onConvertToWorkstream={handleConvertToWorkstream}
         />
       )}
     </div>

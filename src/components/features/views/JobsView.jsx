@@ -7,11 +7,10 @@ import JobCard from '../cards/JobCard';
 // Local utility for conditional class names
 const cx = (...args) => args.filter(Boolean).join(' ');
 
-// Job status configuration
+// Job status configuration (Done removed - completing archives the task)
 const JOB_STATUSES = [
   { id: 'todo', label: 'To Do', color: 'gray' },
-  { id: 'in_progress', label: 'In Progress', color: 'blue' },
-  { id: 'done', label: 'Done', color: 'green' }
+  { id: 'in_progress', label: 'In Progress', color: 'blue' }
 ];
 
 const JobsView = ({
@@ -48,11 +47,10 @@ const JobsView = ({
     ? assignedToMe
     : jobs;
 
-  // Group by status
+  // Group by status (no done - completing archives)
   const jobsByStatus = {
     todo: filteredJobs.filter(j => j.workflowStatus === 'todo'),
-    in_progress: filteredJobs.filter(j => j.workflowStatus === 'in_progress'),
-    done: filteredJobs.filter(j => j.workflowStatus === 'done')
+    in_progress: filteredJobs.filter(j => j.workflowStatus === 'in_progress')
   };
 
   // Handle creating a new job
@@ -196,6 +194,34 @@ const JobsView = ({
     ));
   };
 
+  // Handle completing (archiving) a job
+  const handleCompleteJob = async (jobId) => {
+    if (!supabase) return;
+
+    const { error } = await supabase
+      .from('workflow_items')
+      .update({
+        archived: true,
+        workflow_status: 'done',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+
+    if (error) {
+      Logger.error(error, 'Error completing job');
+      return;
+    }
+
+    setEntries(prev => prev.map(e =>
+      e.id === jobId ? { ...e, archived: true, workflowStatus: 'done' } : e
+    ));
+
+    // Close detail modal if this job was selected
+    if (selectedJob?.id === jobId) {
+      setSelectedJob(null);
+    }
+  };
+
   // Drag and drop handlers
   const handleDragStart = (e, job) => {
     setDraggedJob(job);
@@ -257,14 +283,14 @@ const JobsView = ({
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">All Jobs</p>
+                <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">All Tasks</p>
                 <p className="text-3xl font-bold text-ocean-900">{jobs.length}</p>
               </div>
               <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
-                <Icon name="briefcase" className="w-6 h-6 text-white" />
+                <Icon name="clipboard-list" className="w-6 h-6 text-white" />
               </div>
             </div>
-            <p className="text-xs text-graystone-500 mt-2">All active jobs</p>
+            <p className="text-xs text-graystone-500 mt-2">All active tasks</p>
           </div>
           <div
             onClick={() => setFilter('mine')}
@@ -275,14 +301,14 @@ const JobsView = ({
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">My Jobs</p>
+                <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">My Tasks</p>
                 <p className="text-3xl font-bold text-ocean-900">{myJobs.length}</p>
               </div>
               <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
                 <Icon name="user" className="w-6 h-6 text-white" />
               </div>
             </div>
-            <p className="text-xs text-graystone-500 mt-2">Jobs you created</p>
+            <p className="text-xs text-graystone-500 mt-2">Tasks you created</p>
           </div>
           <div
             onClick={() => setFilter('assigned')}
@@ -300,63 +326,91 @@ const JobsView = ({
                 <Icon name="users" className="w-6 h-6 text-white" />
               </div>
             </div>
-            <p className="text-xs text-graystone-500 mt-2">Jobs assigned by others</p>
+            <p className="text-xs text-graystone-500 mt-2">Tasks assigned by others</p>
           </div>
         </div>
       </div>
 
       {/* Kanban Board */}
       <div className="flex-1 overflow-hidden p-6">
-        <div className="grid grid-cols-3 gap-4 h-full">
-          {JOB_STATUSES.map(status => (
-            <div
-              key={status.id}
-              className={cx(
-                "flex flex-col rounded-xl border transition-colors min-w-0",
-                dragOverColumn === status.id ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
-              )}
-              onDragOver={(e) => handleDragOver(e, status.id)}
-              onDrop={(e) => handleDrop(e, status.id)}
-            >
-              {/* Column Header */}
-              <div className="p-4 border-b border-graystone-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={cx(
-                      "w-3 h-3 rounded-full",
-                      status.color === 'green' ? "bg-green-500" :
-                      status.color === 'blue' ? "bg-blue-500" :
-                      "bg-graystone-400"
-                    )}></div>
-                    <span className="font-semibold text-graystone-800">{status.label}</span>
+        <div className="flex flex-col h-full gap-4">
+          {/* Main columns */}
+          <div className="grid grid-cols-2 gap-4 flex-1">
+            {JOB_STATUSES.map(status => (
+              <div
+                key={status.id}
+                className={cx(
+                  "flex flex-col rounded-xl border transition-colors min-w-0",
+                  dragOverColumn === status.id ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
+                )}
+                onDragOver={(e) => handleDragOver(e, status.id)}
+                onDrop={(e) => handleDrop(e, status.id)}
+              >
+                {/* Column Header */}
+                <div className="p-4 border-b border-graystone-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={cx(
+                        "w-3 h-3 rounded-full",
+                        status.color === 'blue' ? "bg-blue-500" : "bg-graystone-400"
+                      )}></div>
+                      <span className="font-semibold text-graystone-800">{status.label}</span>
+                    </div>
+                    <span className="text-sm text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
+                      {jobsByStatus[status.id].length}
+                    </span>
                   </div>
-                  <span className="text-sm text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
-                    {jobsByStatus[status.id].length}
-                  </span>
+                </div>
+
+                {/* Cards */}
+                <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
+                  {jobsByStatus[status.id].length === 0 ? (
+                    <div className="text-center py-8 text-graystone-400 text-sm">
+                      {dragOverColumn === status.id ? 'Drop here' : 'No tasks'}
+                    </div>
+                  ) : (
+                    jobsByStatus[status.id].map(job => (
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        onClick={setSelectedJob}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        userProfiles={userProfiles}
+                        onComplete={() => handleCompleteJob(job.id)}
+                      />
+                    ))
+                  )}
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Cards */}
-              <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
-                {jobsByStatus[status.id].length === 0 ? (
-                  <div className="text-center py-8 text-graystone-400 text-sm">
-                    {dragOverColumn === status.id ? 'Drop here' : 'No jobs'}
-                  </div>
-                ) : (
-                  jobsByStatus[status.id].map(job => (
-                    <JobCard
-                      key={job.id}
-                      job={job}
-                      onClick={setSelectedJob}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                      userProfiles={userProfiles}
-                    />
-                  ))
-                )}
-              </div>
+          {/* Complete drop zone - shown when dragging */}
+          <div
+            className={cx(
+              "rounded-xl border-2 border-dashed transition-all",
+              draggedJob
+                ? dragOverColumn === 'done'
+                  ? "border-green-500 bg-green-50 py-6"
+                  : "border-graystone-300 bg-graystone-50 py-4"
+                : "hidden"
+            )}
+            onDragOver={(e) => { e.preventDefault(); setDragOverColumn('done'); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedJob) {
+                handleCompleteJob(draggedJob.id);
+              }
+              setDraggedJob(null);
+              setDragOverColumn(null);
+            }}
+          >
+            <div className="flex items-center justify-center gap-2 text-green-600">
+              <Icon name="check-circle" className="w-5 h-5" />
+              <span className="font-medium">Drop here to complete</span>
             </div>
-          ))}
+          </div>
         </div>
       </div>
 

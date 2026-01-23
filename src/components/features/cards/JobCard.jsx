@@ -9,8 +9,9 @@ import clsx from 'clsx';
  * @param {function} onDragStart - Called with (event, job) when drag starts
  * @param {function} onDragEnd - Called when drag ends
  * @param {Object} userProfiles - Map of user profiles for avatars
+ * @param {function} onComplete - Called to mark job as complete/archived
  */
-function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles }) {
+function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles, onComplete }) {
   const priorityColors = {
     high: 'bg-red-100 text-red-700 border-red-200',
     medium: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -30,11 +31,26 @@ function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles }) {
       onDragEnd={onDragEnd}
       onClick={() => onClick(job)}
       className={clsx(
-        "p-3 bg-white rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5",
+        "group p-3 bg-white rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 relative",
         isOverdue ? "border-red-300" : isDueSoon ? "border-amber-300" : "border-graystone-200"
       )}
     >
-      <div className="font-medium text-sm text-graystone-800 mb-2 line-clamp-2">
+      {/* Complete button - shown on hover */}
+      {onComplete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onComplete();
+          }}
+          className="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-graystone-300 bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:border-green-500 hover:bg-green-50"
+          title="Mark complete"
+        >
+          <svg className="w-3.5 h-3.5 text-graystone-400 hover:text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+          </svg>
+        </button>
+      )}
+      <div className="font-medium text-sm text-graystone-800 mb-2 line-clamp-2 pr-6">
         {job.title}
       </div>
 
