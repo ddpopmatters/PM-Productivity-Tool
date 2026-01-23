@@ -19,7 +19,7 @@ import {
 } from './utils/config';
 
 // Import UI components
-import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination, ErrorBoundary } from './components/ui';
+import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination, ErrorBoundary, ListSkeleton, TableSkeleton } from './components/ui';
 
 // Import feature components
 import {
@@ -1435,7 +1435,7 @@ export default function App() {
                   />
                 )}
                 {viewMode === 'gantt' && (
-                  <Suspense fallback={<LoadingSpinner />}>
+                  <Suspense fallback={<TableSkeleton rows={6} cols={5} />}>
                     <GanttView
                       entries={myPersonalProjects}
                       onOpen={handleOpenEntry}
@@ -1443,7 +1443,7 @@ export default function App() {
                   </Suspense>
                 )}
                 {viewMode === 'calendar' && (
-                  <Suspense fallback={<LoadingSpinner />}>
+                  <Suspense fallback={<ListSkeleton rows={5} />}>
                     <CalendarScreen
                       entries={myPersonalProjects}
                       onOpen={handleOpenEntry}
