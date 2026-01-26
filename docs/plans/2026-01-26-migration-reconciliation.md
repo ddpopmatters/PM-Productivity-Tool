@@ -386,26 +386,32 @@ export async function authorizeWorkstreamTask(
   user: User,
   taskId: string | null,
   action: Action,
-  db: D1Database
+  db: D1Database,
+  requestBody?: { workstream_id?: string }  // Pass request body for create
 ): Promise<boolean> {
-  if (!taskId && action !== 'create') return false;
-
   // For task operations, check parent workstream access
   let workstreamId: string | null = null;
 
   if (taskId) {
+    // Existing task - get workstream_id from database
     const task = await db.prepare(`
       SELECT workstream_id FROM workstream_tasks WHERE id = ?
     `).bind(taskId).first<{ workstream_id: string }>();
 
     if (!task) return false;
     workstreamId = task.workstream_id;
+  } else if (action === 'create' && requestBody?.workstream_id) {
+    // Creating new task - get workstream_id from request body
+    workstreamId = requestBody.workstream_id;
+  } else if (action === 'create') {
+    // Create without workstream_id - reject
+    return false;
+  } else {
+    // Non-create action without taskId - reject
+    return false;
   }
 
-  // Delegate to workstream authorization
-  // If user can access workstream, they can CRUD tasks in it
-  if (!workstreamId) return true; // Creating with workstream_id in body
-
+  // Verify access to the parent workstream
   const workstream = await db.prepare(`
     SELECT owner_email, visibility FROM workstreams WHERE id = ?
   `).bind(workstreamId).first<{ owner_email: string; visibility: string }>();
@@ -1181,24 +1187,98 @@ export async function migrateAllData(
     }
 
     // ========== 12. FILES (Supabase Storage → R2) ==========
-    console.log('Migrating files...');
-    const { data: files } = await supabase.storage.from('attachments').list('', { limit: 1000 });
+    // Files in Supabase are stored in workflow_items.attachments JSON array
+    // We need to extract them and migrate to R2 + attachments table
+    console.log('Migrating files from workflow_items...');
 
-    for (const file of files || []) {
-      try {
-        // Download from Supabase
-        const { data: blob } = await supabase.storage.from('attachments').download(file.name);
-        if (!blob) continue;
+    // Get all items with attachments
+    const { data: itemsWithAttachments } = await supabase
+      .from('workflow_items')
+      .select('id, attachments')
+      .not('attachments', 'is', null);
 
-        // Generate new R2 key
-        const r2Key = `migrated/${file.name}`;
+    for (const item of itemsWithAttachments || []) {
+      const attachments = item.attachments || [];
+      for (const att of attachments) {
+        try {
+          // att structure: { id, name, url, type, size, uploadedAt, uploadedBy }
+          if (!att.url) continue;
 
-        // Upload to R2
-        await r2.put(r2Key, blob);
+          // Extract storage path from URL
+          const storagePath = extractStoragePath(att.url);
+          if (!storagePath) continue;
 
-        stats.files++;
-      } catch (e) {
-        stats.errors.push(`File ${file.name}: ${e.message}`);
+          // Download from Supabase Storage
+          const { data: blob } = await supabase.storage.from('attachments').download(storagePath);
+          if (!blob) continue;
+
+          // Generate new R2 key
+          const attachmentId = att.id || crypto.randomUUID();
+          const r2Key = `attachments/${item.id}/${attachmentId}/${att.name}`;
+
+          // Upload to R2
+          await r2.put(r2Key, blob, {
+            httpMetadata: { contentType: att.type || 'application/octet-stream' }
+          });
+
+          // Insert into attachments table
+          const uploaderId = att.uploadedBy ? userIdByEmail.get(att.uploadedBy.toLowerCase()) : null;
+          await db.prepare(`
+            INSERT INTO attachments (id, item_id, item_type, filename, r2_key, content_type, size_bytes, uploaded_by, created_at)
+            VALUES (?, ?, 'workflow_item', ?, ?, ?, ?, ?, ?)
+          `).bind(
+            attachmentId,
+            item.id,
+            att.name,
+            r2Key,
+            att.type,
+            att.size,
+            uploaderId,
+            att.uploadedAt || new Date().toISOString()
+          ).run();
+
+          stats.files++;
+        } catch (e) {
+          stats.errors.push(`File ${att.name} for item ${item.id}: ${e.message}`);
+        }
+      }
+    }
+
+    // Also migrate workstream_task attachments
+    console.log('Migrating files from workstream_tasks...');
+    const { data: tasksWithAttachments } = await supabase
+      .from('workstream_tasks')
+      .select('id, attachments')
+      .not('attachments', 'is', null);
+
+    for (const task of tasksWithAttachments || []) {
+      const attachments = task.attachments || [];
+      for (const att of attachments) {
+        try {
+          if (!att.url) continue;
+          const storagePath = extractStoragePath(att.url);
+          if (!storagePath) continue;
+
+          const { data: blob } = await supabase.storage.from('attachments').download(storagePath);
+          if (!blob) continue;
+
+          const attachmentId = att.id || crypto.randomUUID();
+          const r2Key = `attachments/workstream-tasks/${task.id}/${attachmentId}/${att.name}`;
+
+          await r2.put(r2Key, blob, {
+            httpMetadata: { contentType: att.type || 'application/octet-stream' }
+          });
+
+          const uploaderId = att.uploadedBy ? userIdByEmail.get(att.uploadedBy.toLowerCase()) : null;
+          await db.prepare(`
+            INSERT INTO attachments (id, item_id, item_type, filename, r2_key, content_type, size_bytes, uploaded_by, created_at)
+            VALUES (?, ?, 'workstream_task', ?, ?, ?, ?, ?, ?)
+          `).bind(attachmentId, task.id, att.name, r2Key, att.type, att.size, uploaderId, att.uploadedAt || new Date().toISOString()).run();
+
+          stats.files++;
+        } catch (e) {
+          stats.errors.push(`File ${att.name} for task ${task.id}: ${e.message}`);
+        }
       }
     }
 
@@ -1221,7 +1301,10 @@ export async function migrateAllData(
 ```bash
 # D1 database created and accessible
 wrangler d1 execute momentum-hub --command "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'"
-# Expected: count = 15 (all tables created)
+# Expected: count = 14 (all tables created)
+# Tables: users, workflow_items, workstreams, workstream_tasks, todos, habits,
+#         habit_completions, matrix_tasks, whiteboards, whiteboard_elements,
+#         attachments, activity_log, security_audit_log, rate_limits
 
 # R2 bucket accessible
 wrangler r2 object list momentum-hub-files --max-keys 1
@@ -1386,6 +1469,439 @@ SELECT COUNT(*) FROM whiteboards;  -- Both
 -- Should match
 
 -- Sample data spot check (pick 5 random items, verify all fields match)
+```
+
+---
+
+## 7. Whiteboard Durable Object to D1 Sync
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    WHITEBOARD PERSISTENCE FLOW                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  Client ──WebSocket──► Durable Object (in-memory state)                 │
+│                              │                                           │
+│                              │ Every 10 operations OR every 30 seconds  │
+│                              ▼                                           │
+│                        DO Storage (immediate persistence)                │
+│                              │                                           │
+│                              │ On flush trigger                          │
+│                              ▼                                           │
+│                     Worker ──► D1 (durable backup)                      │
+│                                                                          │
+│  Recovery Flow:                                                          │
+│  1. DO starts → load from DO Storage                                    │
+│  2. DO Storage empty → load from D1 backup                              │
+│  3. D1 empty → start fresh                                               │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Durable Object Implementation (with D1 sync)
+
+```typescript
+// src/durable-objects/whiteboard-session.ts
+
+export class WhiteboardSession {
+  private state: DurableObjectState;
+  private env: Env;
+  private sessions: Map<WebSocket, { userId: string; userName: string }>;
+  private whiteboard: WhiteboardState;
+  private whiteboardId: string;
+  private lastD1Sync: number = 0;
+  private pendingChanges: number = 0;
+  private syncInterval: number | null = null;
+
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state;
+    this.env = env;
+    this.sessions = new Map();
+    this.whiteboard = { elements: new Map(), version: 0 };
+    this.whiteboardId = '';
+
+    // Load state from storage on initialization
+    this.state.blockConcurrencyWhile(async () => {
+      await this.loadState();
+    });
+  }
+
+  private async loadState() {
+    // Try DO storage first (fastest)
+    const stored = await this.state.storage.get<{
+      elements: [string, DrawElement][];
+      version: number;
+      whiteboardId: string;
+    }>('whiteboard');
+
+    if (stored) {
+      this.whiteboard.elements = new Map(stored.elements);
+      this.whiteboard.version = stored.version;
+      this.whiteboardId = stored.whiteboardId;
+      return;
+    }
+
+    // Fall back to D1 if DO storage is empty
+    // (This handles DO eviction/recreation scenarios)
+    // whiteboardId is set from the request URL in fetch()
+  }
+
+  private async loadFromD1(whiteboardId: string) {
+    try {
+      const { results } = await this.env.DB.prepare(`
+        SELECT * FROM whiteboard_elements WHERE whiteboard_id = ?
+      `).bind(whiteboardId).all();
+
+      for (const row of results || []) {
+        this.whiteboard.elements.set(row.id as string, {
+          id: row.id as string,
+          type: row.element_type as string,
+          x: row.x as number,
+          y: row.y as number,
+          width: row.width as number,
+          height: row.height as number,
+          rotation: row.rotation as number,
+          zIndex: row.z_index as number,
+          content: row.content ? JSON.parse(row.content as string) : {},
+          backgroundColor: row.background_color as string,
+          borderColor: row.border_color as string,
+          textColor: row.text_color as string,
+          fontSize: row.font_size as number,
+          createdBy: row.created_by as string,
+          createdAt: row.created_at as string
+        });
+      }
+
+      // Get max version from D1
+      const versionRow = await this.env.DB.prepare(`
+        SELECT MAX(CAST(substr(updated_at, 1, 19) AS TEXT)) as max_time
+        FROM whiteboard_elements WHERE whiteboard_id = ?
+      `).bind(whiteboardId).first();
+
+      this.whiteboard.version = this.whiteboard.elements.size;
+    } catch (error) {
+      console.error('Failed to load from D1:', error);
+    }
+  }
+
+  private async syncToD1() {
+    if (!this.whiteboardId || this.pendingChanges === 0) return;
+
+    try {
+      // Batch upsert all elements to D1
+      const elements = Array.from(this.whiteboard.elements.values());
+
+      for (const el of elements) {
+        await this.env.DB.prepare(`
+          INSERT INTO whiteboard_elements (
+            id, whiteboard_id, element_type, x, y, width, height,
+            rotation, z_index, content, background_color, border_color,
+            text_color, font_size, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          ON CONFLICT(id) DO UPDATE SET
+            x = excluded.x,
+            y = excluded.y,
+            width = excluded.width,
+            height = excluded.height,
+            rotation = excluded.rotation,
+            z_index = excluded.z_index,
+            content = excluded.content,
+            background_color = excluded.background_color,
+            border_color = excluded.border_color,
+            text_color = excluded.text_color,
+            font_size = excluded.font_size,
+            updated_at = datetime('now')
+        `).bind(
+          el.id,
+          this.whiteboardId,
+          el.type,
+          el.x,
+          el.y,
+          el.width,
+          el.height,
+          el.rotation || 0,
+          el.zIndex || 0,
+          JSON.stringify(el.content || {}),
+          el.backgroundColor,
+          el.borderColor,
+          el.textColor,
+          el.fontSize,
+          el.createdBy,
+          el.createdAt || new Date().toISOString()
+        ).run();
+      }
+
+      // Delete elements that were removed
+      const currentIds = elements.map(e => e.id);
+      if (currentIds.length > 0) {
+        await this.env.DB.prepare(`
+          DELETE FROM whiteboard_elements
+          WHERE whiteboard_id = ? AND id NOT IN (${currentIds.map(() => '?').join(',')})
+        `).bind(this.whiteboardId, ...currentIds).run();
+      }
+
+      this.pendingChanges = 0;
+      this.lastD1Sync = Date.now();
+    } catch (error) {
+      console.error('Failed to sync to D1:', error);
+    }
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Extract whiteboard ID from URL
+    const pathParts = url.pathname.split('/');
+    const idIndex = pathParts.findIndex(p => p === 'whiteboard') + 1;
+    if (idIndex > 0 && pathParts[idIndex]) {
+      this.whiteboardId = pathParts[idIndex];
+
+      // Load from D1 if not yet loaded
+      if (this.whiteboard.elements.size === 0) {
+        await this.loadFromD1(this.whiteboardId);
+      }
+    }
+
+    if (request.headers.get('Upgrade') === 'websocket') {
+      return this.handleWebSocket(request);
+    }
+
+    // REST endpoints
+    switch (url.pathname.split('/').pop()) {
+      case 'state':
+        return this.getState();
+      case 'sync':
+        await this.syncToD1();
+        return Response.json({ synced: true, version: this.whiteboard.version });
+      default:
+        return new Response('Not found', { status: 404 });
+    }
+  }
+
+  private async handleMessage(message: any, sender: WebSocket) {
+    // ... existing message handling ...
+
+    // Track pending changes
+    if (['draw', 'update', 'delete'].includes(message.type)) {
+      this.pendingChanges++;
+
+      // Sync to D1 every 10 operations
+      if (this.pendingChanges >= 10) {
+        await this.syncToD1();
+      }
+    }
+
+    // Persist to DO storage immediately (fast)
+    if (this.whiteboard.version % 5 === 0) {
+      await this.state.storage.put('whiteboard', {
+        elements: Array.from(this.whiteboard.elements.entries()),
+        version: this.whiteboard.version,
+        whiteboardId: this.whiteboardId
+      });
+    }
+  }
+
+  // Alarm for periodic D1 sync (every 30 seconds if changes pending)
+  async alarm() {
+    if (this.pendingChanges > 0) {
+      await this.syncToD1();
+    }
+    // Reschedule alarm
+    this.state.storage.setAlarm(Date.now() + 30000);
+  }
+}
+```
+
+### Recovery Verification Test
+
+```bash
+# Test: Whiteboard state survives DO eviction
+# 1. Create elements in whiteboard
+# 2. Wait for D1 sync (30 seconds or 10 operations)
+# 3. Delete DO (simulated eviction)
+wrangler d1 execute momentum-hub --command "SELECT COUNT(*) FROM whiteboard_elements WHERE whiteboard_id='test-id'"
+# Expected: count > 0
+
+# 4. Reconnect to whiteboard
+# Expected: Elements restored from D1
+```
+
+---
+
+## 8. Rate Limiting Implementation
+
+### Middleware
+
+```typescript
+// src/middleware/rate-limit.ts
+
+interface RateLimitConfig {
+  maxAttempts: number;
+  windowMinutes: number;
+  blockMinutes: number;
+}
+
+const RATE_LIMITS: Record<string, RateLimitConfig> = {
+  invite_user: { maxAttempts: 10, windowMinutes: 60, blockMinutes: 60 },
+  delete_user: { maxAttempts: 5, windowMinutes: 60, blockMinutes: 120 },
+  delete_invite: { maxAttempts: 10, windowMinutes: 60, blockMinutes: 60 },
+  file_upload: { maxAttempts: 50, windowMinutes: 60, blockMinutes: 30 },
+  api_request: { maxAttempts: 1000, windowMinutes: 60, blockMinutes: 5 },
+};
+
+export async function checkRateLimit(
+  db: D1Database,
+  identifier: string,
+  actionType: string
+): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const config = RATE_LIMITS[actionType] || RATE_LIMITS.api_request;
+  const now = new Date().toISOString();
+
+  // Check existing rate limit record
+  const record = await db.prepare(`
+    SELECT * FROM rate_limits
+    WHERE identifier = ? AND action_type = ?
+  `).bind(identifier, actionType).first<{
+    attempt_count: number;
+    first_attempt_at: string;
+    blocked_until: string | null;
+  }>();
+
+  // If blocked, check if block has expired
+  if (record?.blocked_until) {
+    const blockedUntil = new Date(record.blocked_until);
+    if (blockedUntil > new Date()) {
+      return {
+        allowed: false,
+        retryAfter: Math.ceil((blockedUntil.getTime() - Date.now()) / 1000)
+      };
+    }
+    // Block expired, reset record
+    await db.prepare(`
+      DELETE FROM rate_limits WHERE identifier = ? AND action_type = ?
+    `).bind(identifier, actionType).run();
+  }
+
+  // Check if within window
+  if (record) {
+    const windowStart = new Date(record.first_attempt_at);
+    const windowEnd = new Date(windowStart.getTime() + config.windowMinutes * 60 * 1000);
+
+    if (new Date() < windowEnd) {
+      // Within window
+      if (record.attempt_count >= config.maxAttempts) {
+        // Exceeded limit, block
+        const blockedUntil = new Date(Date.now() + config.blockMinutes * 60 * 1000).toISOString();
+        await db.prepare(`
+          UPDATE rate_limits SET blocked_until = ?, last_attempt_at = ?
+          WHERE identifier = ? AND action_type = ?
+        `).bind(blockedUntil, now, identifier, actionType).run();
+
+        return {
+          allowed: false,
+          retryAfter: config.blockMinutes * 60
+        };
+      }
+
+      // Increment counter
+      await db.prepare(`
+        UPDATE rate_limits SET attempt_count = attempt_count + 1, last_attempt_at = ?
+        WHERE identifier = ? AND action_type = ?
+      `).bind(now, identifier, actionType).run();
+    } else {
+      // Window expired, reset
+      await db.prepare(`
+        UPDATE rate_limits SET attempt_count = 1, first_attempt_at = ?, last_attempt_at = ?
+        WHERE identifier = ? AND action_type = ?
+      `).bind(now, now, identifier, actionType).run();
+    }
+  } else {
+    // First attempt
+    await db.prepare(`
+      INSERT INTO rate_limits (id, identifier, action_type, attempt_count, first_attempt_at, last_attempt_at)
+      VALUES (?, ?, ?, 1, ?, ?)
+    `).bind(crypto.randomUUID(), identifier, actionType, now, now).run();
+  }
+
+  return { allowed: true };
+}
+
+export async function resetRateLimit(
+  db: D1Database,
+  identifier: string,
+  actionType: string
+): Promise<void> {
+  await db.prepare(`
+    DELETE FROM rate_limits WHERE identifier = ? AND action_type = ?
+  `).bind(identifier, actionType).run();
+}
+```
+
+### Usage in Routes
+
+```typescript
+// src/routes/admin.ts
+
+adminRouter.post('/invite', async (c) => {
+  const user = c.get('user');
+  const { email } = await c.req.json();
+
+  // Check rate limit
+  const { allowed, retryAfter } = await checkRateLimit(
+    c.env.DB,
+    user.email,  // Limit by admin email
+    'invite_user'
+  );
+
+  if (!allowed) {
+    return c.json({
+      error: 'Rate limited',
+      retryAfter
+    }, 429);
+  }
+
+  // ... rest of invite logic
+});
+```
+
+### Cleanup Job
+
+```typescript
+// Run periodically (e.g., daily via Cron Trigger)
+export async function cleanupExpiredRateLimits(db: D1Database) {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  await db.prepare(`
+    DELETE FROM rate_limits
+    WHERE last_attempt_at < ? AND blocked_until IS NULL
+  `).bind(cutoff).run();
+
+  await db.prepare(`
+    DELETE FROM rate_limits
+    WHERE blocked_until < datetime('now')
+  `).run();
+}
+```
+
+---
+
+## 9. Helper Functions for Migration
+
+```typescript
+// Extract storage path from Supabase Storage URL
+function extractStoragePath(url: string): string | null {
+  // URL format: https://xxx.supabase.co/storage/v1/object/public/attachments/path/to/file
+  // or: https://xxx.supabase.co/storage/v1/object/authenticated/attachments/path/to/file
+  try {
+    const urlObj = new URL(url);
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(?:public|authenticated)\/attachments\/(.+)/);
+    return pathMatch ? pathMatch[1] : null;
+  } catch {
+    return null;
+  }
+}
 ```
 
 ---
