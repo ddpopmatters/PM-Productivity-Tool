@@ -1263,7 +1263,7 @@ export async function migrateAllData(
           if (!blob) continue;
 
           const attachmentId = att.id || crypto.randomUUID();
-          const r2Key = `attachments/workstream-tasks/${task.id}/${attachmentId}/${att.name}`;
+          const r2Key = `attachments/${task.id}/${attachmentId}/${att.name}`;
 
           await r2.put(r2Key, blob, {
             httpMetadata: { contentType: att.type || 'application/octet-stream' }
@@ -1525,6 +1525,12 @@ export class WhiteboardSession {
     // Load state from storage on initialization
     this.state.blockConcurrencyWhile(async () => {
       await this.loadState();
+
+      // Schedule periodic D1 sync alarm (every 30 seconds)
+      const currentAlarm = await this.state.storage.getAlarm();
+      if (!currentAlarm) {
+        await this.state.storage.setAlarm(Date.now() + 30000);
+      }
     });
   }
 
@@ -1887,7 +1893,185 @@ export async function cleanupExpiredRateLimits(db: D1Database) {
 
 ---
 
-## 9. Helper Functions for Migration
+## 9. Notifications Implementation
+
+### Current State
+- Supabase Realtime provides push notifications via WebSocket subscriptions
+- `useNotifications.js` polls/subscribes to `activity_log` table
+- Notifications show mentions (@user) and activity on owned/collaborated items
+
+### Cloudflare Alternative: Polling + Optional SSE
+
+Since Cloudflare Workers don't have persistent WebSocket connections outside of Durable Objects, notifications will use polling with optional Server-Sent Events upgrade.
+
+```typescript
+// src/routes/notifications.ts
+
+import { Hono } from 'hono';
+
+export const notificationsRouter = new Hono<{ Bindings: Env }>();
+
+// Polling endpoint - frontend calls every 30 seconds
+notificationsRouter.get('/', async (c) => {
+  const user = c.get('user');
+  const since = c.req.query('since'); // ISO timestamp of last fetch
+
+  let query = `
+    SELECT * FROM activity_log
+    WHERE (
+      -- Mentions me
+      related_users LIKE ? OR
+      -- Activity on my items
+      target_id IN (
+        SELECT id FROM workflow_items WHERE owner_email = ?
+        UNION
+        SELECT id FROM workstreams WHERE owner_email = ?
+      )
+    )
+  `;
+  const params: string[] = [`%${user.email}%`, user.email, user.email];
+
+  if (since) {
+    query += ' AND created_at > ?';
+    params.push(since);
+  }
+
+  query += ' ORDER BY created_at DESC LIMIT 50';
+
+  const { results } = await c.env.DB.prepare(query).bind(...params).all();
+
+  return c.json({
+    notifications: results,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Mark notifications as read (optional - if tracking read state)
+notificationsRouter.post('/read', async (c) => {
+  const user = c.get('user');
+  const { notificationIds } = await c.req.json();
+
+  // If implementing read tracking, add a user_notifications table
+  // For MVP, frontend can track read state locally
+
+  return c.json({ success: true });
+});
+
+// Server-Sent Events endpoint (optional upgrade for real-time feel)
+notificationsRouter.get('/stream', async (c) => {
+  const user = c.get('user');
+
+  // Create a TransformStream for SSE
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  // Send initial connection message
+  await writer.write(encoder.encode(`data: {"type":"connected"}\n\n`));
+
+  // Poll D1 every 10 seconds and push new notifications
+  let lastCheck = new Date().toISOString();
+  const interval = setInterval(async () => {
+    try {
+      const { results } = await c.env.DB.prepare(`
+        SELECT * FROM activity_log
+        WHERE created_at > ?
+        AND (related_users LIKE ? OR target_id IN (
+          SELECT id FROM workflow_items WHERE owner_email = ?
+        ))
+        ORDER BY created_at DESC LIMIT 10
+      `).bind(lastCheck, `%${user.email}%`, user.email).all();
+
+      if (results.length > 0) {
+        await writer.write(encoder.encode(
+          `data: ${JSON.stringify({ type: 'notifications', data: results })}\n\n`
+        ));
+        lastCheck = new Date().toISOString();
+      }
+    } catch (e) {
+      console.error('SSE poll error:', e);
+    }
+  }, 10000);
+
+  // Clean up on disconnect
+  c.req.raw.signal.addEventListener('abort', () => {
+    clearInterval(interval);
+    writer.close();
+  });
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    }
+  });
+});
+```
+
+### Frontend Integration
+
+```typescript
+// src/hooks/useNotifications.ts (updated for Cloudflare)
+
+export function useNotifications() {
+  const [notifications, setNotifications] = useState([]);
+  const [lastFetch, setLastFetch] = useState<string | null>(null);
+
+  // Polling approach (simple, reliable)
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      const params = lastFetch ? `?since=${lastFetch}` : '';
+      const response = await fetch(`/api/notifications${params}`);
+      const data = await response.json();
+
+      if (data.notifications.length > 0) {
+        setNotifications(prev => [...data.notifications, ...prev].slice(0, 100));
+      }
+      setLastFetch(data.timestamp);
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Optional: Upgrade to SSE for better UX
+  useEffect(() => {
+    const eventSource = new EventSource('/api/notifications/stream');
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'notifications') {
+        setNotifications(prev => [...data.data, ...prev].slice(0, 100));
+      }
+    };
+
+    eventSource.onerror = () => {
+      // Fall back to polling on error
+      eventSource.close();
+    };
+
+    return () => eventSource.close();
+  }, []);
+
+  return { notifications, unreadCount: notifications.filter(n => !n.read).length };
+}
+```
+
+### Feature Parity Checklist
+
+| Supabase Feature | Cloudflare Alternative | Status |
+|-----------------|----------------------|--------|
+| Real-time push via WebSocket | Polling (30s) + optional SSE | ✅ Implemented |
+| @mention detection | Query `related_users` column | ✅ Same |
+| Activity on owned items | Query by `owner_email` | ✅ Same |
+| Unread count badge | Frontend state tracking | ✅ Same |
+
+---
+
+## 10. Helper Functions for Migration
 
 ```typescript
 // Extract storage path from Supabase Storage URL
