@@ -147,6 +147,10 @@ PM-Productivity-Tool/
 - **PDF Generation**: jsPDF
 - **Hosting**: GitHub Pages (or any static host)
 
+## Documentation
+
+- **[Styling Guide](docs/STYLING-GUIDE.md)** - Complete design system and styling standards for all Population Matters projects. Includes color palettes, typography, components, and code examples.
+
 ## Support
 
 For issues and feature requests, please open an issue on GitHub.
