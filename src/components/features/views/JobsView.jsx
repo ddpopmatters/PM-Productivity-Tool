@@ -45,7 +45,7 @@ const JobsView = ({
     ? myJobs
     : filter === 'assigned'
     ? assignedToMe
-    : jobs;
+    : [...myJobs, ...assignedToMe]; // 'all' = owned + assigned tasks
 
   // Group by status (no done - completing archives)
   const jobsByStatus = {
@@ -284,13 +284,13 @@ const JobsView = ({
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">All Tasks</p>
-                <p className="text-3xl font-bold text-ocean-900">{jobs.length}</p>
+                <p className="text-3xl font-bold text-ocean-900">{myJobs.length + assignedToMe.length}</p>
               </div>
               <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
                 <Icon name="clipboard-list" className="w-6 h-6 text-white" />
               </div>
             </div>
-            <p className="text-xs text-graystone-500 mt-2">All active tasks</p>
+            <p className="text-xs text-graystone-500 mt-2">Your owned + assigned tasks</p>
           </div>
           <div
             onClick={() => setFilter('mine')}
