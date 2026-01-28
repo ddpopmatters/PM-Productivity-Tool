@@ -29,7 +29,7 @@ const JobsView = ({
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'mine', 'assigned'
+  const [filter, setFilter] = useState('mine'); // 'all', 'mine', 'assigned'
   const [draggedJob, setDraggedJob] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
 
