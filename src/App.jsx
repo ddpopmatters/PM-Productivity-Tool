@@ -334,34 +334,8 @@ export default function App() {
         .select()
         .single();
       if (error) {
-        // Retry with string fallback for pre-migration TEXT columns
-        const insertObj = {
-          title: item.title,
-          caption: item.caption || '',
-          workflow_status: item.workflowStatus || 'Idea',
-          team: item.team || '',
-          timeline_value: item.timelineValue || '',
-          owner: Array.isArray(item.owner) ? item.owner[0] || '' : item.owner || '',
-          owner_email: userEmail || '',
-          collaborators: item.collaborators || [],
-          tags: item.tags || [],
-          subtasks: item.subtasks || [],
-          documents: item.documents || [],
-          date: item.date || null,
-          comments: item.comments || [],
-          archived: item.archived || false,
-          dependencies: item.dependencies || [],
-          custom_fields: item.customFields || [],
-          attachments: item.attachments || [],
-          item_type: item.itemType || 'project',
-        };
-        const { data: retryData, error: retryError } = await supabase
-          .from('workflow_items')
-          .insert([insertObj])
-          .select()
-          .single();
-        if (!retryError) return retryData;
-        Logger.error(retryError, 'Supabase save error (retry)');
+        Logger.error(error, 'Supabase save error');
+        console.error('Save failed:', error);
         return null;
       }
       return data;
@@ -395,21 +369,8 @@ export default function App() {
         .select()
         .single();
       if (error) {
-        // Retry with string fallback for pre-migration TEXT columns
-        if (Array.isArray(updateObj.owner) || Array.isArray(updateObj.owner_email)) {
-          if (Array.isArray(updateObj.owner)) updateObj.owner = updateObj.owner[0] || '';
-          if (Array.isArray(updateObj.owner_email)) updateObj.owner_email = updateObj.owner_email[0] || '';
-          const { data: retryData, error: retryError } = await supabase
-            .from('workflow_items')
-            .update(updateObj)
-            .eq('id', id)
-            .select()
-            .single();
-          if (!retryError) return retryData;
-          Logger.error(retryError, 'Supabase update error (retry)');
-          return null;
-        }
         Logger.error(error, 'Supabase update error');
+        console.error('Update failed for id:', id, 'updates:', updateObj, 'error:', error);
         return null;
       }
       return data;

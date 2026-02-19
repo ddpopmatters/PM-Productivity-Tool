@@ -97,16 +97,8 @@ CREATE POLICY "workflow_items_insert" ON workflow_items
 
 CREATE POLICY "workflow_items_update" ON workflow_items
     FOR UPDATE TO authenticated
-    USING (
-        auth.jwt() ->> 'email' = ANY(owner_email)
-        OR is_collaborator(collaborators, auth.jwt() ->> 'email')
-        OR EXISTS (SELECT 1 FROM user_profiles WHERE email = auth.jwt() ->> 'email' AND role = 'admin')
-    )
-    WITH CHECK (
-        auth.jwt() ->> 'email' = ANY(owner_email)
-        OR is_collaborator(collaborators, auth.jwt() ->> 'email')
-        OR EXISTS (SELECT 1 FROM user_profiles WHERE email = auth.jwt() ->> 'email' AND role = 'admin')
-    );
+    USING (true)
+    WITH CHECK (true);
 
 CREATE POLICY "workflow_items_delete" ON workflow_items
     FOR DELETE TO authenticated
