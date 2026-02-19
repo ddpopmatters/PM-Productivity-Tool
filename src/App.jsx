@@ -195,6 +195,7 @@ export default function App() {
 
   // View state
   const [currentView, setCurrentView] = useState('dashboard');
+  const [viewHistory, setViewHistory] = useState([]);
   const [viewMode, setViewMode] = useState('table');
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState('All');
@@ -1085,13 +1086,36 @@ export default function App() {
 
   // Handler functions
   const handleNavigate = useCallback((view) => {
-    setCurrentView(view);
+    setCurrentView(prev => {
+      // Don't push duplicate consecutive entries
+      if (prev !== view) {
+        setViewHistory(h => [...h.slice(-19), prev]);
+      }
+      return view;
+    });
+    setSidebarOpen(false);
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setViewHistory(prev => {
+      if (prev.length === 0) {
+        setCurrentView('dashboard');
+        return prev;
+      }
+      const next = [...prev];
+      const last = next.pop();
+      setCurrentView(last);
+      return next;
+    });
     setSidebarOpen(false);
   }, []);
 
   const handleOpenEntry = useCallback((id) => {
     setSelectedItemId(id);
-    setCurrentView('item-dashboard');
+    setCurrentView(prev => {
+      setViewHistory(h => [...h.slice(-19), prev]);
+      return 'item-dashboard';
+    });
   }, []);
 
   const handleUpdateEntry = useCallback(async (entryId, updates) => {
@@ -1229,7 +1253,10 @@ export default function App() {
   const handleOpenWorkstreamTask = useCallback((workstreamId, taskId) => {
     setSelectedWorkstreamId(workstreamId);
     setSelectedWorkstreamTaskId(taskId);
-    setCurrentView('workstream-task-detail');
+    setCurrentView(prev => {
+      setViewHistory(h => [...h.slice(-19), prev]);
+      return 'workstream-task-detail';
+    });
   }, []);
 
   const handleUpdateWorkstreamTask = useCallback(async (taskId, workstreamIdOrUpdates, maybeUpdates) => {
@@ -1611,7 +1638,7 @@ export default function App() {
         return (
           <ItemDashboard
             entry={selectedEntry}
-            onBack={() => handleNavigate('dashboard')}
+            onBack={handleBack}
             onToggleSubtask={handleToggleSubtask}
             onDeleteSubtask={handleDeleteSubtask}
             onEditSubtask={handleEditSubtask}
@@ -1622,7 +1649,7 @@ export default function App() {
             allEntries={entries}
             onNavigateToWhiteboard={(id) => {
               setCurrentWhiteboardId(id);
-              setCurrentView('whiteboards');
+              handleNavigate('whiteboards');
             }}
             onConvert={(item, type) => {
               handleOpenConvertModal(item, type);
@@ -2035,7 +2062,7 @@ export default function App() {
             onUpdateEvent={handleUpdateEvent}
             onDeleteEvent={handleDeleteEvent}
             onNavigateToEntry={(id) => { handleOpenEntry(id); }}
-            onNavigateToWorkstream={(id) => { setSelectedWorkstreamId(id); setCurrentView('workstreams'); }}
+            onNavigateToWorkstream={(id) => { setSelectedWorkstreamId(id); handleNavigate('workstreams'); }}
           />
         );
 
@@ -2043,7 +2070,7 @@ export default function App() {
         return (
           <AddItemForm
             onSubmit={handleAddItem}
-            onCancel={() => handleNavigate('dashboard')}
+            onCancel={handleBack}
             users={USERS}
             teams={TEAMS}
             statuses={KANBAN_STATUSES}
@@ -2124,7 +2151,7 @@ export default function App() {
               workstreamTasks={workstreamTasks}
               onNavigateToWorkstream={(workstreamId) => {
                 setSelectedWorkstreamId(workstreamId);
-                setCurrentView('workstream-detail');
+                handleNavigate('workstream-detail');
               }}
               TEAMS={TEAMS}
               isAdmin={isAdmin}
@@ -2141,7 +2168,7 @@ export default function App() {
             setWhiteboards={setWhiteboards}
             onOpenWhiteboard={(id) => {
               setCurrentWhiteboardId(id);
-              setCurrentView('whiteboard-canvas');
+              handleNavigate('whiteboard-canvas');
             }}
             userEmail={userEmail}
             currentUser={currentUser}
@@ -2156,7 +2183,7 @@ export default function App() {
             <div className="text-center py-12">
               <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-ocean-900 mb-2">Whiteboard Not Found</h2>
-              <Button onClick={() => handleNavigate('whiteboards')}>Back to Whiteboards</Button>
+              <Button onClick={handleBack}>Back to Whiteboards</Button>
             </div>
           );
         }
@@ -2165,7 +2192,7 @@ export default function App() {
             <WhiteboardCanvas
               whiteboardId={currentWhiteboardId}
               whiteboard={currentWhiteboard}
-              onBack={() => handleNavigate('whiteboards')}
+              onBack={handleBack}
               userEmail={userEmail}
               currentUser={currentUser}
               WHITEBOARD_API={SUPABASE_API}
@@ -2190,7 +2217,7 @@ export default function App() {
             userEmail={userEmail}
             onOpenWorkstream={(id) => {
               setSelectedWorkstreamId(id);
-              setCurrentView('workstream-detail');
+              handleNavigate('workstream-detail');
             }}
             onCreateWorkstream={handleCreateWorkstream}
           />
@@ -2203,7 +2230,7 @@ export default function App() {
             <div className="text-center py-12">
               <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-ocean-900 mb-2">Workstream Not Found</h2>
-              <Button onClick={() => handleNavigate('workstreams')}>Back to Workstreams</Button>
+              <Button onClick={handleBack}>Back to Workstreams</Button>
             </div>
           );
         }
@@ -2211,10 +2238,10 @@ export default function App() {
           <WorkstreamView
             workstream={viewWorkstream}
             workstreamTasks={workstreamTasks.filter(t => t.workstream_id === selectedWorkstreamId)}
-            onBack={() => handleNavigate('workstreams')}
+            onBack={handleBack}
             onOpenTask={(taskId) => {
               setSelectedWorkstreamTaskId(taskId);
-              setCurrentView('workstream-task-detail');
+              handleNavigate('workstream-task-detail');
             }}
             onCreateTask={handleCreateWorkstreamTask}
             onUpdateTask={handleUpdateWorkstreamTask}
@@ -2248,7 +2275,7 @@ export default function App() {
             <div className="text-center py-12">
               <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-ocean-900 mb-2">Task Not Found</h2>
-              <Button onClick={() => handleNavigate('workstreams')}>Back to Workstreams</Button>
+              <Button onClick={handleBack}>Back to Workstreams</Button>
             </div>
           );
         }
@@ -2259,7 +2286,7 @@ export default function App() {
             currentUser={currentUser}
             userEmail={userEmail}
             entries={entries}
-            onBack={() => handleNavigate('workstreams')}
+            onBack={handleBack}
             onUpdate={async (taskId, workstreamId, updates) => {
               await handleUpdateWorkstreamTask(taskId, updates);
             }}
