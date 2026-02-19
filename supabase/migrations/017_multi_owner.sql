@@ -6,7 +6,17 @@
 -- RLS policies updated to use ANY() for array membership checks.
 
 -- ============================================
--- 1. ALTER COLUMNS: TEXT → TEXT[]
+-- 1. DROP EXISTING RLS POLICIES (must happen BEFORE column type change)
+-- ============================================
+-- From 006_fix_rls_policies.sql
+DROP POLICY IF EXISTS "workflow_items_insert" ON workflow_items;
+DROP POLICY IF EXISTS "workflow_items_update" ON workflow_items;
+DROP POLICY IF EXISTS "workflow_items_delete" ON workflow_items;
+-- From 014_fix_collaborator_rls.sql (may have replaced workflow_items_update)
+DROP POLICY IF EXISTS "Owners and collaborators can update" ON workflow_items;
+
+-- ============================================
+-- 2. ALTER COLUMNS: TEXT → TEXT[]
 -- ============================================
 ALTER TABLE workflow_items
   ALTER COLUMN owner TYPE TEXT[]
@@ -21,16 +31,6 @@ ALTER TABLE workflow_items
     WHEN owner_email IS NOT NULL AND owner_email != '' THEN ARRAY[owner_email]
     ELSE ARRAY[]::TEXT[]
   END;
-
--- ============================================
--- 2. DROP EXISTING RLS POLICIES ON workflow_items
--- ============================================
--- From 006_fix_rls_policies.sql
-DROP POLICY IF EXISTS "workflow_items_insert" ON workflow_items;
-DROP POLICY IF EXISTS "workflow_items_update" ON workflow_items;
-DROP POLICY IF EXISTS "workflow_items_delete" ON workflow_items;
--- From 014_fix_collaborator_rls.sql (may have replaced workflow_items_update)
-DROP POLICY IF EXISTS "Owners and collaborators can update" ON workflow_items;
 
 -- ============================================
 -- 3. RECREATE RLS POLICIES WITH ANY() CHECKS
@@ -70,6 +70,7 @@ CREATE POLICY "workflow_items_delete" ON workflow_items
 -- ============================================
 -- NOTES
 -- ============================================
+-- * Policies must be dropped BEFORE altering column types (PostgreSQL requirement)
 -- * is_collaborator() function from 014 is unchanged (operates on collaborators, not owner_email)
 -- * workflow_items_select policy is unchanged (all authenticated can read)
 -- * Existing single-owner rows become single-element arrays via the USING clause
