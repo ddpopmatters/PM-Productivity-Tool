@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import clsx from 'clsx';
 import { Badge } from '../../ui';
 
@@ -6,7 +6,7 @@ import { Badge } from '../../ui';
  * TableView - Tabular view for entries with bulk actions
  *
  * Displays entries in a table format with selection, bulk status change,
- * and bulk delete capabilities.
+ * and bulk delete capabilities. Sortable by title and deadline.
  *
  * @param {Array} entries - Array of entry objects
  * @param {function} onOpen - Called with entry.id when a row is clicked
@@ -24,6 +24,38 @@ function TableView({
   const [selectedIds, setSelectedIds] = useState([]);
   const [showBulkStatusMenu, setShowBulkStatusMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [sortField, setSortField] = useState(null); // 'title' | 'deadline' | null
+  const [sortDir, setSortDir] = useState('asc');    // 'asc' | 'desc'
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedEntries = useMemo(() => {
+    if (!sortField) return entries;
+    const sorted = [...entries].sort((a, b) => {
+      if (sortField === 'title') {
+        const aVal = (a.title || '').toLowerCase();
+        const bVal = (b.title || '').toLowerCase();
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      }
+      if (sortField === 'deadline') {
+        const aVal = a.date || a.timelineValue || '';
+        const bVal = b.date || b.timelineValue || '';
+        if (!aVal && !bVal) return 0;
+        if (!aVal) return 1;
+        if (!bVal) return -1;
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      }
+      return 0;
+    });
+    return sortDir === 'desc' ? sorted.reverse() : sorted;
+  }, [entries, sortField, sortDir]);
 
   // Reset selection when entries change
   useEffect(() => {
@@ -183,15 +215,33 @@ function TableView({
                   className="w-4 h-4 rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
                 />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Title</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">
+                <button onClick={() => handleSort('title')} className="flex items-center gap-1 hover:text-ocean-600 transition">
+                  Title
+                  {sortField === 'title' ? (
+                    <i data-lucide={sortDir === 'asc' ? 'chevron-up' : 'chevron-down'} className="w-3 h-3"></i>
+                  ) : (
+                    <i data-lucide="chevrons-up-down" className="w-3 h-3 text-graystone-400"></i>
+                  )}
+                </button>
+              </th>
               <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Owner</th>
               <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Team</th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Deadline</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">
+                <button onClick={() => handleSort('deadline')} className="flex items-center gap-1 hover:text-ocean-600 transition">
+                  Deadline
+                  {sortField === 'deadline' ? (
+                    <i data-lucide={sortDir === 'asc' ? 'chevron-up' : 'chevron-down'} className="w-3 h-3"></i>
+                  ) : (
+                    <i data-lucide="chevrons-up-down" className="w-3 h-3 text-graystone-400"></i>
+                  )}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-graystone-100">
-            {entries.map(entry => {
+            {sortedEntries.map(entry => {
               const isSelected = selectedIds.includes(entry.id);
               return (
                 <tr

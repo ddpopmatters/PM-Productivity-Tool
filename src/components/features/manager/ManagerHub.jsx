@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Icon from '../../ui/Icon';
 import ReportExportModal from './ReportExportModal';
+import ManagerTimeline from './ManagerTimeline';
 
 // Local utilities
 const cx = (...xs) => xs.filter(Boolean).join(" ");
@@ -255,6 +256,7 @@ const ManagerHub = ({
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: 'layout-list' },
+    { id: 'timeline', label: 'Timeline', icon: 'git-branch' },
     { id: 'yearly', label: 'Yearly Overview', icon: 'calendar-range' }
   ];
 
@@ -609,6 +611,17 @@ const ManagerHub = ({
             </div>
           )}
         </div>
+      )}
+
+      {(managerHubTab || 'overview') === 'timeline' && selectedManager && (
+        <ManagerTimeline
+          items={items}
+          selectedManager={selectedManager}
+          selectedYear={selectedYear}
+          setSelectedYear={setSelectedYear}
+          onOpen={onOpen}
+          Badge={Badge}
+        />
       )}
 
       {(managerHubTab || 'overview') === 'yearly' && (
