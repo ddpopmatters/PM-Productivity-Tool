@@ -543,7 +543,12 @@ const ManagerHub = ({
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {(selectedManager?.reports || []).map(email => {
-                const memberItems = items.filter(i => i.owner?.some(o => o.toLowerCase() === email.toLowerCase()));
+                const emailLower = email.toLowerCase();
+                const ownedItems = items.filter(i => i.owner?.some(o => o.toLowerCase() === emailLower));
+                const collabItems = items.filter(i =>
+                  i.collaborators?.some(c => c.toLowerCase() === emailLower) &&
+                  !i.owner?.some(o => o.toLowerCase() === emailLower)
+                );
                 const isSelected = previewMembers.includes(email);
                 return (
                   <div
@@ -562,7 +567,8 @@ const ManagerHub = ({
                     </div>
                     <div className="text-xs text-graystone-500 mb-2">{email}</div>
                     <div className="flex gap-4 text-sm">
-                      <span className="text-ocean-600">{memberItems.length} items</span>
+                      <span className="text-ocean-600">{ownedItems.length} owned</span>
+                      <span className="text-graystone-500">{collabItems.length} collab</span>
                     </div>
                   </div>
                 );
