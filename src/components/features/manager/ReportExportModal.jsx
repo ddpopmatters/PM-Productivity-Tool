@@ -45,6 +45,27 @@ function formatOwner(owner) {
   return owner || '';
 }
 
+function sortableDate(item) {
+  const raw = item.date || item.timelineValue || '';
+  // YYYY-MM-DD → as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  // YYYY-MM → treat as first of month
+  if (/^\d{4}-\d{2}$/.test(raw)) return raw + '-01';
+  // YYYY-QN → map to quarter start
+  if (/^\d{4}-Q([1-4])$/.test(raw)) {
+    const q = parseInt(raw.slice(6));
+    return raw.slice(0, 4) + '-' + String((q - 1) * 3 + 1).padStart(2, '0') + '-01';
+  }
+  // YYYY → Jan 1
+  if (/^\d{4}$/.test(raw)) return raw + '-01-01';
+  // No date → sort to end
+  return '9999-99-99';
+}
+
+function sortByDate(items) {
+  return [...items].sort((a, b) => sortableDate(a).localeCompare(sortableDate(b)));
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '\u2014';
   // Quarter: YYYY-Q1..Q4
@@ -172,7 +193,7 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
       body += `<div class="member-group">
 <div class="member-name">${escapeHtml(m.name)} (${m.items.length})</div>
 <table><tr><th>Project</th><th>Status</th><th>Deadline</th></tr>`;
-      m.items.forEach(item => {
+      sortByDate(m.items).forEach(item => {
         body += `<tr>
 <td>${escapeHtml(item.title || '')}</td>
 <td><span class="status-badge ${getStatusClass(item.workflowStatus)}">${escapeHtml(item.workflowStatus || 'No status')}</span></td>
@@ -222,7 +243,7 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
       body += `<div class="period-group">
 <div class="period-label">${escapeHtml(p.key)} (${p.items.length})</div>
 <table><tr><th>Project</th><th>Owner</th><th>Status</th><th>Date</th></tr>`;
-      p.items.forEach(item => {
+      sortByDate(p.items).forEach(item => {
         body += `<tr>
 <td>${escapeHtml(item.title || '')}</td>
 <td>${escapeHtml(formatOwner(item.owner))}</td>
