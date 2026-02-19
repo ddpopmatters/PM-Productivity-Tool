@@ -11,6 +11,7 @@ export * from './filters';
 export * from './productivity';
 export * from './workstreams';
 export * from './whiteboards';
+export * from './events';
 export * from './admin';
 export * from './manager';
 export * from './dashboard';

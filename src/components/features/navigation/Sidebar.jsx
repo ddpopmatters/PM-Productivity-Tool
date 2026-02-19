@@ -62,6 +62,7 @@ const Sidebar = ({
     {
       title: 'TOOLS',
       items: [
+        { id: 'events-calendar', label: 'Calendar', icon: 'calendar' },
         { id: 'whiteboards', label: 'Whiteboards', icon: 'layout' },
         { id: 'productivity-tools', label: 'Productivity Tools', icon: 'wrench' },
       ]

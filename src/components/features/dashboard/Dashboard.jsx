@@ -41,6 +41,7 @@ export default function Dashboard({
   onOpenWorkstreamTask,
   onUpdateWorkstreamTask,
   Badge,
+  events = [],
 }) {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
@@ -1041,6 +1042,66 @@ export default function Dashboard({
           )}
         </div>
       </div>
+
+      {/* Upcoming Events */}
+      {events && events.length > 0 && (() => {
+        const next7 = new Date();
+        next7.setDate(next7.getDate() + 7);
+        const next7Str = next7.toISOString().slice(0, 10);
+        const upcoming = events
+          .filter(e => e.event_date >= today && e.event_date <= next7Str)
+          .slice(0, 5);
+        if (upcoming.length === 0) return null;
+
+        const COLOR_MAP = {
+          ocean: 'bg-ocean-100 text-ocean-700',
+          green: 'bg-green-100 text-green-700',
+          purple: 'bg-purple-100 text-purple-700',
+          orange: 'bg-orange-100 text-orange-700',
+          pink: 'bg-pink-100 text-pink-700',
+          teal: 'bg-teal-100 text-teal-700',
+          red: 'bg-red-100 text-red-700',
+        };
+
+        return (
+          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-heading text-lg text-ocean-900 flex items-center gap-2 tracking-wide">
+                <Icon name="calendar" className="w-5 h-5" />
+                Upcoming Events
+              </h3>
+              <button
+                onClick={() => onNavigate('events-calendar')}
+                className="text-sm text-ocean-600 hover:text-ocean-700 hover:underline"
+              >
+                View all
+              </button>
+            </div>
+            <div className="space-y-2">
+              {upcoming.map(event => {
+                const colorCls = COLOR_MAP[event.color] || COLOR_MAP.ocean;
+                const d = new Date(event.event_date + 'T00:00:00');
+                const dateLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+                return (
+                  <button
+                    key={event.id}
+                    onClick={() => onNavigate('events-calendar')}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-ocean-100 hover:border-ocean-300 hover:bg-ocean-50/30 transition text-left"
+                  >
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${colorCls}`}>
+                      {dateLabel}
+                    </span>
+                    <span className="text-sm text-ocean-900 truncate flex-1">{event.title}</span>
+                    {event.location && (
+                      <span className="text-xs text-graystone-400 hidden sm:inline">{event.location}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Mentions & Activity Feed */}
       <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">

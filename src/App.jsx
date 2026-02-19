@@ -58,6 +58,8 @@ import {
   WorkstreamView,
   WorkstreamTaskDetail,
   WorkstreamSettings,
+  // Events
+  EventCalendar,
   // Whiteboards
   WhiteboardPreviewCard,
   StickyNote,
@@ -248,6 +250,7 @@ export default function App() {
   // Workstreams state
   const [workstreams, setWorkstreams] = useState([]);
   const [workstreamTasks, setWorkstreamTasks] = useState([]);
+  const [events, setEvents] = useState([]);
   const [selectedWorkstreamId, setSelectedWorkstreamId] = useState(null);
   const [selectedWorkstreamTaskId, setSelectedWorkstreamTaskId] = useState(null);
 
@@ -841,6 +844,88 @@ export default function App() {
       }
       return true;
     },
+
+    // Events calendar methods
+    fetchEvents: async () => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: true });
+      if (error) {
+        if (error.code !== '42P01') {
+          Logger.error(error, 'Fetch events error');
+        }
+        return [];
+      }
+      return data || [];
+    },
+
+    createEvent: async (event) => {
+      if (!supabase) return null;
+      const { data, error } = await supabase
+        .from('events')
+        .insert([{
+          title: event.title,
+          description: event.description || null,
+          event_date: event.eventDate,
+          end_date: event.endDate || null,
+          created_by: event.createdBy,
+          created_by_email: event.createdByEmail,
+          color: event.color || 'ocean',
+          category: event.category || null,
+          location: event.location || null,
+          linked_entry_id: event.linkedEntryId || null,
+          linked_workstream_id: event.linkedWorkstreamId || null,
+        }])
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Create event error');
+        return null;
+      }
+      return data;
+    },
+
+    updateEvent: async (id, updates) => {
+      if (!supabase) return null;
+      const fieldMap = {
+        eventDate: 'event_date',
+        endDate: 'end_date',
+        createdBy: 'created_by',
+        createdByEmail: 'created_by_email',
+        linkedEntryId: 'linked_entry_id',
+        linkedWorkstreamId: 'linked_workstream_id',
+      };
+      const mapped = { updated_at: new Date().toISOString() };
+      for (const [key, value] of Object.entries(updates)) {
+        mapped[fieldMap[key] || key] = value;
+      }
+      const { data, error } = await supabase
+        .from('events')
+        .update(mapped)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Update event error');
+        return null;
+      }
+      return data;
+    },
+
+    deleteEvent: async (id) => {
+      if (!supabase) return null;
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        Logger.error(error, 'Delete event error');
+        return null;
+      }
+      return true;
+    },
   }), [supabase, userEmail]);
 
   // Transform database row to app format
@@ -894,6 +979,10 @@ export default function App() {
           // Fetch workstream tasks
           const userWorkstreamTasks = await SUPABASE_API.fetchWorkstreamTasks();
           setWorkstreamTasks(userWorkstreamTasks);
+
+          // Fetch events
+          const userEvents = await SUPABASE_API.fetchEvents();
+          setEvents(userEvents);
         }
       } catch (error) {
         Logger.error(error, 'Failed to load data');
@@ -1389,6 +1478,35 @@ export default function App() {
     return data;
   }, [supabase]);
 
+  // Event calendar handlers
+  const handleCreateEvent = useCallback(async (eventData) => {
+    const saved = await SUPABASE_API.createEvent({
+      ...eventData,
+      createdBy: currentUser,
+      createdByEmail: userEmail,
+    });
+    if (saved) {
+      setEvents(prev => [...prev, saved].sort((a, b) => a.event_date.localeCompare(b.event_date)));
+    }
+    return saved;
+  }, [SUPABASE_API, currentUser, userEmail]);
+
+  const handleUpdateEvent = useCallback(async (id, updates) => {
+    const updated = await SUPABASE_API.updateEvent(id, updates);
+    if (updated) {
+      setEvents(prev => prev.map(e => e.id === id ? updated : e));
+    }
+    return updated;
+  }, [SUPABASE_API]);
+
+  const handleDeleteEvent = useCallback(async (id) => {
+    const result = await SUPABASE_API.deleteEvent(id);
+    if (result) {
+      setEvents(prev => prev.filter(e => e.id !== id));
+    }
+    return result;
+  }, [SUPABASE_API]);
+
   const openStatsModal = useCallback((title, items) => {
     setStatsModalData({ title, items });
     setShowStatsModal(true);
@@ -1469,6 +1587,7 @@ export default function App() {
             onOpenWorkstreamTask={handleOpenWorkstreamTask}
             onUpdateWorkstreamTask={handleUpdateWorkstreamTask}
             Badge={Badge}
+            events={events}
           />
         );
 
@@ -1734,7 +1853,7 @@ export default function App() {
                           }
                           className="w-4 h-4"
                         />
-                        <span className="capitalize hidden sm:inline">{viewMode === 'kanban' ? 'Board' : viewMode}</span>
+                        <span className="capitalize hidden sm:inline">{viewMode === 'kanban' ? 'Board' : viewMode === 'calendar' ? 'Timeline' : viewMode}</span>
                         <Icon name="chevron-down" className="w-3 h-3 opacity-70" />
                       </button>
                       {showViewDropdown && (
@@ -1743,7 +1862,7 @@ export default function App() {
                             { id: 'kanban', label: 'Board', icon: 'kanban' },
                             { id: 'table', label: 'Table', icon: 'table' },
                             { id: 'gantt', label: 'Gantt', icon: 'bar-chart-2' },
-                            { id: 'calendar', label: 'Calendar', icon: 'calendar' }
+                            { id: 'calendar', label: 'Timeline', icon: 'calendar' }
                           ].map(view => (
                             <button
                               key={view.id}
@@ -1887,6 +2006,22 @@ export default function App() {
               onOpenWorkstreamTask={handleOpenWorkstreamTask}
             />
           </Suspense>
+        );
+
+      case 'events-calendar':
+        return (
+          <EventCalendar
+            events={events}
+            entries={entries}
+            workstreams={workstreams}
+            workstreamTasks={workstreamTasks}
+            currentUser={currentUser}
+            onCreateEvent={handleCreateEvent}
+            onUpdateEvent={handleUpdateEvent}
+            onDeleteEvent={handleDeleteEvent}
+            onNavigateToEntry={(id) => { handleOpenEntry(id); }}
+            onNavigateToWorkstream={(id) => { setSelectedWorkstreamId(id); setCurrentView('workstreams'); }}
+          />
         );
 
       case 'add-item':
