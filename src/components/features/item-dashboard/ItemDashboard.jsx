@@ -135,6 +135,18 @@ export default function ItemDashboard({
     setOwnerSearch('');
   };
 
+  const removeOwnerImmediate = (name) => {
+    if (!entry || !entry.owner || entry.owner.length <= 1) return;
+    const newOwners = entry.owner.filter(o => o !== name);
+    const newEmails = newOwners.map(n => {
+      const seedUser = SEED_USERS.find(u => u.name === n);
+      return seedUser?.email || '';
+    }).filter(Boolean);
+    if (onUpdateEntry) {
+      onUpdateEntry(entry.id, { owner: newOwners, ownerEmail: newEmails });
+    }
+  };
+
   const addOwner = (name) => {
     if (name && !editOwners.includes(name)) {
       setEditOwners([...editOwners, name]);
@@ -1221,6 +1233,15 @@ export default function ItemDashboard({
                           {ownerName.charAt(0)}
                         </div>
                         <span className="text-sm font-medium text-graystone-900">{ownerName}</span>
+                        {entry.owner.length > 1 && (
+                          <button
+                            onClick={() => removeOwnerImmediate(ownerName)}
+                            className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-graystone-200 transition-colors"
+                            title={`Remove ${ownerName} as owner`}
+                          >
+                            <Icon name="x" className="w-3 h-3 text-graystone-400" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
