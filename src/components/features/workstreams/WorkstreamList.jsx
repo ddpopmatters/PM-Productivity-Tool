@@ -4,7 +4,7 @@ import Icon from '../../ui/Icon';
 // Local utility for conditional class names
 const cx = (...args) => args.filter(Boolean).join(' ');
 
-const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream, onCreateWorkstream }) => {
+const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEmail, onOpenWorkstream, onCreateWorkstream }) => {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -22,6 +22,14 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
   ];
 
   const getColorClasses = (colorId) => colors.find(c => c.id === colorId) || colors[0];
+
+  const getTaskCounts = (workstreamId) => {
+    const tasks = workstreamTasks.filter(t => t.workstream_id === workstreamId);
+    const open = tasks.filter(t => t.status !== 'done');
+    const timeSensitive = open.filter(t => t.deadline);
+    const overdue = timeSensitive.filter(t => new Date(t.deadline) < new Date());
+    return { total: tasks.length, open: open.length, timeSensitive: timeSensitive.length, overdue: overdue.length };
+  };
 
   const personalWorkstreams = workstreams.filter(w => w.visibility === 'personal');
   const sharedWorkstreams = workstreams.filter(w => w.visibility === 'shared');
@@ -255,6 +263,7 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredWorkstreams.map(ws => {
             const colorClasses = getColorClasses(ws.color);
+            const counts = getTaskCounts(ws.id);
             return (
               <button
                 key={ws.id}
@@ -268,7 +277,25 @@ const WorkstreamList = ({ workstreams, currentUser, userEmail, onOpenWorkstream,
                     {ws.description && (
                       <p className="text-sm text-graystone-500 mt-1 line-clamp-2">{ws.description}</p>
                     )}
-                    <div className="flex items-center gap-3 mt-3 text-xs text-graystone-400">
+                    {/* Task counts */}
+                    <div className="flex items-center gap-3 mt-2 text-xs">
+                      <span className="text-graystone-500">
+                        {counts.open} open
+                      </span>
+                      {counts.timeSensitive > 0 && (
+                        <span className="flex items-center gap-1 text-ocean-600">
+                          <Icon name="clock" className="w-3 h-3" />
+                          {counts.timeSensitive} deadline
+                        </span>
+                      )}
+                      {counts.overdue > 0 && (
+                        <span className="flex items-center gap-1 text-red-500">
+                          <Icon name="alert-circle" className="w-3 h-3" />
+                          {counts.overdue} overdue
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-graystone-400">
                       <span className={cx(
                         "px-2 py-0.5 rounded-full",
                         ws.visibility === 'shared' ? "bg-ocean-100 text-ocean-700" : "bg-graystone-100 text-graystone-600"

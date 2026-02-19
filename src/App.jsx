@@ -1874,6 +1874,7 @@ export default function App() {
         return (
           <WorkstreamList
             workstreams={workstreams}
+            workstreamTasks={workstreamTasks}
             currentUser={currentUser}
             userEmail={userEmail}
             onOpenWorkstream={(id) => {
