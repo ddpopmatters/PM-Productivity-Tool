@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Icon from '../../ui/Icon';
+import ReportExportModal from './ReportExportModal';
 
 // Local utilities
 const cx = (...xs) => xs.filter(Boolean).join(" ");
@@ -83,6 +84,7 @@ const ManagerHub = ({
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [previewSelectedYear, setPreviewSelectedYear] = useState(new Date().getFullYear());
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const togglePreviewMember = (email) => {
     setPreviewMembers(prev =>
@@ -408,14 +410,14 @@ const ManagerHub = ({
             </div>
           )}
 
-          {/* Export Current View */}
+          {/* Export Report */}
           <div className="flex justify-end">
             <button
-              onClick={() => window.print()}
+              onClick={() => setShowExportModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition text-sm font-medium"
             >
-              <Icon name="download" className="w-4 h-4" />
-              Export Overview
+              <Icon name="file-text" className="w-4 h-4" />
+              Export Report
             </button>
           </div>
 
@@ -523,7 +525,7 @@ const ManagerHub = ({
                                     <div className="flex-1 min-w-0">
                                       <div className="font-medium text-ocean-900 truncate">{item.title}</div>
                                       <div className="text-sm text-graystone-500 mt-1">
-                                        {item.owner} • {item.workflowStatus || 'No status'}
+                                        {Array.isArray(item.owner) ? item.owner.join(', ') : item.owner} • {item.workflowStatus || 'No status'}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -560,7 +562,7 @@ const ManagerHub = ({
                                   <div className="flex-1 min-w-0">
                                     <div className="font-medium text-ocean-900 truncate">{item.title}</div>
                                     <div className="text-sm text-graystone-500 mt-1">
-                                      {item.owner} • {item.workflowStatus || 'No status'}
+                                      {Array.isArray(item.owner) ? item.owner.join(', ') : item.owner} • {item.workflowStatus || 'No status'}
                                     </div>
                                   </div>
                                   {Badge && item.workflowStatus && (
@@ -633,11 +635,11 @@ const ManagerHub = ({
                 </button>
               </div>
               <button
-                onClick={() => window.print()}
+                onClick={() => setShowExportModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition text-sm font-medium"
               >
-                <Icon name="download" className="w-4 h-4" />
-                Export {selectedYear}
+                <Icon name="file-text" className="w-4 h-4" />
+                Export Report
               </button>
             </div>
           </div>
@@ -787,6 +789,15 @@ const ManagerHub = ({
           <p className="text-graystone-500">Select a manager to view their hub</p>
         </div>
       )}
+
+      <ReportExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        selectedManager={selectedManager}
+        items={items}
+        selectedYear={selectedYear}
+        APP_CONFIG={APP_CONFIG}
+      />
     </div>
   );
 };
