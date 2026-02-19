@@ -111,12 +111,12 @@ export default function ItemDashboard({
 
   const saveDetails = () => {
     if (onUpdateEntry) {
+      const isFullDate = editTimeline && /^\d{4}-\d{2}-\d{2}$/.test(editTimeline);
       const updates = {
         owner: editOwners,
         collaborators: editCollaborators,
-        date: editTimeline || null,
+        date: isFullDate ? editTimeline : null,
         timelineValue: editTimeline || null,
-        timelineType: editTimeline ? 'date' : null,
       };
       // Resolve all owner emails from SEED_USERS
       const ownerEmails = editOwners.map(name => {
