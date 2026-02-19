@@ -4,32 +4,20 @@
 -- Convert owner and owner_email from single TEXT to TEXT[] arrays.
 -- Existing single-value data converts to single-element arrays.
 -- RLS policies updated to use ANY() for array membership checks.
+--
+-- IMPORTANT: Run this as TWO separate executions in the Supabase SQL editor.
+-- Copy everything from "-- STEP 1" to "-- END STEP 1" first, run it.
+-- Then copy everything from "-- STEP 2" to the end, run it.
 
 -- ============================================
--- 1. DROP ALL RLS POLICIES ON workflow_items (must happen BEFORE column type change)
+-- STEP 1: Drop all policies and alter columns
 -- ============================================
--- Dynamic drop: removes EVERY policy on the table regardless of name.
--- This handles partial previous runs that may have left policies behind.
--- Explicit drops for all known policy names (from migrations + Supabase dashboard)
-DROP POLICY IF EXISTS "workflow_items_select" ON workflow_items;
-DROP POLICY IF EXISTS "workflow_items_insert" ON workflow_items;
-DROP POLICY IF EXISTS "workflow_items_update" ON workflow_items;
-DROP POLICY IF EXISTS "workflow_items_delete" ON workflow_items;
-DROP POLICY IF EXISTS "Owners and collaborators can update" ON workflow_items;
-DROP POLICY IF EXISTS "Users can update own items" ON workflow_items;
-DROP POLICY IF EXISTS "Users can delete own items" ON workflow_items;
-DROP POLICY IF EXISTS "Users can insert own items" ON workflow_items;
-DROP POLICY IF EXISTS "Users can view all items" ON workflow_items;
-DROP POLICY IF EXISTS "Enable read access for authenticated users" ON workflow_items;
-DROP POLICY IF EXISTS "Enable insert for authenticated users" ON workflow_items;
-DROP POLICY IF EXISTS "Enable update for authenticated users" ON workflow_items;
-DROP POLICY IF EXISTS "Enable delete for authenticated users" ON workflow_items;
-
--- Belt-and-suspenders: also dynamically drop any remaining policies via system catalog
+-- Run this block FIRST in the Supabase SQL editor.
 DO $$
 DECLARE
   pol RECORD;
 BEGIN
+  -- Dynamically drop EVERY policy on workflow_items
   FOR pol IN
     SELECT pol.polname
     FROM pg_catalog.pg_policy pol
@@ -39,15 +27,8 @@ BEGIN
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.workflow_items', pol.polname);
   END LOOP;
-END
-$$;
 
--- ============================================
--- 2. ALTER COLUMNS: TEXT → TEXT[] (idempotent — skips if already arrays)
--- ============================================
-DO $$
-BEGIN
-  -- Only alter owner if it's not already an array type
+  -- Alter owner column if still TEXT
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'workflow_items'
@@ -61,7 +42,7 @@ BEGIN
       END;
   END IF;
 
-  -- Only alter owner_email if it's not already an array type
+  -- Alter owner_email column if still TEXT
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'workflow_items'
@@ -76,12 +57,13 @@ BEGIN
   END IF;
 END
 $$;
+-- END STEP 1
 
 -- ============================================
--- 3. RECREATE RLS POLICIES WITH ANY() CHECKS
+-- STEP 2: Recreate RLS policies with ANY() checks
 -- ============================================
+-- Run this block SECOND in the Supabase SQL editor.
 
--- SELECT: all authenticated can read (recreated because DO block drops everything)
 CREATE POLICY "workflow_items_select" ON workflow_items
     FOR SELECT TO authenticated
     USING (true);
@@ -113,12 +95,3 @@ CREATE POLICY "workflow_items_delete" ON workflow_items
         auth.jwt() ->> 'email' = ANY(owner_email)
         OR EXISTS (SELECT 1 FROM user_profiles WHERE email = auth.jwt() ->> 'email' AND role = 'admin')
     );
-
--- ============================================
--- NOTES
--- ============================================
--- * Policies must be dropped BEFORE altering column types (PostgreSQL requirement)
--- * is_collaborator() function from 014 is unchanged (operates on collaborators, not owner_email)
--- * workflow_items_select policy is unchanged (all authenticated can read)
--- * Existing single-owner rows become single-element arrays via the USING clause
--- * Empty/null owners become empty arrays
