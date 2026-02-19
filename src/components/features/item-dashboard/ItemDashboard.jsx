@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon, Button, Badge, LoadingSpinner } from '../../ui';
 import { validateFilesForUpload, getAllowedExtensions } from '../../../utils/security';
+import { SEED_USERS } from '../../../utils/config';
 
 // Local className joining utility
 const cx = (...classes) => classes.filter(Boolean).join(' ');
@@ -109,13 +110,21 @@ export default function ItemDashboard({
 
   const saveDetails = () => {
     if (onUpdateEntry) {
-      onUpdateEntry(entry.id, {
+      const updates = {
         owner: editOwner,
         collaborators: editCollaborators,
         date: editTimeline || null,
         timelineValue: editTimeline || null,
         timelineType: editTimeline ? 'date' : null,
-      });
+      };
+      // When owner changes, also update owner_email from SEED_USERS
+      if (editOwner !== entry?.owner) {
+        const seedUser = SEED_USERS.find(u => u.name === editOwner);
+        if (seedUser) {
+          updates.ownerEmail = seedUser.email;
+        }
+      }
+      onUpdateEntry(entry.id, updates);
     }
     setEditingDetails(false);
   };
