@@ -30,6 +30,7 @@ const WorkstreamView = ({
   const [pendingDeadlineTask, setPendingDeadlineTask] = useState(null);
   const [pendingDeadlineDate, setPendingDeadlineDate] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Default task types + any custom types used in this workstream
   const defaultTaskTypes = ['Issue', 'Feature Request', 'Feature Improvement'];
@@ -62,7 +63,8 @@ const WorkstreamView = ({
     .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
   const handleCreateTask = async () => {
-    if (!newTaskTitle.trim()) return;
+    if (!newTaskTitle.trim() || isSubmitting) return;
+    setIsSubmitting(true);
 
     const task = {
       workstreamId: workstream.id,
@@ -78,6 +80,7 @@ const WorkstreamView = ({
     };
 
     const result = await onCreateTask(task);
+    setIsSubmitting(false);
     if (result) {
       setNewTaskTitle('');
       setNewTaskDeadline('');
@@ -186,7 +189,7 @@ const WorkstreamView = ({
             {showDeadline && task.deadline && (
               <span className={cx(
                 "flex items-center gap-1",
-                new Date(task.deadline) < new Date() ? "text-red-500" : ""
+                task.deadline < new Date().toISOString().slice(0, 10) ? "text-red-500" : ""
               )}>
                 <Icon name="calendar" className="w-3 h-3" />
                 {new Date(task.deadline).toLocaleDateString()}
@@ -221,7 +224,7 @@ const WorkstreamView = ({
         {priorityTasks.map(task => (
           <TaskCard key={task.id} task={task} />
         ))}
-        {priorityTasks.length === 0 && (
+        {priorityTasks.length === 0 && draggedTask && (
           <p className="text-xs text-graystone-400 text-center py-2">Drop tasks here</p>
         )}
       </div>
@@ -376,10 +379,10 @@ const WorkstreamView = ({
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateTask}
-                  disabled={!newTaskTitle.trim() || !newTaskDeadline}
+                  disabled={!newTaskTitle.trim() || !newTaskDeadline || isSubmitting}
                   className="px-3 py-1.5 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
                 >
-                  Add
+                  {isSubmitting ? 'Adding...' : 'Add'}
                 </button>
                 <button
                   onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); setNewTaskDeadline(''); setNewTaskType('Issue'); }}
@@ -481,10 +484,10 @@ const WorkstreamView = ({
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateTask}
-                  disabled={!newTaskTitle.trim()}
+                  disabled={!newTaskTitle.trim() || isSubmitting}
                   className="px-3 py-1.5 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
                 >
-                  Add
+                  {isSubmitting ? 'Adding...' : 'Add'}
                 </button>
                 <button
                   onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); setNewTaskType('Issue'); }}

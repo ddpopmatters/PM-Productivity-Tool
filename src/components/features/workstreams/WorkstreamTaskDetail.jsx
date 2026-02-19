@@ -34,8 +34,12 @@ const WorkstreamTaskDetail = ({
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [linkSearch, setLinkSearch] = useState('');
 
-  const handleSave = (updates) => {
-    onUpdate(task.id, workstream.id, updates);
+  const handleSave = async (updates) => {
+    try {
+      await onUpdate(task.id, workstream.id, updates);
+    } catch {
+      // Silent fail — field reverts on next render from parent state
+    }
   };
 
   const handleAddTag = () => {

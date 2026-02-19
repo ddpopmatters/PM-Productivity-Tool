@@ -11,6 +11,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
   const [newVisibility, setNewVisibility] = useState('personal');
   const [newColor, setNewColor] = useState('blue');
   const [filter, setFilter] = useState('all'); // all, personal, shared
+  const [isCreating, setIsCreating] = useState(false);
 
   const colors = [
     { id: 'blue', bg: 'bg-blue-500', light: 'bg-blue-100' },
@@ -27,7 +28,8 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
     const tasks = workstreamTasks.filter(t => t.workstream_id === workstreamId);
     const open = tasks.filter(t => t.status !== 'done');
     const timeSensitive = open.filter(t => t.deadline);
-    const overdue = timeSensitive.filter(t => new Date(t.deadline) < new Date());
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const overdue = timeSensitive.filter(t => t.deadline < todayStr);
     return { total: tasks.length, open: open.length, timeSensitive: timeSensitive.length, overdue: overdue.length };
   };
 
@@ -45,10 +47,11 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
     const trimmedDescription = newDescription.trim();
 
     // Validate inputs
-    if (!trimmedTitle) return;
+    if (!trimmedTitle || isCreating) return;
     if (trimmedTitle.length > 200) return; // Max title length
     if (trimmedDescription.length > 2000) return; // Max description length
 
+    setIsCreating(true);
     const result = await onCreateWorkstream({
       title: trimmedTitle,
       description: trimmedDescription,
@@ -56,6 +59,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
       visibility: newVisibility,
       color: newColor
     });
+    setIsCreating(false);
     if (result) {
       setNewTitle('');
       setNewDescription('');
@@ -236,10 +240,10 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!newTitle.trim()}
+                disabled={!newTitle.trim() || isCreating}
                 className="px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Workstream
+                {isCreating ? 'Creating...' : 'Create Workstream'}
               </button>
             </div>
           </div>
