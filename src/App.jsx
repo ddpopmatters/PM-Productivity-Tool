@@ -363,7 +363,13 @@ export default function App() {
       if (updates.tags !== undefined) updateObj.tags = updates.tags;
       if (updates.subtasks !== undefined) updateObj.subtasks = updates.subtasks;
       if (updates.documents !== undefined) updateObj.documents = updates.documents;
-      if (updates.date !== undefined) updateObj.date = updates.date;
+      if (updates.date !== undefined) {
+        // Only send date if it's a valid YYYY-MM-DD or null; skip partial formats like "2026-06"
+        const d = updates.date;
+        if (!d || /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          updateObj.date = d;
+        }
+      }
       if (updates.comments !== undefined) updateObj.comments = updates.comments;
       if (updates.archived !== undefined) updateObj.archived = updates.archived;
       if (updates.dependencies !== undefined) updateObj.dependencies = updates.dependencies;
@@ -376,7 +382,7 @@ export default function App() {
         .eq('id', id);
       if (error) {
         Logger.error(error, 'Supabase update error');
-        console.error('Update failed for id:', id, 'updates:', updateObj, 'error:', error);
+        console.error('Update failed for id:', id, 'updates:', JSON.stringify(updateObj), 'error:', error.message, error.details, error.hint, error.code);
         return null;
       }
       return true;
