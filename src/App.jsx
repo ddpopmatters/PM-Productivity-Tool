@@ -57,6 +57,7 @@ import {
   WorkstreamList,
   WorkstreamView,
   WorkstreamTaskDetail,
+  WorkstreamSettings,
   // Whiteboards
   WhiteboardPreviewCard,
   StickyNote,
@@ -371,11 +372,51 @@ export default function App() {
       return true;
     },
 
-    updateWorkstreamTask: async (id, updates) => {
+    updateWorkstream: async (id, updates) => {
       if (!supabase) return null;
       const { data, error } = await supabase
+        .from('workstreams')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        Logger.error(error, 'Update workstream error');
+        return null;
+      }
+      return data;
+    },
+
+    deleteWorkstream: async (id) => {
+      if (!supabase) return null;
+      const { error } = await supabase
+        .from('workstreams')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        Logger.error(error, 'Delete workstream error');
+        return null;
+      }
+      return true;
+    },
+
+    updateWorkstreamTask: async (id, updates) => {
+      if (!supabase) return null;
+      // Map camelCase props to snake_case DB columns
+      const fieldMap = {
+        sortOrder: 'sort_order',
+        assigneeEmail: 'assignee_email',
+        workstreamId: 'workstream_id',
+        taskType: 'task_type',
+        linkedItems: 'linked_items',
+      };
+      const mapped = { updated_at: new Date().toISOString() };
+      for (const [key, value] of Object.entries(updates)) {
+        mapped[fieldMap[key] || key] = value;
+      }
+      const { data, error } = await supabase
         .from('workstream_tasks')
-        .update(updates)
+        .update(mapped)
         .eq('id', id)
         .select()
         .single();
@@ -967,6 +1008,27 @@ export default function App() {
     if (success) {
       setTodos(prev => prev.filter(t => t.id !== todoId));
     }
+  }, [SUPABASE_API]);
+
+  // Workstream handlers
+  const handleUpdateWorkstream = useCallback(async (id, updates) => {
+    const updated = await SUPABASE_API.updateWorkstream(id, updates);
+    if (updated) {
+      setWorkstreams(prev => prev.map(w => w.id === id ? updated : w));
+      return updated;
+    }
+    return null;
+  }, [SUPABASE_API]);
+
+  const handleDeleteWorkstream = useCallback(async (id) => {
+    const success = await SUPABASE_API.deleteWorkstream(id);
+    if (success) {
+      setWorkstreams(prev => prev.filter(w => w.id !== id));
+      setWorkstreamTasks(prev => prev.filter(t => t.workstream_id !== id));
+      handleNavigate('workstreams');
+      return true;
+    }
+    return false;
   }, [SUPABASE_API]);
 
   // Workstream task handlers
@@ -1900,7 +1962,6 @@ export default function App() {
           <WorkstreamView
             workstream={viewWorkstream}
             workstreamTasks={workstreamTasks.filter(t => t.workstream_id === selectedWorkstreamId)}
-            setWorkstreamTasks={setWorkstreamTasks}
             onBack={() => handleNavigate('workstreams')}
             onOpenTask={(taskId) => {
               setSelectedWorkstreamTaskId(taskId);
@@ -1908,10 +1969,11 @@ export default function App() {
             }}
             onCreateTask={handleCreateWorkstreamTask}
             onUpdateTask={handleUpdateWorkstreamTask}
+            onUpdateWorkstream={handleUpdateWorkstream}
+            onDeleteWorkstream={handleDeleteWorkstream}
+            WorkstreamSettings={WorkstreamSettings}
             userEmail={userEmail}
             currentUser={currentUser}
-            supabase={supabase}
-            Logger={Logger}
             USERS={USERS}
           />
         );

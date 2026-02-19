@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Icon from '../../ui/Icon';
 
 // Local utility for conditional class names
@@ -6,26 +6,18 @@ const cx = (...args) => args.filter(Boolean).join(' ');
 
 const WorkstreamView = ({
   workstream,
-  tasks,
-  workstreamTasks, // Alternative prop name from App.jsx
+  workstreamTasks = [],
   currentUser,
   userEmail,
   onBack,
-  onLoadTasks,
   onCreateTask,
   onUpdateTask,
-  onDeleteTask,
-  onReorderTasks,
   onUpdateWorkstream,
   onDeleteWorkstream,
   onOpenTask,
   WorkstreamSettings,
-  supabase,
-  Logger,
-  setWorkstreamTasks
 }) => {
-  // Use tasks or workstreamTasks (for backwards compatibility)
-  const taskList = tasks || workstreamTasks || [];
+  const taskList = workstreamTasks;
   const [showSettings, setShowSettings] = useState(false);
   const [showNewTaskForm, setShowNewTaskForm] = useState(null); // 'deadline' or 'backlog'
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -43,13 +35,6 @@ const WorkstreamView = ({
   const defaultTaskTypes = ['Issue', 'Feature Request', 'Feature Improvement'];
   const existingTypes = [...new Set((taskList || []).map(t => t.task_type).filter(Boolean))];
   const allTaskTypes = [...new Set([...defaultTaskTypes, ...existingTypes])];
-
-  // Load tasks when component mounts
-  useEffect(() => {
-    if (workstream?.id && onLoadTasks) {
-      onLoadTasks(workstream.id);
-    }
-  }, [workstream?.id, onLoadTasks]);
 
   const colors = [
     { id: 'blue', bg: 'bg-blue-500' },
