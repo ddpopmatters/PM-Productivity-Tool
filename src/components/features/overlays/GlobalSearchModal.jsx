@@ -40,7 +40,7 @@ function GlobalSearchModal({ show, onClose, entries, whiteboards, onSelectItem, 
     const matchedItems = entries.filter(item => {
       const titleMatch = item.title?.toLowerCase().includes(searchTerm);
       const captionMatch = item.caption?.toLowerCase().includes(searchTerm);
-      const ownerMatch = item.owner?.toLowerCase().includes(searchTerm);
+      const ownerMatch = Array.isArray(item.owner) ? item.owner.some(o => o.toLowerCase().includes(searchTerm)) : item.owner?.toLowerCase().includes(searchTerm);
       const tagsMatch = item.tags?.some(tag => tag.toLowerCase().includes(searchTerm));
       const teamMatch = item.team?.toLowerCase().includes(searchTerm);
       return titleMatch || captionMatch || ownerMatch || tagsMatch || teamMatch;

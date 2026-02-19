@@ -371,7 +371,7 @@ const ManagerHub = ({
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {(selectedManager?.reports || []).map(email => {
-                const memberItems = items.filter(i => i.owner?.toLowerCase() === email.toLowerCase());
+                const memberItems = items.filter(i => i.owner?.some(o => o.toLowerCase() === email.toLowerCase()));
                 const isSelected = previewMembers.includes(email);
                 return (
                   <div
@@ -472,7 +472,7 @@ const ManagerHub = ({
               <div className="space-y-4 max-h-[32rem] overflow-y-auto">
                 {(() => {
                   const filteredItems = filterItemsByTime(items
-                    .filter(item => previewMembers.some(email => item.owner?.toLowerCase() === email.toLowerCase())));
+                    .filter(item => previewMembers.some(email => item.owner?.some(o => o.toLowerCase() === email.toLowerCase()))));
 
                   if (filteredItems.length === 0) {
                     return (
@@ -757,7 +757,7 @@ const ManagerHub = ({
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {(selectedManager?.reports || []).map(email => {
-                      const memberYearItems = yearItems.filter(i => i.owner?.toLowerCase() === email.toLowerCase());
+                      const memberYearItems = yearItems.filter(i => i.owner?.some(o => o.toLowerCase() === email.toLowerCase()));
                       return (
                         <div key={email} className="flex items-center justify-between p-3 bg-graystone-50 rounded-lg border border-graystone-200">
                           <div>

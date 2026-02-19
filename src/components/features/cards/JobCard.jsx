@@ -59,7 +59,7 @@ function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles, onComplet
         {job.owner && (
           <span className="text-xs text-graystone-500 flex items-center gap-1">
             <i data-lucide="user" className="w-3 h-3"></i>
-            {job.owner.split(' ')[0]}
+            {Array.isArray(job.owner) ? job.owner[0]?.split(' ')[0] : job.owner?.split(' ')[0]}
           </span>
         )}
 
