@@ -362,18 +362,16 @@ export default function App() {
       if (updates.customFields !== undefined) updateObj.custom_fields = updates.customFields;
       if (updates.attachments !== undefined) updateObj.attachments = updates.attachments;
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('workflow_items')
         .update(updateObj)
-        .eq('id', id)
-        .select()
-        .single();
+        .eq('id', id);
       if (error) {
         Logger.error(error, 'Supabase update error');
         console.error('Update failed for id:', id, 'updates:', updateObj, 'error:', error);
         return null;
       }
-      return data;
+      return true;
     },
 
     deleteItem: async (id) => {
