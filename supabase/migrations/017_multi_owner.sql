@@ -19,11 +19,11 @@ DECLARE
 BEGIN
   -- Dynamically drop EVERY policy on workflow_items
   FOR pol IN
-    SELECT pol.polname
-    FROM pg_catalog.pg_policy pol
-    JOIN pg_catalog.pg_class cls ON pol.polrelid = cls.oid
-    JOIN pg_catalog.pg_namespace nsp ON cls.relnamespace = nsp.oid
-    WHERE cls.relname = 'workflow_items' AND nsp.nspname = 'public'
+    SELECT p.polname
+    FROM pg_catalog.pg_policy p
+    JOIN pg_catalog.pg_class c ON p.polrelid = c.oid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE c.relname = 'workflow_items' AND n.nspname = 'public'
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.workflow_items', pol.polname);
   END LOOP;
