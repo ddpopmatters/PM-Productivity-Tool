@@ -1374,6 +1374,7 @@ export default function App() {
             onDeleteTodo={handleDeleteTodo}
             onUpdateEntry={handleUpdateEntry}
             onEditSubtask={handleEditSubtask}
+            workstreams={workstreams}
             workstreamTasks={workstreamTasks}
             onOpenWorkstreamTask={handleOpenWorkstreamTask}
             onUpdateWorkstreamTask={handleUpdateWorkstreamTask}
@@ -1787,10 +1788,13 @@ export default function App() {
             <CalendarScreen
               entries={entries}
               todos={todos}
+              workstreamTasks={workstreamTasks}
+              workstreams={workstreams}
               currentUser={currentUser}
               onOpenEntry={handleOpenEntry}
               onUpdateEntry={handleUpdateEntry}
               onToggleTodo={handleToggleTodo}
+              onOpenWorkstreamTask={handleOpenWorkstreamTask}
             />
           </Suspense>
         );
@@ -1877,6 +1881,11 @@ export default function App() {
               reportNarratives={reportNarratives}
               setReportNarratives={setReportNarratives}
               workstreams={workstreams}
+              workstreamTasks={workstreamTasks}
+              onNavigateToWorkstream={(workstreamId) => {
+                setSelectedWorkstreamId(workstreamId);
+                setCurrentView('workstream-detail');
+              }}
               TEAMS={TEAMS}
               isAdmin={isAdmin}
               Badge={Badge}

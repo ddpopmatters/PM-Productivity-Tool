@@ -36,6 +36,7 @@ export default function Dashboard({
   onDeleteTodo,
   onUpdateEntry,
   onEditSubtask,
+  workstreams = [],
   workstreamTasks = [],
   onOpenWorkstreamTask,
   onUpdateWorkstreamTask,
@@ -253,9 +254,13 @@ export default function Dashboard({
     () => [
       ...todaysTodos.map((t) => ({ ...t, taskType: 'todo' })),
       ...jobsForToday.map((j) => ({ ...j, taskType: 'job' })),
-      ...workstreamTasksForToday.map((t) => ({ ...t, taskType: 'workstream' })),
+      ...workstreamTasksForToday.map((t) => ({
+        ...t,
+        taskType: 'workstream',
+        workstreamTitle: (workstreams || []).find(w => w.id === t.workstream_id)?.title,
+      })),
     ],
-    [todaysTodos, jobsForToday, workstreamTasksForToday]
+    [todaysTodos, jobsForToday, workstreamTasksForToday, workstreams]
   );
 
   // Mentions & Activity (memoized)
@@ -688,7 +693,9 @@ export default function Dashboard({
                       <div
                         key={idx}
                         onClick={() =>
-                          item.type !== 'todo' && onOpenEntry && onOpenEntry(item.parentId || item.id)
+                          item.type === 'workstream'
+                            ? onOpenWorkstreamTask && onOpenWorkstreamTask(item.workstream_id, item.id)
+                            : item.type !== 'todo' && onOpenEntry && onOpenEntry(item.parentId || item.id)
                         }
                         className={`p-3 rounded-lg border ${item.type !== 'todo' ? 'cursor-pointer hover:border-ocean-500' : ''} ${
                           item.type === 'project'
@@ -697,7 +704,9 @@ export default function Dashboard({
                               ? 'bg-green-50 border-green-200'
                               : item.type === 'subtask'
                                 ? 'bg-blue-50 border-blue-200'
-                                : 'bg-graystone-50 border-graystone-200'
+                                : item.type === 'workstream'
+                                  ? 'bg-violet-50 border-violet-200'
+                                  : 'bg-graystone-50 border-graystone-200'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -709,7 +718,9 @@ export default function Dashboard({
                                   ? 'bg-green-200 text-green-800'
                                   : item.type === 'subtask'
                                     ? 'bg-blue-200 text-blue-800'
-                                    : 'bg-graystone-200 text-graystone-800'
+                                    : item.type === 'workstream'
+                                      ? 'bg-violet-200 text-violet-800'
+                                      : 'bg-graystone-200 text-graystone-800'
                             }`}
                           >
                             {item.type}
@@ -754,7 +765,9 @@ export default function Dashboard({
                       <div
                         key={idx}
                         onClick={() =>
-                          item.type !== 'todo' && onOpenEntry && onOpenEntry(item.parentId || item.id)
+                          item.type === 'workstream'
+                            ? onOpenWorkstreamTask && onOpenWorkstreamTask(item.workstream_id, item.id)
+                            : item.type !== 'todo' && onOpenEntry && onOpenEntry(item.parentId || item.id)
                         }
                         className={`p-2 rounded-lg text-sm flex items-center gap-2 ${item.type !== 'todo' ? 'cursor-pointer hover:bg-ocean-100' : ''} bg-ocean-50`}
                       >
@@ -766,7 +779,9 @@ export default function Dashboard({
                                 ? 'bg-green-200 text-green-800'
                                 : item.type === 'subtask'
                                   ? 'bg-blue-200 text-blue-800'
-                                  : 'bg-graystone-200 text-graystone-800'
+                                  : item.type === 'workstream'
+                                    ? 'bg-violet-200 text-violet-800'
+                                    : 'bg-graystone-200 text-graystone-800'
                           }`}
                         >
                           {item.type}
