@@ -192,12 +192,13 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
       if (m.items.length === 0) return;
       body += `<div class="member-group">
 <div class="member-name">${escapeHtml(m.name)} (${m.items.length})</div>
-<table><tr><th>Project</th><th>Status</th><th>Deadline</th></tr>`;
+<table><tr><th>Project</th><th>Deadline</th><th>Collaborators</th></tr>`;
       sortByDate(m.items).forEach(item => {
+        const collabs = Array.isArray(item.collaborators) ? item.collaborators.join(', ') : '';
         body += `<tr>
 <td>${escapeHtml(item.title || '')}</td>
-<td><span class="status-badge ${getStatusClass(item.workflowStatus)}">${escapeHtml(item.workflowStatus || 'No status')}</span></td>
 <td>${formatDate(item.date || item.timelineValue)}</td>
+<td>${escapeHtml(collabs) || '\u2014'}</td>
 </tr>`;
       });
       body += `</table></div>`;
@@ -242,13 +243,13 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
     reportData.periodData.forEach(p => {
       body += `<div class="period-group">
 <div class="period-label">${escapeHtml(p.key)} (${p.items.length})</div>
-<table><tr><th>Project</th><th>Owner</th><th>Status</th><th>Date</th></tr>`;
+<table><tr><th>Project</th><th>Deadline</th><th>Collaborators</th></tr>`;
       sortByDate(p.items).forEach(item => {
+        const collabs = Array.isArray(item.collaborators) ? item.collaborators.join(', ') : '';
         body += `<tr>
 <td>${escapeHtml(item.title || '')}</td>
-<td>${escapeHtml(formatOwner(item.owner))}</td>
-<td><span class="status-badge ${getStatusClass(item.workflowStatus)}">${escapeHtml(item.workflowStatus || 'No status')}</span></td>
 <td>${formatDate(item.date || item.timelineValue)}</td>
+<td>${escapeHtml(collabs) || '\u2014'}</td>
 </tr>`;
       });
       body += `</table></div>`;
