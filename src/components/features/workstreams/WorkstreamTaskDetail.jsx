@@ -30,6 +30,9 @@ const WorkstreamTaskDetail = ({
   const [newComment, setNewComment] = useState('');
   const [editingDescription, setEditingDescription] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [linkedItems, setLinkedItems] = useState(task.linked_items || []);
+  const [showLinkPicker, setShowLinkPicker] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
 
   const handleSave = (updates) => {
     onUpdate(task.id, workstream.id, updates);
@@ -63,6 +66,25 @@ const WorkstreamTaskDetail = ({
     handleSave({ comments: newComments });
     setNewComment('');
   };
+
+  const handleLinkItem = (entryId) => {
+    if (linkedItems.includes(entryId)) return;
+    const updated = [...linkedItems, entryId];
+    setLinkedItems(updated);
+    handleSave({ linked_items: updated });
+    setShowLinkPicker(false);
+    setLinkSearch('');
+  };
+
+  const handleUnlinkItem = (entryId) => {
+    const updated = linkedItems.filter(id => id !== entryId);
+    setLinkedItems(updated);
+    handleSave({ linked_items: updated });
+  };
+
+  const linkableEntries = (entries || [])
+    .filter(e => !linkedItems.includes(e.id))
+    .filter(e => !linkSearch || e.title.toLowerCase().includes(linkSearch.toLowerCase()));
 
   const handleDelete = async () => {
     const deleted = await onDelete(task.id, workstream.id);
@@ -339,6 +361,79 @@ const WorkstreamTaskDetail = ({
                 Add
               </button>
             </div>
+          </div>
+
+          {/* Linked Items */}
+          <div className="bg-white rounded-xl border border-graystone-200 p-4">
+            <h3 className="text-sm font-semibold text-graystone-500 uppercase mb-2">Linked Items</h3>
+            {linkedItems.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {linkedItems.map(itemId => {
+                  const entry = (entries || []).find(e => e.id === itemId);
+                  return (
+                    <div key={itemId} className="flex items-center gap-2 p-2 bg-graystone-50 rounded-lg">
+                      <Icon
+                        name={entry?.type === 'job' ? 'clipboard-list' : 'folder'}
+                        className="w-4 h-4 text-ocean-500 flex-shrink-0"
+                      />
+                      <span className="text-sm text-graystone-700 flex-1 truncate">
+                        {entry?.title || 'Unknown item'}
+                      </span>
+                      <button
+                        onClick={() => handleUnlinkItem(itemId)}
+                        className="p-1 hover:bg-graystone-200 rounded transition"
+                      >
+                        <Icon name="x" className="w-3 h-3 text-graystone-400" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {showLinkPicker ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={linkSearch}
+                  onChange={(e) => setLinkSearch(e.target.value)}
+                  placeholder="Search projects and tasks..."
+                  className="w-full px-3 py-1.5 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                  autoFocus
+                />
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {linkableEntries.slice(0, 10).map(entry => (
+                    <button
+                      key={entry.id}
+                      onClick={() => handleLinkItem(entry.id)}
+                      className="w-full flex items-center gap-2 p-2 text-left text-sm hover:bg-ocean-50 rounded-lg transition"
+                    >
+                      <Icon
+                        name={entry.type === 'job' ? 'clipboard-list' : 'folder'}
+                        className="w-4 h-4 text-ocean-500 flex-shrink-0"
+                      />
+                      <span className="text-graystone-700 truncate">{entry.title}</span>
+                    </button>
+                  ))}
+                  {linkableEntries.length === 0 && (
+                    <p className="text-xs text-graystone-400 text-center py-2">No matching items</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setShowLinkPicker(false); setLinkSearch(''); }}
+                  className="text-xs text-graystone-500 hover:text-graystone-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowLinkPicker(true)}
+                className="flex items-center gap-1 text-sm text-ocean-500 hover:text-ocean-600 transition"
+              >
+                <Icon name="plus" className="w-4 h-4" />
+                Link item
+              </button>
+            )}
           </div>
 
           {/* Convert */}
