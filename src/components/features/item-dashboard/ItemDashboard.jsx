@@ -96,6 +96,8 @@ export default function ItemDashboard({
 
   // Details editing state
   const [editingDetails, setEditingDetails] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState(entry?.title || '');
   const [editOwners, setEditOwners] = useState(entry?.owner || []);
   const [editCollaborators, setEditCollaborators] = useState(entry?.collaborators || []);
   const [editTimeline, setEditTimeline] = useState(entry?.date || entry?.timelineValue || '');
@@ -567,7 +569,33 @@ export default function ItemDashboard({
             </Button>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-ocean-900">{entry.title}</h1>
+                {editingTitle ? (
+                  <input
+                    type="text"
+                    value={editTitleValue}
+                    onChange={(e) => setEditTitleValue(e.target.value)}
+                    onBlur={() => {
+                      if (editTitleValue.trim() && editTitleValue !== entry.title) {
+                        onUpdateEntry(entry.id, { title: editTitleValue.trim() });
+                      }
+                      setEditingTitle(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.target.blur();
+                      if (e.key === 'Escape') { setEditTitleValue(entry.title); setEditingTitle(false); }
+                    }}
+                    autoFocus
+                    className="text-3xl font-bold text-ocean-900 bg-transparent border-b-2 border-ocean-400 outline-none w-full"
+                  />
+                ) : (
+                  <h1
+                    className="text-3xl font-bold text-ocean-900 cursor-pointer hover:text-ocean-700 transition-colors"
+                    onClick={() => { setEditTitleValue(entry.title); setEditingTitle(true); }}
+                    title="Click to edit title"
+                  >
+                    {entry.title}
+                  </h1>
+                )}
                 {entry.archived && (
                   <span className="px-3 py-1 bg-amber-100 text-amber-800 text-sm font-medium rounded-full flex items-center gap-1.5">
                     <Icon name="archive" className="w-4 h-4" />
