@@ -603,12 +603,12 @@ export default function App() {
       return data || [];
     },
 
-    fetchWorkstreamTasks: async (email) => {
+    fetchWorkstreamTasks: async () => {
       if (!supabase) return [];
+      // RLS policies handle visibility — fetch all tasks the user can see
       const { data, error } = await supabase
         .from('workstream_tasks')
         .select('*')
-        .eq('assignee_email', email)
         .order('created_at', { ascending: false });
       if (error) {
         // Table may not exist yet - that's okay
@@ -819,7 +819,7 @@ export default function App() {
           setWorkstreams(userWorkstreams);
 
           // Fetch workstream tasks
-          const userWorkstreamTasks = await SUPABASE_API.fetchWorkstreamTasks(userEmail);
+          const userWorkstreamTasks = await SUPABASE_API.fetchWorkstreamTasks();
           setWorkstreamTasks(userWorkstreamTasks);
         }
       } catch (error) {

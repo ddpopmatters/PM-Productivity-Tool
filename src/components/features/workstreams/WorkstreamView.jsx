@@ -114,12 +114,15 @@ const WorkstreamView = ({
     // Calculate new sort order (add to end)
     const newSortOrder = targetList.length;
 
-    // Update task
-    await onUpdateTask(draggedTask.id, workstream.id, {
+    // Update task — only clear deadline if it had one (moving from time-sensitive)
+    const updates = {
       priority: targetPriority,
       sortOrder: newSortOrder,
-      deadline: null // Move to backlog removes deadline
-    });
+    };
+    if (draggedTask.deadline) {
+      updates.deadline = null;
+    }
+    await onUpdateTask(draggedTask.id, workstream.id, updates);
 
     setDraggedTask(null);
   };

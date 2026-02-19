@@ -10,6 +10,8 @@ const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
   const [visibility, setVisibility] = useState(workstream.visibility);
   const [color, setColor] = useState(workstream.color || 'blue');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const colors = [
     { id: 'blue', bg: 'bg-blue-500' },
@@ -21,18 +23,32 @@ const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
   ];
 
   const handleSave = async () => {
-    await onUpdate(workstream.id, {
+    setSaving(true);
+    setError(null);
+    const result = await onUpdate(workstream.id, {
       title: title.trim(),
       description: description.trim(),
       visibility,
       color
     });
-    onClose();
+    setSaving(false);
+    if (result) {
+      onClose();
+    } else {
+      setError('Failed to save. Please try again.');
+    }
   };
 
   const handleDelete = async () => {
-    await onDelete(workstream.id);
-    onClose();
+    setSaving(true);
+    setError(null);
+    const result = await onDelete(workstream.id);
+    setSaving(false);
+    if (result) {
+      onClose();
+    } else {
+      setError('Failed to delete. Please try again.');
+    }
   };
 
   return (
@@ -113,19 +129,25 @@ const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
           </div>
         </div>
 
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+        )}
+
         <div className="flex items-center justify-between pt-2">
           {showDeleteConfirm ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-red-600">Delete workstream?</span>
               <button
                 onClick={handleDelete}
-                className="px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition"
+                disabled={saving}
+                className="px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition disabled:opacity-50"
               >
-                Yes, delete
+                {saving ? 'Deleting...' : 'Yes, delete'}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
+                disabled={saving}
+                className="px-3 py-1.5 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -141,10 +163,10 @@ const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
 
           <button
             onClick={handleSave}
-            disabled={!title.trim()}
+            disabled={!title.trim() || saving}
             className="px-4 py-2 bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
           >
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
