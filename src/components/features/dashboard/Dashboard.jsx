@@ -286,11 +286,33 @@ export default function Dashboard({
       });
     });
 
+    // Workstream task comments
+    (workstreamTasks || []).forEach((task) => {
+      const isAssigned = task.assignee === currentUser || task.assignee_email === userEmail;
+      (task.comments || []).forEach((comment) => {
+        const mentionsMe =
+          comment.text && comment.text.toLowerCase().includes(`@${currentUserLower}`);
+        if (mentionsMe || isAssigned) {
+          mentions.push({
+            id: comment.id,
+            type: mentionsMe ? 'mention' : 'activity',
+            entryId: task.id,
+            entryTitle: task.title,
+            author: comment.author,
+            text: comment.text,
+            timestamp: comment.timestamp,
+            isWorkstreamTask: true,
+            workstreamId: task.workstream_id,
+          });
+        }
+      });
+    });
+
     return mentions
       .filter((m) => m.author !== currentUser) // Don't show own comments
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 10);
-  }, [entries, currentUser]);
+  }, [entries, workstreamTasks, currentUser, userEmail]);
 
   // Time ago helper
   const timeAgo = (timestamp) => {
@@ -1016,7 +1038,13 @@ export default function Dashboard({
             mentionsAndActivity.map((item) => (
               <div
                 key={item.id}
-                onClick={() => onOpenEntry && onOpenEntry(item.entryId)}
+                onClick={() => {
+                  if (item.isWorkstreamTask) {
+                    onOpenWorkstreamTask && onOpenWorkstreamTask(item.workstreamId, item.entryId);
+                  } else {
+                    onOpenEntry && onOpenEntry(item.entryId);
+                  }
+                }}
                 className="p-4 rounded-xl border border-ocean-100 hover:border-ocean-300 cursor-pointer transition bg-gradient-to-r from-white to-ocean-50"
               >
                 <div className="flex items-start gap-3">
@@ -1030,11 +1058,17 @@ export default function Dashboard({
                           <span>
                             <strong className="text-ocean-900">{item.author}</strong> mentioned you
                             in <strong className="text-ocean-900">"{item.entryTitle}"</strong>
+                            {item.isWorkstreamTask && (
+                              <span className="ml-1 text-xs text-violet-600">(Workstream)</span>
+                            )}
                           </span>
                         ) : (
                           <span>
                             New comment on{' '}
                             <strong className="text-ocean-900">"{item.entryTitle}"</strong>
+                            {item.isWorkstreamTask && (
+                              <span className="ml-1 text-xs text-violet-600">(Workstream)</span>
+                            )}
                           </span>
                         )}
                       </div>
