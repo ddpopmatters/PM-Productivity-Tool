@@ -1,8 +1,135 @@
 import React, { useState } from 'react';
+import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 
-// Local utility for conditional class names
-const cx = (...args) => args.filter(Boolean).join(' ');
+const TaskCard = ({ task, showDeadline, onDragStart, onClick, onToggleStatus }) => (
+  <div
+    draggable
+    onDragStart={() => onDragStart(task)}
+    onClick={() => onClick(task.id)}
+    className="bg-white rounded-lg border border-graystone-200 p-3 cursor-pointer hover:shadow-md hover:border-ocean-300 transition group"
+  >
+    <div className="flex items-start gap-2">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleStatus(task);
+        }}
+        aria-label={task.status === 'done' ? 'Mark incomplete' : 'Mark complete'}
+        className={clsx(
+          "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition",
+          task.status === 'done'
+            ? "bg-ocean-500 border-ocean-500 text-white"
+            : "border-graystone-300 hover:border-ocean-500"
+        )}
+      >
+        {task.status === 'done' && <Icon name="check" className="w-3 h-3" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className={clsx(
+          "text-sm font-medium",
+          task.status === 'done' ? "text-graystone-400 line-through" : "text-graystone-900"
+        )}>
+          {task.title}
+        </p>
+        <div className="flex items-center gap-2 mt-1 text-xs text-graystone-400 flex-wrap">
+          {task.task_type && (
+            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded text-xs">
+              {task.task_type}
+            </span>
+          )}
+          {showDeadline && task.deadline && (
+            <span className={clsx(
+              "flex items-center gap-1",
+              task.deadline < new Date().toISOString().slice(0, 10) ? "text-red-500" : ""
+            )}>
+              <Icon name="calendar" className="w-3 h-3" />
+              {new Date(task.deadline).toLocaleDateString()}
+            </span>
+          )}
+          {task.assignee && (
+            <span className="flex items-center gap-1">
+              <Icon name="user" className="w-3 h-3" />
+              {task.assignee}
+            </span>
+          )}
+        </div>
+      </div>
+      <Icon name="grip-vertical" className="w-4 h-4 text-graystone-300 opacity-0 group-hover:opacity-100 cursor-grab" />
+    </div>
+  </div>
+);
+
+const PrioritySection = ({ priority, tasks: priorityTasks, label, isDragging, onDragOver, onDrop, renderTask }) => (
+  <div
+    onDragOver={onDragOver}
+    onDrop={() => onDrop(priority)}
+    className={clsx(
+      "border rounded-lg p-3 transition",
+      isDragging ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200"
+    )}
+  >
+    <div className="flex items-center justify-between mb-2">
+      <h4 className="text-xs font-semibold text-graystone-500 uppercase">{label} ({priorityTasks.length})</h4>
+    </div>
+    <div className="space-y-2">
+      {priorityTasks.map(task => renderTask(task))}
+      {priorityTasks.length === 0 && isDragging && (
+        <p className="text-xs text-graystone-400 text-center py-2">Drop tasks here</p>
+      )}
+    </div>
+  </div>
+);
+
+const TaskTypeSelector = ({ allTaskTypes, value, onChange, showAddInput, onToggleAddInput, customValue, onCustomChange, onAddCustom }) => (
+  <div className="relative">
+    {showAddInput ? (
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={customValue}
+          onChange={(e) => onCustomChange(e.target.value)}
+          placeholder="New type name..."
+          className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+          onKeyDown={(e) => e.key === 'Enter' && onAddCustom()}
+        />
+        <button
+          onClick={onAddCustom}
+          disabled={!customValue.trim()}
+          className="px-3 py-2 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
+        >
+          Add
+        </button>
+        <button
+          onClick={() => { onToggleAddInput(false); onCustomChange(''); }}
+          className="px-3 py-2 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
+        >
+          Cancel
+        </button>
+      </div>
+    ) : (
+      <div className="flex gap-2">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+        >
+          {allTaskTypes.map(type => (
+            <option key={type} value={type}>{type}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => onToggleAddInput(true)}
+          className="px-3 py-2 text-ocean-600 text-sm hover:bg-ocean-50 rounded-lg transition flex items-center gap-1"
+          title="Add new type"
+          aria-label="Add new task type"
+        >
+          <Icon name="plus" className="w-4 h-4" />
+        </button>
+      </div>
+    )}
+  </div>
+);
 
 const WorkstreamView = ({
   workstream,
@@ -36,15 +163,6 @@ const WorkstreamView = ({
   const defaultTaskTypes = ['Issue', 'Feature Request', 'Feature Improvement'];
   const existingTypes = [...new Set((taskList || []).map(t => t.task_type).filter(Boolean))];
   const allTaskTypes = [...new Set([...defaultTaskTypes, ...existingTypes])];
-
-  const colors = [
-    { id: 'blue', bg: 'bg-blue-500' },
-    { id: 'green', bg: 'bg-green-500' },
-    { id: 'purple', bg: 'bg-purple-500' },
-    { id: 'orange', bg: 'bg-orange-500' },
-    { id: 'pink', bg: 'bg-pink-500' },
-    { id: 'teal', bg: 'bg-teal-500' }
-  ];
 
   // Split tasks into time-sensitive and backlog
   const timeSensitiveTasks = (taskList || [])
@@ -109,15 +227,12 @@ const WorkstreamView = ({
   const handleDropOnPriority = async (targetPriority) => {
     if (!draggedTask) return;
 
-    // Get target list
     const targetList = targetPriority === 'high' ? highPriority
       : targetPriority === 'medium' ? mediumPriority
       : lowPriority;
 
-    // Calculate new sort order (add to end)
     const newSortOrder = targetList.length;
 
-    // Update task — only clear deadline if it had one (moving from time-sensitive)
     const updates = {
       priority: targetPriority,
       sortOrder: newSortOrder,
@@ -151,85 +266,31 @@ const WorkstreamView = ({
     setPendingDeadlineDate('');
   };
 
-  const TaskCard = ({ task, showDeadline = false }) => (
-    <div
-      draggable
-      onDragStart={() => handleDragStart(task)}
-      onClick={() => onOpenTask(task.id)}
-      className="bg-white rounded-lg border border-graystone-200 p-3 cursor-pointer hover:shadow-md hover:border-ocean-300 transition group"
-    >
-      <div className="flex items-start gap-2">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onUpdateTask(task.id, workstream.id, { status: task.status === 'done' ? 'open' : 'done' });
-          }}
-          className={cx(
-            "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition",
-            task.status === 'done'
-              ? "bg-ocean-500 border-ocean-500 text-white"
-              : "border-graystone-300 hover:border-ocean-500"
-          )}
-        >
-          {task.status === 'done' && <Icon name="check" className="w-3 h-3" />}
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className={cx(
-            "text-sm font-medium",
-            task.status === 'done' ? "text-graystone-400 line-through" : "text-graystone-900"
-          )}>
-            {task.title}
-          </p>
-          <div className="flex items-center gap-2 mt-1 text-xs text-graystone-400 flex-wrap">
-            {task.task_type && (
-              <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded text-xs">
-                {task.task_type}
-              </span>
-            )}
-            {showDeadline && task.deadline && (
-              <span className={cx(
-                "flex items-center gap-1",
-                task.deadline < new Date().toISOString().slice(0, 10) ? "text-red-500" : ""
-              )}>
-                <Icon name="calendar" className="w-3 h-3" />
-                {new Date(task.deadline).toLocaleDateString()}
-              </span>
-            )}
-            {task.assignee && (
-              <span className="flex items-center gap-1">
-                <Icon name="user" className="w-3 h-3" />
-                {task.assignee}
-              </span>
-            )}
-          </div>
-        </div>
-        <Icon name="grip-vertical" className="w-4 h-4 text-graystone-300 opacity-0 group-hover:opacity-100 cursor-grab" />
-      </div>
-    </div>
+  const handleToggleStatus = (task) => {
+    onUpdateTask(task.id, workstream.id, { status: task.status === 'done' ? 'open' : 'done' });
+  };
+
+  const renderTask = (task, showDeadline = false) => (
+    <TaskCard
+      key={task.id}
+      task={task}
+      showDeadline={showDeadline}
+      onDragStart={handleDragStart}
+      onClick={onOpenTask}
+      onToggleStatus={handleToggleStatus}
+    />
   );
 
-  const PrioritySection = ({ priority, tasks: priorityTasks, label }) => (
-    <div
-      onDragOver={handleDragOver}
-      onDrop={() => handleDropOnPriority(priority)}
-      className={cx(
-        "border rounded-lg p-3 transition",
-        draggedTask ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200"
-      )}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-xs font-semibold text-graystone-500 uppercase">{label} ({priorityTasks.length})</h4>
-      </div>
-      <div className="space-y-2">
-        {priorityTasks.map(task => (
-          <TaskCard key={task.id} task={task} />
-        ))}
-        {priorityTasks.length === 0 && draggedTask && (
-          <p className="text-xs text-graystone-400 text-center py-2">Drop tasks here</p>
-        )}
-      </div>
-    </div>
-  );
+  const taskTypeProps = {
+    allTaskTypes,
+    value: newTaskType,
+    onChange: setNewTaskType,
+    showAddInput: showAddTypeInput,
+    onToggleAddInput: setShowAddTypeInput,
+    customValue: newCustomType,
+    onCustomChange: setNewCustomType,
+    onAddCustom: handleAddCustomType,
+  };
 
   if (!workstream) return null;
 
@@ -241,6 +302,7 @@ const WorkstreamView = ({
           <button
             onClick={onBack}
             className="p-2 hover:bg-white/20 rounded-lg transition"
+            aria-label="Back to workstreams"
           >
             <Icon name="arrow-left" className="w-5 h-5" />
           </button>
@@ -253,6 +315,7 @@ const WorkstreamView = ({
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 hover:bg-white/20 rounded-lg transition"
+            aria-label="Workstream settings"
           >
             <Icon name="settings" className="w-5 h-5" />
           </button>
@@ -274,9 +337,7 @@ const WorkstreamView = ({
           </div>
 
           <div className="space-y-2 mb-4">
-            {timeSensitiveTasks.map(task => (
-              <TaskCard key={task.id} task={task} showDeadline />
-            ))}
+            {timeSensitiveTasks.map(task => renderTask(task, true))}
             {timeSensitiveTasks.length === 0 && !showNewTaskForm && !pendingDeadlineTask && (
               <p className="text-sm text-graystone-400 text-center py-4">No time-sensitive tasks</p>
             )}
@@ -329,53 +390,7 @@ const WorkstreamView = ({
                 onChange={(e) => setNewTaskDeadline(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
               />
-              {/* Task Type Dropdown */}
-              <div className="relative">
-                {showAddTypeInput ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newCustomType}
-                      onChange={(e) => setNewCustomType(e.target.value)}
-                      placeholder="New type name..."
-                      className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddCustomType()}
-                    />
-                    <button
-                      onClick={handleAddCustomType}
-                      disabled={!newCustomType.trim()}
-                      className="px-3 py-2 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => { setShowAddTypeInput(false); setNewCustomType(''); }}
-                      className="px-3 py-2 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <select
-                      value={newTaskType}
-                      onChange={(e) => setNewTaskType(e.target.value)}
-                      className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                    >
-                      {allTaskTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => setShowAddTypeInput(true)}
-                      className="px-3 py-2 text-ocean-600 text-sm hover:bg-ocean-50 rounded-lg transition flex items-center gap-1"
-                      title="Add new type"
-                    >
-                      <Icon name="plus" className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+              <TaskTypeSelector {...taskTypeProps} />
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateTask}
@@ -410,9 +425,9 @@ const WorkstreamView = ({
           </div>
 
           <div className="space-y-4 mb-4">
-            <PrioritySection priority="high" tasks={highPriority} label="High" />
-            <PrioritySection priority="medium" tasks={mediumPriority} label="Medium" />
-            <PrioritySection priority="low" tasks={lowPriority} label="Low" />
+            <PrioritySection priority="high" tasks={highPriority} label="High" isDragging={!!draggedTask} onDragOver={handleDragOver} onDrop={handleDropOnPriority} renderTask={task => renderTask(task)} />
+            <PrioritySection priority="medium" tasks={mediumPriority} label="Medium" isDragging={!!draggedTask} onDragOver={handleDragOver} onDrop={handleDropOnPriority} renderTask={task => renderTask(task)} />
+            <PrioritySection priority="low" tasks={lowPriority} label="Low" isDragging={!!draggedTask} onDragOver={handleDragOver} onDrop={handleDropOnPriority} renderTask={task => renderTask(task)} />
           </div>
 
           {showNewTaskForm === 'backlog' ? (
@@ -434,53 +449,7 @@ const WorkstreamView = ({
                 <option value="medium">Medium Priority</option>
                 <option value="low">Low Priority</option>
               </select>
-              {/* Task Type Dropdown */}
-              <div className="relative">
-                {showAddTypeInput ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newCustomType}
-                      onChange={(e) => setNewCustomType(e.target.value)}
-                      placeholder="New type name..."
-                      className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddCustomType()}
-                    />
-                    <button
-                      onClick={handleAddCustomType}
-                      disabled={!newCustomType.trim()}
-                      className="px-3 py-2 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => { setShowAddTypeInput(false); setNewCustomType(''); }}
-                      className="px-3 py-2 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <select
-                      value={newTaskType}
-                      onChange={(e) => setNewTaskType(e.target.value)}
-                      className="flex-1 px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                    >
-                      {allTaskTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => setShowAddTypeInput(true)}
-                      className="px-3 py-2 text-ocean-600 text-sm hover:bg-ocean-50 rounded-lg transition flex items-center gap-1"
-                      title="Add new type"
-                    >
-                      <Icon name="plus" className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+              <TaskTypeSelector {...taskTypeProps} />
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateTask}

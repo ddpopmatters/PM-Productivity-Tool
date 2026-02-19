@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
+import clsx from 'clsx';
 import Icon from '../../ui/Icon';
-
-// Local utility for conditional class names
-const cx = (...args) => args.filter(Boolean).join(' ');
 
 const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
   const [title, setTitle] = useState(workstream.title);
@@ -88,7 +86,8 @@ const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
               <button
                 key={c.id}
                 onClick={() => setColor(c.id)}
-                className={cx(
+                aria-label={`${c.id} color`}
+                className={clsx(
                   "w-8 h-8 rounded-full transition",
                   c.bg,
                   color === c.id ? "ring-2 ring-offset-2 ring-ocean-500" : ""
@@ -104,6 +103,7 @@ const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
+                name="ws-visibility"
                 checked={visibility === 'personal'}
                 onChange={() => setVisibility('personal')}
                 className="text-ocean-500 focus:ring-ocean-500"
@@ -113,6 +113,7 @@ const WorkstreamSettings = ({ workstream, onClose, onUpdate, onDelete }) => {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
+                name="ws-visibility"
                 checked={visibility === 'shared'}
                 onChange={() => setVisibility('shared')}
                 className="text-ocean-500 focus:ring-ocean-500"

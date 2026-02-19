@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
+import clsx from 'clsx';
 import Icon from '../../ui/Icon';
-
-// Local utility for conditional class names
-const cx = (...args) => args.filter(Boolean).join(' ');
 
 const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEmail, onOpenWorkstream, onCreateWorkstream }) => {
   const [showNewForm, setShowNewForm] = useState(false);
@@ -92,7 +90,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div
           onClick={() => setFilter('all')}
-          className={cx(
+          className={clsx(
             "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
             filter === 'all' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
           )}
@@ -110,7 +108,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
         </div>
         <div
           onClick={() => setFilter('personal')}
-          className={cx(
+          className={clsx(
             "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
             filter === 'personal' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
           )}
@@ -128,7 +126,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
         </div>
         <div
           onClick={() => setFilter('shared')}
-          className={cx(
+          className={clsx(
             "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
             filter === 'shared' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
           )}
@@ -148,8 +146,8 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
 
       {/* New Workstream Modal */}
       {showNewForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNewForm(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-graystone-200">
               <h3 className="text-xl font-bold text-ocean-900">Create New Workstream</h3>
@@ -193,7 +191,8 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
                     <button
                       key={c.id}
                       onClick={() => setNewColor(c.id)}
-                      className={cx(
+                      aria-label={`${c.id} color`}
+                      className={clsx(
                         "w-8 h-8 rounded-full transition",
                         c.bg,
                         newColor === c.id ? "ring-2 ring-offset-2 ring-ocean-500" : ""
@@ -275,7 +274,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
                 className="bg-white rounded-xl border border-graystone-200 p-5 text-left hover:shadow-md hover:-translate-y-0.5 transition group"
               >
                 <div className="flex items-start gap-3">
-                  <div className={cx("w-3 h-3 rounded-full mt-1.5", colorClasses.bg)} />
+                  <div className={clsx("w-3 h-3 rounded-full mt-1.5", colorClasses.bg)} />
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-ocean-900 truncate">{ws.title}</h3>
                     {ws.description && (
@@ -300,7 +299,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-2 text-xs text-graystone-400">
-                      <span className={cx(
+                      <span className={clsx(
                         "px-2 py-0.5 rounded-full",
                         ws.visibility === 'shared' ? "bg-ocean-100 text-ocean-700" : "bg-graystone-100 text-graystone-600"
                       )}>

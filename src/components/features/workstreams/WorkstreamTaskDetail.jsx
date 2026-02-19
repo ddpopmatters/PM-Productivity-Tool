@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
+import clsx from 'clsx';
 import Icon from '../../ui/Icon';
-
-// Local utility for conditional class names
-const cx = (...args) => args.filter(Boolean).join(' ');
 
 const WorkstreamTaskDetail = ({
   task,
@@ -118,7 +116,7 @@ const WorkstreamTaskDetail = ({
               setStatus(newStatus);
               handleSave({ status: newStatus });
             }}
-            className={cx(
+            className={clsx(
               "px-4 py-2 rounded-lg transition flex items-center gap-2",
               status === 'done'
                 ? "bg-green-500 hover:bg-green-600"
