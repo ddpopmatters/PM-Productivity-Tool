@@ -50,13 +50,14 @@ const ManagerHub = ({
   const isAdminUser = useMemo(() => isAdmin(userEmail), [userEmail, isAdmin]);
 
   const availableManagers = useMemo(() =>
-    myManagerRecord ? [myManagerRecord] : [],
-    [myManagerRecord]
+    isAdminUser ? managers : (myManagerRecord ? [myManagerRecord] : []),
+    [isAdminUser, managers, myManagerRecord]
   );
 
-  const [selectedManager, setSelectedManager] = useState(myManagerRecord || null);
+  const defaultManager = myManagerRecord || (isAdminUser ? managers[0] : null);
+  const [selectedManager, setSelectedManager] = useState(defaultManager || null);
   const [selectedReport, setSelectedReport] = useState("all");
-  const [selectedMembers, setSelectedMembers] = useState(myManagerRecord?.reports || []);
+  const [selectedMembers, setSelectedMembers] = useState(defaultManager?.reports || []);
   const [includeCollaborations, setIncludeCollaborations] = useState(false);
   const [managerViewMode, setManagerViewMode] = useState('kanban');
 
@@ -64,8 +65,11 @@ const ManagerHub = ({
     if (myManagerRecord && (!selectedManager || selectedManager.email !== myManagerRecord.email)) {
       setSelectedManager(myManagerRecord);
       setSelectedMembers(myManagerRecord.reports || []);
+    } else if (!myManagerRecord && isAdminUser && managers.length > 0 && !selectedManager) {
+      setSelectedManager(managers[0]);
+      setSelectedMembers(managers[0].reports || []);
     }
-  }, [myManagerRecord?.email]);
+  }, [myManagerRecord?.email, isAdminUser, managers.length]);
 
   const [timelineFilter, setTimelineFilter] = useState('quarter');
   const [groupBy, setGroupBy] = useState('member');
@@ -298,9 +302,24 @@ const ManagerHub = ({
             <h2 className="text-2xl font-bold heading-font">{managerName}'s Manager Hub</h2>
             <p className="text-ocean-100 text-sm">See team workloads, bottlenecks, and near-term risk.</p>
           </div>
-          <div className="text-right">
-            <div className="text-xs uppercase tracking-wide text-ocean-100">Team</div>
-            <div className="text-lg font-semibold">{selectedManager?.team || teams[0] || "Team"}</div>
+          <div className="flex items-center gap-4">
+            {isAdminUser && availableManagers.length > 1 && (
+              <select
+                value={selectedManager?.email || ''}
+                onChange={(e) => handleManagerChange(e.target.value)}
+                className="rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm text-white backdrop-blur-sm transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                {availableManagers.map(m => (
+                  <option key={m.email} value={m.email} className="text-ocean-900">
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <div className="text-right">
+              <div className="text-xs uppercase tracking-wide text-ocean-100">Team</div>
+              <div className="text-lg font-semibold">{selectedManager?.team || teams[0] || "Team"}</div>
+            </div>
           </div>
         </div>
       </div>
