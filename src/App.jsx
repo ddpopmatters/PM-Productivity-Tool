@@ -292,6 +292,14 @@ export default function App() {
   // Get supabase client
   const supabase = getSupabase();
 
+  // Convert JS arrays to PostgreSQL array literal strings for TEXT[] columns.
+  // Workaround for PostgREST schema cache not recognising the TEXT→TEXT[] migration.
+  const toPgArray = (arr) => {
+    if (!Array.isArray(arr)) return arr;
+    if (arr.length === 0) return '{}';
+    return '{' + arr.map(v => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"').join(',') + '}';
+  };
+
   // SUPABASE_API object - mirrors legacy.html
   const SUPABASE_API = useMemo(() => ({
     fetchWorkflowItems: async () => {
@@ -317,8 +325,8 @@ export default function App() {
           workflow_status: item.workflowStatus || 'Idea',
           team: item.team || '',
           timeline_value: item.timelineValue || '',
-          owner: Array.isArray(item.owner) ? item.owner : [item.owner].filter(Boolean),
-          owner_email: Array.isArray(item.ownerEmail) ? item.ownerEmail : [userEmail].filter(Boolean),
+          owner: toPgArray(Array.isArray(item.owner) ? item.owner : [item.owner].filter(Boolean)),
+          owner_email: toPgArray(Array.isArray(item.ownerEmail) ? item.ownerEmail : [userEmail].filter(Boolean)),
           collaborators: item.collaborators || [],
           tags: item.tags || [],
           subtasks: item.subtasks || [],
@@ -349,8 +357,8 @@ export default function App() {
       if (updates.workflowStatus !== undefined) updateObj.workflow_status = updates.workflowStatus;
       if (updates.team !== undefined) updateObj.team = updates.team;
       if (updates.timelineValue !== undefined) updateObj.timeline_value = updates.timelineValue;
-      if (updates.owner !== undefined) updateObj.owner = updates.owner;
-      if (updates.ownerEmail !== undefined) updateObj.owner_email = updates.ownerEmail;
+      if (updates.owner !== undefined) updateObj.owner = toPgArray(updates.owner);
+      if (updates.ownerEmail !== undefined) updateObj.owner_email = toPgArray(updates.ownerEmail);
       if (updates.collaborators !== undefined) updateObj.collaborators = updates.collaborators;
       if (updates.tags !== undefined) updateObj.tags = updates.tags;
       if (updates.subtasks !== undefined) updateObj.subtasks = updates.subtasks;
