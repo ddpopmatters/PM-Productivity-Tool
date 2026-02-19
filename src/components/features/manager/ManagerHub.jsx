@@ -9,6 +9,174 @@ const cx = (...xs) => xs.filter(Boolean).join(" ");
 const selectBaseClasses =
   "dropdown-font rounded-full border border-black bg-white px-4 py-2 text-sm font-normal text-black shadow-[0_0_20px_rgba(15,157,222,0.2)] transition hover:bg-black hover:text-white focus:border-black focus:outline-none focus:ring-4 focus:ring-[#0F9DDE]/40 focus:ring-offset-2 focus:ring-offset-[#CFEBF8] disabled:cursor-not-allowed disabled:opacity-60";
 
+// ── Member Projects Table (matches TableView appearance) ─────
+
+const MemberProjectsTable = ({
+  items, previewMembers, previewTimeFilter, setPreviewTimeFilter,
+  previewSelectedMonth, setPreviewSelectedMonth, previewSelectedYear,
+  setPreviewSelectedYear, setPreviewMembers, filterItemsByTime, onOpen,
+}) => {
+  const [sortField, setSortField] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const filteredItems = useMemo(() => {
+    return filterItemsByTime(
+      items.filter(item =>
+        previewMembers.some(email =>
+          item.owner?.some(o => o.toLowerCase() === email.toLowerCase())
+        )
+      )
+    );
+  }, [items, previewMembers, filterItemsByTime]);
+
+  const sortedItems = useMemo(() => {
+    if (!sortField) return filteredItems;
+    const sorted = [...filteredItems].sort((a, b) => {
+      if (sortField === 'title') {
+        const aVal = (a.title || '').toLowerCase();
+        const bVal = (b.title || '').toLowerCase();
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      }
+      if (sortField === 'deadline') {
+        const aVal = a.date || a.timelineValue || '';
+        const bVal = b.date || b.timelineValue || '';
+        if (!aVal && !bVal) return 0;
+        if (!aVal) return 1;
+        if (!bVal) return -1;
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      }
+      return 0;
+    });
+    return sortDir === 'desc' ? sorted.reverse() : sorted;
+  }, [filteredItems, sortField, sortDir]);
+
+  const SortIcon = ({ field }) => {
+    if (sortField === field) {
+      return <Icon name={sortDir === 'asc' ? 'chevron-up' : 'chevron-down'} className="w-3 h-3" />;
+    }
+    return <Icon name="chevrons-up-down" className="w-3 h-3 text-graystone-400" />;
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-graystone-200 shadow-sm overflow-hidden print:border-0 print:shadow-none">
+      {/* Header with filters */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-graystone-200 print:hidden">
+        <h3 className="text-lg font-semibold text-ocean-900 flex items-center gap-2">
+          <Icon name="folder" className="w-5 h-5" />
+          Projects from Selected Members
+          <span className="text-sm font-normal text-graystone-500">({filteredItems.length})</span>
+        </h3>
+        <div className="flex items-center gap-3">
+          <select
+            value={previewTimeFilter}
+            onChange={(e) => setPreviewTimeFilter(e.target.value)}
+            className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+          >
+            <option value="all">All time</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+            <option value="select-month">Select month</option>
+            <option value="select-year">Select year</option>
+          </select>
+          {previewTimeFilter === 'select-month' && (
+            <input
+              type="month"
+              value={previewSelectedMonth}
+              onChange={(e) => setPreviewSelectedMonth(e.target.value)}
+              className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+            />
+          )}
+          {previewTimeFilter === 'select-year' && (
+            <select
+              value={previewSelectedYear}
+              onChange={(e) => setPreviewSelectedYear(parseInt(e.target.value))}
+              className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => setPreviewMembers([])}
+            className="text-sm text-graystone-500 hover:text-ocean-600 transition"
+          >
+            Clear selection
+          </button>
+        </div>
+      </div>
+
+      {sortedItems.length === 0 ? (
+        <div className="text-center py-12">
+          <Icon name="table" className="w-12 h-12 text-graystone-300 mx-auto mb-3" />
+          <div className="text-sm text-graystone-500 mb-1">No projects found</div>
+          <p className="text-xs text-graystone-400">
+            {previewTimeFilter !== 'all' ? 'Try adjusting your time filter' : 'Selected members have no projects'}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[500px]">
+            <thead className="bg-graystone-50 border-b border-graystone-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">
+                  <button onClick={() => handleSort('title')} className="flex items-center gap-1 hover:text-ocean-600 transition">
+                    Title
+                    <SortIcon field="title" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Owner</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">
+                  <button onClick={() => handleSort('deadline')} className="flex items-center gap-1 hover:text-ocean-600 transition">
+                    Deadline
+                    <SortIcon field="deadline" />
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-graystone-100">
+              {sortedItems.map(entry => (
+                <tr
+                  key={entry.id}
+                  onClick={() => onOpen && onOpen(entry.id)}
+                  className="hover:bg-ocean-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-start gap-2">
+                      <div className="font-medium text-ocean-900 heading-font">{entry.title}</div>
+                      <Icon name="external-link" className="w-4 h-4 text-graystone-300 shrink-0" />
+                    </div>
+                    {entry.caption && (
+                      <div className="text-xs text-graystone-500 truncate max-w-[200px]">{entry.caption}</div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-graystone-700">
+                    {Array.isArray(entry.owner) ? entry.owner.join(', ') : entry.owner}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-graystone-700">
+                    {entry.timelineValue}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Manager Hub ──────────────────────────────────────────────
+
 const ManagerHub = ({
   managers = [],
   teams = [],
@@ -423,192 +591,21 @@ const ManagerHub = ({
             </button>
           </div>
 
-          {/* Selected Members Preview */}
+          {/* Selected Members Preview - Table matching TableView */}
           {previewMembers.length > 0 && (
-            <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6 print:border-0 print:shadow-none print:p-0">
-              {/* Header and controls - hidden in print */}
-              <div className="flex items-center justify-between mb-4 print:hidden">
-                <h3 className="text-lg font-semibold text-ocean-900 flex items-center gap-2">
-                  <Icon name="folder" className="w-5 h-5" />
-                  Projects from Selected Members
-                </h3>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={previewTimeFilter}
-                      onChange={(e) => setPreviewTimeFilter(e.target.value)}
-                      className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                    >
-                      <option value="all">All time</option>
-                      <option value="week">This week</option>
-                      <option value="month">This month</option>
-                      <option value="select-month">Select month</option>
-                      <option value="select-year">Select year</option>
-                    </select>
-                    {previewTimeFilter === 'select-month' && (
-                      <input
-                        type="month"
-                        value={previewSelectedMonth}
-                        onChange={(e) => setPreviewSelectedMonth(e.target.value)}
-                        className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                      />
-                    )}
-                    {previewTimeFilter === 'select-year' && (
-                      <select
-                        value={previewSelectedYear}
-                        onChange={(e) => setPreviewSelectedYear(parseInt(e.target.value))}
-                        className="text-sm border border-graystone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                      >
-                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setPreviewMembers([])}
-                    className="text-sm text-graystone-500 hover:text-ocean-600 transition"
-                  >
-                    Clear selection
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-4 max-h-[32rem] overflow-y-auto">
-                {(() => {
-                  const filteredItems = filterItemsByTime(items
-                    .filter(item => previewMembers.some(email => item.owner?.some(o => o.toLowerCase() === email.toLowerCase()))));
-
-                  if (filteredItems.length === 0) {
-                    return (
-                      <div className="text-center py-8 text-graystone-500">
-                        No projects found for selected members{previewTimeFilter !== 'all' ? ' in this time period' : ''}
-                      </div>
-                    );
-                  }
-
-                  // Group by month when year is selected
-                  if (previewTimeFilter === 'select-year') {
-                    const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                                   'July', 'August', 'September', 'October', 'November', 'December'];
-                    const groupedByMonth = {};
-
-                    filteredItems.forEach(item => {
-                      const itemDate = item.date || item.timelineValue;
-                      if (itemDate) {
-                        const month = new Date(itemDate).getMonth();
-                        if (!groupedByMonth[month]) groupedByMonth[month] = [];
-                        groupedByMonth[month].push(item);
-                      } else {
-                        if (!groupedByMonth[-1]) groupedByMonth[-1] = [];
-                        groupedByMonth[-1].push(item);
-                      }
-                    });
-
-                    return (
-                      <>
-                        {months.map((monthName, monthIndex) => {
-                          const monthItems = groupedByMonth[monthIndex] || [];
-                          if (monthItems.length === 0) return null;
-                          return (
-                            <div key={monthIndex} className="space-y-2">
-                              <div className="sticky top-0 bg-white py-2 border-b border-graystone-200">
-                                <h4 className="font-semibold text-ocean-900 flex items-center justify-between">
-                                  {monthName} {previewSelectedYear}
-                                  <span className="text-sm font-normal text-graystone-500">{monthItems.length} project{monthItems.length !== 1 ? 's' : ''}</span>
-                                </h4>
-                              </div>
-                              {monthItems.map(item => (
-                                <div
-                                  key={item.id}
-                                  onClick={() => onOpen && onOpen(item.id)}
-                                  className="p-4 bg-graystone-50 rounded-lg border border-graystone-200 hover:border-ocean-300 cursor-pointer transition"
-                                >
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-ocean-900 truncate">{item.title}</div>
-                                      <div className="text-sm text-graystone-500 mt-1">
-                                        {Array.isArray(item.owner) ? item.owner.join(', ') : item.owner} • {item.workflowStatus || 'No status'}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {item.date && (
-                                        <span className="text-xs px-2 py-1 bg-ocean-100 text-ocean-700 rounded-full">
-                                          {new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                                        </span>
-                                      )}
-                                      {Badge && item.workflowStatus && (
-                                        <Badge status={item.workflowStatus} />
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })}
-                        {groupedByMonth[-1] && groupedByMonth[-1].length > 0 && (
-                          <div className="space-y-2">
-                            <div className="sticky top-0 bg-white py-2 border-b border-graystone-200">
-                              <h4 className="font-semibold text-graystone-600 flex items-center justify-between">
-                                No date set
-                                <span className="text-sm font-normal text-graystone-500">{groupedByMonth[-1].length} project{groupedByMonth[-1].length !== 1 ? 's' : ''}</span>
-                              </h4>
-                            </div>
-                            {groupedByMonth[-1].map(item => (
-                              <div
-                                key={item.id}
-                                onClick={() => onOpen && onOpen(item.id)}
-                                className="p-4 bg-graystone-50 rounded-lg border border-graystone-200 hover:border-ocean-300 cursor-pointer transition"
-                              >
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-ocean-900 truncate">{item.title}</div>
-                                    <div className="text-sm text-graystone-500 mt-1">
-                                      {Array.isArray(item.owner) ? item.owner.join(', ') : item.owner} • {item.workflowStatus || 'No status'}
-                                    </div>
-                                  </div>
-                                  {Badge && item.workflowStatus && (
-                                    <Badge status={item.workflowStatus} />
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    );
-                  }
-
-                  // Flat list for other filters
-                  return filteredItems.map(item => (
-                    <div
-                      key={item.id}
-                      onClick={() => onOpen && onOpen(item.id)}
-                      className="p-4 bg-graystone-50 rounded-lg border border-graystone-200 hover:border-ocean-300 cursor-pointer transition"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-ocean-900 truncate">{item.title}</div>
-                          <div className="text-sm text-graystone-500 mt-1">
-                            {item.owner} • {item.workflowStatus || 'No status'}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {item.date && (
-                            <span className="text-xs px-2 py-1 bg-ocean-100 text-ocean-700 rounded-full">
-                              {new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                            </span>
-                          )}
-                          {Badge && item.workflowStatus && (
-                            <Badge status={item.workflowStatus} />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
+            <MemberProjectsTable
+              items={items}
+              previewMembers={previewMembers}
+              previewTimeFilter={previewTimeFilter}
+              setPreviewTimeFilter={setPreviewTimeFilter}
+              previewSelectedMonth={previewSelectedMonth}
+              setPreviewSelectedMonth={setPreviewSelectedMonth}
+              previewSelectedYear={previewSelectedYear}
+              setPreviewSelectedYear={setPreviewSelectedYear}
+              setPreviewMembers={setPreviewMembers}
+              filterItemsByTime={filterItemsByTime}
+              onOpen={onOpen}
+            />
           )}
         </div>
       )}
