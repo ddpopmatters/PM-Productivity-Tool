@@ -35,6 +35,8 @@ const WorkstreamView = ({
   const [showAddTypeInput, setShowAddTypeInput] = useState(false);
   const [newCustomType, setNewCustomType] = useState('');
   const [draggedTask, setDraggedTask] = useState(null);
+  const [pendingDeadlineTask, setPendingDeadlineTask] = useState(null);
+  const [pendingDeadlineDate, setPendingDeadlineDate] = useState('');
 
   // Default task types + any custom types used in this workstream
   const defaultTaskTypes = ['Issue', 'Feature Request', 'Feature Improvement'];
@@ -132,16 +134,25 @@ const WorkstreamView = ({
     setDraggedTask(null);
   };
 
-  const handleDropOnTimeSensitive = async () => {
+  const handleDropOnTimeSensitive = () => {
     if (!draggedTask) return;
-    // If dropping on time-sensitive, prompt for deadline
-    const deadline = prompt('Enter deadline (YYYY-MM-DD):');
-    if (deadline) {
-      await onUpdateTask(draggedTask.id, workstream.id, {
-        deadline: deadline
-      });
-    }
+    setPendingDeadlineTask(draggedTask);
+    setPendingDeadlineDate('');
     setDraggedTask(null);
+  };
+
+  const handleConfirmDeadline = async () => {
+    if (!pendingDeadlineTask || !pendingDeadlineDate) return;
+    await onUpdateTask(pendingDeadlineTask.id, workstream.id, {
+      deadline: pendingDeadlineDate
+    });
+    setPendingDeadlineTask(null);
+    setPendingDeadlineDate('');
+  };
+
+  const handleCancelDeadline = () => {
+    setPendingDeadlineTask(null);
+    setPendingDeadlineDate('');
   };
 
   const TaskCard = ({ task, showDeadline = false }) => (
@@ -270,10 +281,41 @@ const WorkstreamView = ({
             {timeSensitiveTasks.map(task => (
               <TaskCard key={task.id} task={task} showDeadline />
             ))}
-            {timeSensitiveTasks.length === 0 && !showNewTaskForm && (
+            {timeSensitiveTasks.length === 0 && !showNewTaskForm && !pendingDeadlineTask && (
               <p className="text-sm text-graystone-400 text-center py-4">No time-sensitive tasks</p>
             )}
           </div>
+
+          {/* Inline deadline picker after drag-drop */}
+          {pendingDeadlineTask && (
+            <div className="border border-ocean-300 bg-ocean-50 rounded-lg p-3 mb-4 space-y-2">
+              <p className="text-sm font-medium text-ocean-900">
+                Set deadline for <span className="font-bold">{pendingDeadlineTask.title}</span>
+              </p>
+              <input
+                type="date"
+                value={pendingDeadlineDate}
+                onChange={(e) => setPendingDeadlineDate(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConfirmDeadline}
+                  disabled={!pendingDeadlineDate}
+                  className="px-3 py-1.5 bg-ocean-500 text-white text-sm rounded-lg hover:bg-ocean-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Set Deadline
+                </button>
+                <button
+                  onClick={handleCancelDeadline}
+                  className="px-3 py-1.5 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {showNewTaskForm === 'deadline' ? (
             <div className="border border-ocean-200 rounded-lg p-3 space-y-2">
