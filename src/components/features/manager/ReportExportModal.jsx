@@ -47,11 +47,26 @@ function formatOwner(owner) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '\u2014';
-  try {
-    return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
+  // Quarter: YYYY-Q1..Q4
+  if (/^\d{4}-Q[1-4]$/.test(dateStr)) {
+    return dateStr.slice(5) + ' ' + dateStr.slice(0, 4);
+  }
+  // Year only: YYYY
+  if (/^\d{4}$/.test(dateStr)) {
     return dateStr;
   }
+  // Month only: YYYY-MM
+  if (/^\d{4}-\d{2}$/.test(dateStr)) {
+    const [y, m] = dateStr.split('-');
+    const monthName = new Date(y, parseInt(m) - 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    return monthName;
+  }
+  // Full date: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  // Anything else — show as-is
+  return dateStr;
 }
 
 // ── Report CSS (shared between preview and export) ──────────
