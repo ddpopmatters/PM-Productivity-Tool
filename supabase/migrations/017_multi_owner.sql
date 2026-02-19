@@ -10,14 +10,34 @@
 -- ============================================
 -- Dynamic drop: removes EVERY policy on the table regardless of name.
 -- This handles partial previous runs that may have left policies behind.
+-- Explicit drops for all known policy names (from migrations + Supabase dashboard)
+DROP POLICY IF EXISTS "workflow_items_select" ON workflow_items;
+DROP POLICY IF EXISTS "workflow_items_insert" ON workflow_items;
+DROP POLICY IF EXISTS "workflow_items_update" ON workflow_items;
+DROP POLICY IF EXISTS "workflow_items_delete" ON workflow_items;
+DROP POLICY IF EXISTS "Owners and collaborators can update" ON workflow_items;
+DROP POLICY IF EXISTS "Users can update own items" ON workflow_items;
+DROP POLICY IF EXISTS "Users can delete own items" ON workflow_items;
+DROP POLICY IF EXISTS "Users can insert own items" ON workflow_items;
+DROP POLICY IF EXISTS "Users can view all items" ON workflow_items;
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON workflow_items;
+DROP POLICY IF EXISTS "Enable insert for authenticated users" ON workflow_items;
+DROP POLICY IF EXISTS "Enable update for authenticated users" ON workflow_items;
+DROP POLICY IF EXISTS "Enable delete for authenticated users" ON workflow_items;
+
+-- Belt-and-suspenders: also dynamically drop any remaining policies via system catalog
 DO $$
 DECLARE
   pol RECORD;
 BEGIN
   FOR pol IN
-    SELECT policyname FROM pg_policies WHERE tablename = 'workflow_items' AND schemaname = 'public'
+    SELECT pol.polname
+    FROM pg_catalog.pg_policy pol
+    JOIN pg_catalog.pg_class cls ON pol.polrelid = cls.oid
+    JOIN pg_catalog.pg_namespace nsp ON cls.relnamespace = nsp.oid
+    WHERE cls.relname = 'workflow_items' AND nsp.nspname = 'public'
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON workflow_items', pol.policyname);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.workflow_items', pol.polname);
   END LOOP;
 END
 $$;
