@@ -197,7 +197,7 @@ function KanbanBoard({ statuses, entries, onOpen, onUpdateStatus, openSubtaskMod
                       <div className="flex items-center justify-between text-xs text-graystone-600">
                         <div className="flex items-center gap-1">
                           <i data-lucide="user" className="w-3 h-3"></i>
-                          <span>{entry.owner}</span>
+                          <span>{Array.isArray(entry.owner) ? entry.owner.join(', ') : entry.owner}</span>
                         </div>
                         {(entry.date || entry.timelineValue) && (
                           <div className={clsx(

@@ -161,7 +161,7 @@ const isManager = (email) => {
 const canEditItem = (entry, userEmail, currentUser) => {
   if (!entry) return false;
   if (isAdmin(userEmail)) return true;
-  if (entry.owner === currentUser) return true;
+  if (entry.owner?.includes(currentUser)) return true;
   if (entry.collaborators?.includes(currentUser)) return true;
   return false;
 };
@@ -317,8 +317,8 @@ export default function App() {
           workflow_status: item.workflowStatus || 'Idea',
           team: item.team || '',
           timeline_value: item.timelineValue || '',
-          owner: item.owner || '',
-          owner_email: userEmail || '',
+          owner: Array.isArray(item.owner) ? item.owner : [item.owner].filter(Boolean),
+          owner_email: Array.isArray(item.ownerEmail) ? item.ownerEmail : [userEmail].filter(Boolean),
           collaborators: item.collaborators || [],
           tags: item.tags || [],
           subtasks: item.subtasks || [],
@@ -936,8 +936,8 @@ export default function App() {
     workflowStatus: row.workflow_status,
     team: row.team,
     timelineValue: row.timeline_value,
-    owner: row.owner,
-    ownerEmail: row.owner_email,
+    owner: row.owner || [],
+    ownerEmail: row.owner_email || [],
     collaborators: row.collaborators || [],
     tags: row.tags || [],
     subtasks: row.subtasks || [],
@@ -1100,7 +1100,8 @@ export default function App() {
   const handleAddItem = useCallback(async (newItem) => {
     const saved = await SUPABASE_API.saveItem({
       ...newItem,
-      owner: currentUser,
+      owner: [currentUser],
+      ownerEmail: [userEmail],
     });
     if (saved) {
       setEntries(prev => [transformEntry(saved), ...prev]);
@@ -1255,8 +1256,8 @@ export default function App() {
         caption: formData.caption || '',
         workflow_status: formData.workflowStatus || 'todo',
         team: formData.team || '',
-        owner: formData.owner || currentUser,
-        owner_email: formData.ownerEmail || userEmail,
+        owner: Array.isArray(formData.owner) ? formData.owner : [formData.owner || currentUser],
+        owner_email: Array.isArray(formData.ownerEmail) ? formData.ownerEmail : [formData.ownerEmail || userEmail],
         tags: formData.tags || [],
         date: formData.date || null,
         item_type: 'job',
@@ -1322,8 +1323,8 @@ export default function App() {
         workflow_status: formData.workflowStatus || 'Idea',
         team: formData.team || '',
         timeline_value: formData.timelineValue || '',
-        owner: formData.owner || currentUser,
-        owner_email: formData.ownerEmail || userEmail,
+        owner: Array.isArray(formData.owner) ? formData.owner : [formData.owner || currentUser],
+        owner_email: Array.isArray(formData.ownerEmail) ? formData.ownerEmail : [formData.ownerEmail || userEmail],
         collaborators: formData.collaborators || [],
         tags: formData.tags || [],
         date: formData.date || null,
@@ -1524,7 +1525,7 @@ export default function App() {
         if (!matchesTitle && !matchesCaption && !matchesTags) return false;
       }
       if (statusFilter.length && !statusFilter.includes(entry.workflowStatus)) return false;
-      if (ownerFilter.length && !ownerFilter.includes(entry.owner)) return false;
+      if (ownerFilter.length && !entry.owner?.some(o => ownerFilter.includes(o))) return false;
       if (teamFilter.length && !teamFilter.includes(entry.team)) return false;
       if (tagFilter.length && !entry.tags?.some(t => tagFilter.includes(t))) return false;
       return true;
@@ -1623,14 +1624,14 @@ export default function App() {
         );
 
       case 'personal':
-        const myPersonalProjects = filteredEntries.filter(e => (e.owner === currentUser || e.ownerEmail === userEmail) && e.itemType !== 'job');
-        const ownedProjects = filteredEntries.filter(e => (e.owner === currentUser || e.ownerEmail === userEmail) && e.itemType !== 'job' && !e.archived);
-        const collaboratorProjects = filteredEntries.filter(e => e.collaborators?.includes(currentUser) && e.owner !== currentUser && e.ownerEmail !== userEmail && e.itemType !== 'job' && !e.archived);
+        const myPersonalProjects = filteredEntries.filter(e => (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail)) && e.itemType !== 'job');
+        const ownedProjects = filteredEntries.filter(e => (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail)) && e.itemType !== 'job' && !e.archived);
+        const collaboratorProjects = filteredEntries.filter(e => e.collaborators?.includes(currentUser) && !e.owner?.includes(currentUser) && !e.ownerEmail?.includes(userEmail) && e.itemType !== 'job' && !e.archived);
         const thisMonth = new Date();
         const thisMonthStr = `${thisMonth.getFullYear()}-${String(thisMonth.getMonth() + 1).padStart(2, '0')}`;
         const dueThisMonth = filteredEntries.filter(e => {
           if (e.itemType === 'job' || e.archived) return false;
-          if (e.owner !== currentUser && e.ownerEmail !== userEmail && !e.collaborators?.includes(currentUser)) return false;
+          if (!e.owner?.includes(currentUser) && !e.ownerEmail?.includes(userEmail) && !e.collaborators?.includes(currentUser)) return false;
           const dateStr = e.date || e.timelineValue;
           return dateStr && dateStr.startsWith(thisMonthStr);
         });

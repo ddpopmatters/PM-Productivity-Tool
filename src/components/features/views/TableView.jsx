@@ -220,7 +220,7 @@ function TableView({
                   <td className="px-6 py-4 whitespace-nowrap">
                     <Badge variant={entry.workflowStatus === 'Done' ? 'success' : 'default'}>{entry.workflowStatus}</Badge>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-graystone-700">{entry.owner}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-graystone-700">{Array.isArray(entry.owner) ? entry.owner.join(', ') : entry.owner}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {entry.team && <span className="bg-graystone-100 px-2 py-1 rounded text-xs font-medium text-graystone-700">{entry.team}</span>}
                   </td>

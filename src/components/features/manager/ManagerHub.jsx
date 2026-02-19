@@ -211,7 +211,7 @@ const ManagerHub = ({
     // Filter out archived and completed items
     const isActiveItem = (e) => !e.archived && e.workflowStatus !== 'Complete' && e.workflowStatus !== 'done';
     const memberItems = entries.filter(e =>
-      e.owner && reportEmails.includes(e.owner.toLowerCase()) && e.itemType !== 'job' && isActiveItem(e)
+      e.owner?.some(o => reportEmails.includes(o.toLowerCase())) && e.itemType !== 'job' && isActiveItem(e)
     );
     if (includeCollaborations) {
       const collabItems = entries.filter(e =>

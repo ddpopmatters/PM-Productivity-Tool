@@ -31,7 +31,7 @@ const JobDetailModal = ({
   const [title, setTitle] = useState(job?.title || '');
   const [description, setDescription] = useState(job?.caption || '');
   const [status, setStatus] = useState(job?.workflowStatus || 'todo');
-  const [owner, setOwner] = useState(job?.owner || '');
+  const [owner, setOwner] = useState(Array.isArray(job?.owner) ? job.owner[0] || '' : job?.owner || '');
   const [dueDate, setDueDate] = useState(job?.date || job?.timelineValue || '');
   const [priority, setPriority] = useState(
     job?.tags?.find(t => ['high', 'medium', 'low'].includes(t?.toLowerCase?.()))?.toLowerCase() || 'medium'
@@ -44,7 +44,7 @@ const JobDetailModal = ({
       setTitle(job.title || '');
       setDescription(job.caption || '');
       setStatus(job.workflowStatus || 'todo');
-      setOwner(job.owner || '');
+      setOwner(Array.isArray(job.owner) ? job.owner[0] || '' : job.owner || '');
       setDueDate(job.date || job.timelineValue || '');
       setPriority(job.tags?.find(t => ['high', 'medium', 'low'].includes(t?.toLowerCase?.()))?.toLowerCase() || 'medium');
       setEditing(false);
@@ -59,8 +59,8 @@ const JobDetailModal = ({
       title,
       caption: description,
       workflowStatus: status,
-      owner,
-      ownerEmail: userProfiles.find(p => p.name === owner)?.email || job.ownerEmail,
+      owner: [owner],
+      ownerEmail: [userProfiles.find(p => p.name === owner)?.email].filter(Boolean),
       date: dueDate || null,
       timelineValue: dueDate || null,
       tags: [priority, ...otherTags]

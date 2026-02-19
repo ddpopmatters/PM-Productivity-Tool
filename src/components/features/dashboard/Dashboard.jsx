@@ -151,7 +151,7 @@ export default function Dashboard({
         (e) =>
           e.itemType !== 'job' &&
           !e.archived &&
-          (e.owner === currentUser || e.ownerEmail === userEmail || (e.collaborators && e.collaborators.includes(currentUser)))
+          (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail) || (e.collaborators && e.collaborators.includes(currentUser)))
       ),
     [entries, currentUser, userEmail]
   );
@@ -162,7 +162,7 @@ export default function Dashboard({
         (e) =>
           e.itemType === 'job' &&
           !e.archived &&
-          (e.owner === currentUser || e.ownerEmail === userEmail || (e.collaborators && e.collaborators.includes(currentUser)))
+          (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail) || (e.collaborators && e.collaborators.includes(currentUser)))
       ),
     [entries, currentUser, userEmail]
   );
@@ -271,7 +271,7 @@ export default function Dashboard({
 
     entries.forEach((entry) => {
       const isMyProject =
-        entry.owner === currentUser ||
+        entry.owner?.includes(currentUser) ||
         (entry.collaborators && entry.collaborators.includes(currentUser));
 
       (entry.comments || []).forEach((comment) => {

@@ -55,8 +55,8 @@ const ConvertItemModal = ({
       return {
         ...base,
         caption: item.caption || item.description || '',
-        owner: item.owner || item.assignee || currentUser,
-        ownerEmail: item.ownerEmail || item.assigneeEmail || userEmail,
+        owner: Array.isArray(item.owner) ? item.owner : (item.assignee ? [item.assignee] : [currentUser]),
+        ownerEmail: Array.isArray(item.ownerEmail) ? item.ownerEmail : (item.assigneeEmail ? [item.assigneeEmail] : [userEmail]),
         date: item.date || item.deadline || item.timelineValue || '',
         workflowStatus: mapWorkflowStatus(item, fromType, 'task'),
         team: item.team || ''
@@ -67,8 +67,8 @@ const ConvertItemModal = ({
       return {
         ...base,
         caption: item.caption || item.description || '',
-        owner: item.owner || item.assignee || currentUser,
-        ownerEmail: item.ownerEmail || item.assigneeEmail || userEmail,
+        owner: Array.isArray(item.owner) ? item.owner : (item.assignee ? [item.assignee] : [currentUser]),
+        ownerEmail: Array.isArray(item.ownerEmail) ? item.ownerEmail : (item.assigneeEmail ? [item.assigneeEmail] : [userEmail]),
         date: item.date || item.deadline || '',
         timelineValue: item.timelineValue || item.deadline || '',
         workflowStatus: mapWorkflowStatus(item, fromType, 'project'),
@@ -81,11 +81,13 @@ const ConvertItemModal = ({
     }
 
     if (toType === 'workstream') {
+      const firstOwner = Array.isArray(item.owner) ? item.owner[0] : item.owner;
+      const firstOwnerEmail = Array.isArray(item.ownerEmail) ? item.ownerEmail[0] : item.ownerEmail;
       return {
         ...base,
         description: item.caption || item.description || '',
-        assignee: item.assignee || item.owner || '',
-        assigneeEmail: item.assigneeEmail || item.ownerEmail || '',
+        assignee: item.assignee || firstOwner || '',
+        assigneeEmail: item.assigneeEmail || firstOwnerEmail || '',
         requester: item.requester || '',
         deadline: item.deadline || item.date || item.timelineValue || '',
         priority: item.priority || (item.tags?.includes('high') ? 'high' : item.tags?.includes('low') ? 'low' : 'medium'),

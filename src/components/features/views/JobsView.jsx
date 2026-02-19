@@ -37,8 +37,8 @@ const JobsView = ({
   const jobs = entries.filter(e => e.itemType === 'job' && !e.archived);
 
   // Helper filters
-  const myJobs = jobs.filter(j => j.owner === currentUser || j.ownerEmail === userEmail);
-  const assignedToMe = jobs.filter(j => j.owner !== currentUser && j.ownerEmail !== userEmail && j.collaborators?.includes(currentUser));
+  const myJobs = jobs.filter(j => j.owner?.includes(currentUser) || j.ownerEmail?.includes(userEmail));
+  const assignedToMe = jobs.filter(j => !j.owner?.includes(currentUser) && !j.ownerEmail?.includes(userEmail) && j.collaborators?.includes(currentUser));
 
   // Apply user filter
   const filteredJobs = filter === 'mine'
@@ -63,8 +63,8 @@ const JobsView = ({
       workflow_status: jobData.workflowStatus,
       team: jobData.team,
       timeline_value: jobData.timelineValue,
-      owner: jobData.owner,
-      owner_email: jobData.ownerEmail,
+      owner: Array.isArray(jobData.owner) ? jobData.owner : [jobData.owner].filter(Boolean),
+      owner_email: Array.isArray(jobData.ownerEmail) ? jobData.ownerEmail : [jobData.ownerEmail].filter(Boolean),
       collaborators: [],
       tags: jobData.tags,
       subtasks: [],
@@ -127,8 +127,8 @@ const JobsView = ({
       workflow_status: updatedJob.workflowStatus,
       team: updatedJob.team,
       timeline_value: updatedJob.timelineValue,
-      owner: updatedJob.owner,
-      owner_email: updatedJob.ownerEmail,
+      owner: Array.isArray(updatedJob.owner) ? updatedJob.owner : [updatedJob.owner].filter(Boolean),
+      owner_email: Array.isArray(updatedJob.ownerEmail) ? updatedJob.ownerEmail : [updatedJob.ownerEmail].filter(Boolean),
       tags: updatedJob.tags,
       date: updatedJob.date,
       updated_at: new Date().toISOString()

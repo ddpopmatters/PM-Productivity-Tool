@@ -18,7 +18,7 @@ const AddItemForm = ({
   const [description, setDescription] = useState("");
   const [workflowStatus, setWorkflowStatus] = useState("Idea");
   const [team, setTeam] = useState(TEAMS[0] || "");
-  const [owner, setOwner] = useState(USERS[0] || "");
+  const [owners, setOwners] = useState([USERS[0] || ""]);
   const [collaborators, setCollaborators] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [tags, setTags] = useState([]);
@@ -59,7 +59,7 @@ const AddItemForm = ({
     onSubmit({
       title,
       team,
-      owner,
+      owner: owners,
       collaborators,
       documents,
       tags,
@@ -123,14 +123,34 @@ const AddItemForm = ({
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-graystone-700">Owner</label>
-                <select
-                  value={owner}
-                  onChange={e => setOwner(e.target.value)}
-                  className={clsx(selectBaseClasses, "w-full")}
-                >
-                  {USERS.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
+                <label className="text-sm font-medium text-graystone-700">Owners</label>
+                <div className="flex flex-wrap gap-2">
+                  {USERS.map(user => {
+                    const isSelected = owners.includes(user);
+                    return (
+                      <button
+                        key={user}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            if (owners.length > 1) setOwners(owners.filter(o => o !== user));
+                          } else {
+                            setOwners([...owners, user]);
+                          }
+                        }}
+                        className={clsx(
+                          "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                          isSelected
+                            ? "bg-ocean-100 text-ocean-700 border-ocean-200"
+                            : "bg-white text-graystone-600 border-graystone-200 hover:border-ocean-300"
+                        )}
+                      >
+                        {isSelected && <span className="mr-1">✓</span>}
+                        {user}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

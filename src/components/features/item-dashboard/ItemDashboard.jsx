@@ -96,13 +96,14 @@ export default function ItemDashboard({
 
   // Details editing state
   const [editingDetails, setEditingDetails] = useState(false);
-  const [editOwner, setEditOwner] = useState(entry?.owner || '');
+  const [editOwners, setEditOwners] = useState(entry?.owner || []);
   const [editCollaborators, setEditCollaborators] = useState(entry?.collaborators || []);
   const [editTimeline, setEditTimeline] = useState(entry?.date || entry?.timelineValue || '');
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
+  const [ownerSearch, setOwnerSearch] = useState('');
 
   const startEditingDetails = () => {
-    setEditOwner(entry?.owner || '');
+    setEditOwners(entry?.owner || []);
     setEditCollaborators(entry?.collaborators || []);
     setEditTimeline(entry?.date || entry?.timelineValue || '');
     setEditingDetails(true);
@@ -111,19 +112,18 @@ export default function ItemDashboard({
   const saveDetails = () => {
     if (onUpdateEntry) {
       const updates = {
-        owner: editOwner,
+        owner: editOwners,
         collaborators: editCollaborators,
         date: editTimeline || null,
         timelineValue: editTimeline || null,
         timelineType: editTimeline ? 'date' : null,
       };
-      // When owner changes, also update owner_email from SEED_USERS
-      if (editOwner !== entry?.owner) {
-        const seedUser = SEED_USERS.find(u => u.name === editOwner);
-        if (seedUser) {
-          updates.ownerEmail = seedUser.email;
-        }
-      }
+      // Resolve all owner emails from SEED_USERS
+      const ownerEmails = editOwners.map(name => {
+        const seedUser = SEED_USERS.find(u => u.name === name);
+        return seedUser?.email || '';
+      }).filter(Boolean);
+      updates.ownerEmail = ownerEmails;
       onUpdateEntry(entry.id, updates);
     }
     setEditingDetails(false);
@@ -132,10 +132,23 @@ export default function ItemDashboard({
   const cancelEditingDetails = () => {
     setEditingDetails(false);
     setCollaboratorSearch('');
+    setOwnerSearch('');
+  };
+
+  const addOwner = (name) => {
+    if (name && !editOwners.includes(name)) {
+      setEditOwners([...editOwners, name]);
+    }
+    setOwnerSearch('');
+  };
+
+  const removeOwner = (name) => {
+    if (editOwners.length <= 1) return; // Can't remove last owner
+    setEditOwners(editOwners.filter(o => o !== name));
   };
 
   const addCollaborator = (name) => {
-    if (name && !editCollaborators.includes(name) && name !== editOwner) {
+    if (name && !editCollaborators.includes(name) && !editOwners.includes(name)) {
       setEditCollaborators([...editCollaborators, name]);
     }
     setCollaboratorSearch('');
@@ -173,7 +186,7 @@ export default function ItemDashboard({
       const query = match[1].trim().toLowerCase();
       setDescMentionQuery(query);
       const pool = Array.from(
-        new Set([...(entry.collaborators || []), entry.owner, ...USERS])
+        new Set([...(entry.collaborators || []), ...(entry.owner || []), ...USERS])
       ).filter(Boolean);
       const options = pool.filter((name) => name.toLowerCase().includes(query));
       setDescMentionOptions(options.slice(0, 6));
@@ -364,7 +377,7 @@ export default function ItemDashboard({
       const query = match[1].trim().toLowerCase();
       setMentionQuery(query);
       const pool = Array.from(
-        new Set([...(entry.collaborators || []), entry.owner, ...USERS])
+        new Set([...(entry.collaborators || []), ...(entry.owner || []), ...USERS])
       ).filter(Boolean);
       const options = pool.filter((name) => name.toLowerCase().includes(query));
       setMentionOptions(options.slice(0, 6));
@@ -976,7 +989,7 @@ export default function ItemDashboard({
                       >
                         <option value="">Select recipient...</option>
                         {Array.from(
-                          new Set([...(entry.collaborators || []), entry.owner, ...USERS])
+                          new Set([...(entry.collaborators || []), ...(entry.owner || []), ...USERS])
                         )
                           .filter(Boolean)
                           .map((name) => (
@@ -1140,28 +1153,79 @@ export default function ItemDashboard({
 
               <div>
                 <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">
-                  Owner
+                  Owners
                 </div>
                 {editingDetails ? (
-                  <select
-                    value={editOwner}
-                    onChange={(e) => setEditOwner(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-ocean-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-                  >
-                    <option value="">Select owner...</option>
-                    {USERS.map((user) => (
-                      <option key={user} value={user}>
-                        {user}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-graystone-200 flex items-center justify-center text-xs font-bold text-graystone-600">
-                      {entry.owner ? entry.owner.charAt(0) : '?'}
+                  <div className="space-y-2">
+                    {editOwners.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {editOwners.map((ownerName) => (
+                          <div
+                            key={ownerName}
+                            className="flex items-center gap-1 px-2 py-1 bg-ocean-100 text-ocean-800 rounded-full text-xs"
+                          >
+                            <span>{ownerName}</span>
+                            {editOwners.length > 1 && (
+                              <button
+                                onClick={() => removeOwner(ownerName)}
+                                className="w-4 h-4 flex items-center justify-center hover:bg-ocean-200 rounded-full"
+                              >
+                                <Icon name="x" className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={ownerSearch}
+                        onChange={(e) => setOwnerSearch(e.target.value)}
+                        placeholder="Add owner..."
+                        className="w-full px-3 py-2 text-sm border border-ocean-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                      />
+                      {ownerSearch && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-ocean-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          {USERS.filter(
+                            (u) =>
+                              u.toLowerCase().includes(ownerSearch.toLowerCase()) &&
+                              !editOwners.includes(u)
+                          )
+                            .slice(0, 5)
+                            .map((user) => (
+                              <button
+                                key={user}
+                                onClick={() => addOwner(user)}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-ocean-50 transition"
+                              >
+                                {user}
+                              </button>
+                            ))}
+                          {USERS.filter(
+                            (u) =>
+                              u.toLowerCase().includes(ownerSearch.toLowerCase()) &&
+                              !editOwners.includes(u)
+                          ).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-graystone-400">No matches</div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <span className="text-sm font-medium text-graystone-900">{entry.owner}</span>
                   </div>
+                ) : entry.owner && entry.owner.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {entry.owner.map((ownerName) => (
+                      <div key={ownerName} className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-graystone-200 flex items-center justify-center text-xs font-bold text-graystone-600">
+                          {ownerName.charAt(0)}
+                        </div>
+                        <span className="text-sm font-medium text-graystone-900">{ownerName}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-sm text-graystone-400">None</span>
                 )}
               </div>
 
@@ -1205,7 +1269,7 @@ export default function ItemDashboard({
                             (u) =>
                               u.toLowerCase().includes(collaboratorSearch.toLowerCase()) &&
                               !editCollaborators.includes(u) &&
-                              u !== editOwner
+                              !editOwners.includes(u)
                           )
                             .slice(0, 5)
                             .map((user) => (
@@ -1221,7 +1285,7 @@ export default function ItemDashboard({
                             (u) =>
                               u.toLowerCase().includes(collaboratorSearch.toLowerCase()) &&
                               !editCollaborators.includes(u) &&
-                              u !== editOwner
+                              !editOwners.includes(u)
                           ).length === 0 && (
                             <div className="px-3 py-2 text-sm text-graystone-400">No matches</div>
                           )}
@@ -2141,7 +2205,7 @@ export default function ItemDashboard({
                     !(entry.dependencies || []).includes(e.id) &&
                     (dependencySearch === '' ||
                       e.title.toLowerCase().includes(dependencySearch.toLowerCase()) ||
-                      e.owner?.toLowerCase().includes(dependencySearch.toLowerCase()))
+                      e.owner?.some(o => o.toLowerCase().includes(dependencySearch.toLowerCase())))
                 )
                 .slice(0, 20)
                 .map((item) => (
@@ -2184,7 +2248,7 @@ export default function ItemDashboard({
                   !(entry.dependencies || []).includes(e.id) &&
                   (dependencySearch === '' ||
                     e.title.toLowerCase().includes(dependencySearch.toLowerCase()) ||
-                    e.owner?.toLowerCase().includes(dependencySearch.toLowerCase()))
+                    e.owner?.some(o => o.toLowerCase().includes(dependencySearch.toLowerCase())))
               ).length === 0 && (
                 <div className="text-sm text-graystone-500 text-center py-6 bg-graystone-50 rounded-xl">
                   No matching items found

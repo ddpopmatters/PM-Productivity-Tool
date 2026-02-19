@@ -171,7 +171,7 @@ function ListView({
             <div>
               <h4 className="font-bold text-ocean-900 group-hover:text-ocean-700 heading-font">{entry.title}</h4>
               <div className="flex items-center gap-2 text-xs text-graystone-500 mt-1">
-                <span>{entry.owner}</span>
+                <span>{Array.isArray(entry.owner) ? entry.owner.join(', ') : entry.owner}</span>
                 <span>-</span>
                 <span>{entry.team}</span>
                 <span>-</span>

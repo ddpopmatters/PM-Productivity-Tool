@@ -194,7 +194,7 @@ const CalendarScreen = ({
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
-                    <span>{entry.owner}</span>
+                    <span>{Array.isArray(entry.owner) ? entry.owner.join(', ') : entry.owner}</span>
                     {entry.team && <span style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{entry.team}</span>}
                   </div>
                 </div>
@@ -260,7 +260,7 @@ const CalendarScreen = ({
                       )}
                     </div>
                     <div className="text-xs text-graystone-500 flex items-center gap-2 mt-1">
-                      <span>{entry.owner}</span>
+                      <span>{Array.isArray(entry.owner) ? entry.owner.join(', ') : entry.owner}</span>
                       <Badge variant="neutral" className="text-[10px] py-0">{entry.workflowStatus}</Badge>
                     </div>
                   </td>
