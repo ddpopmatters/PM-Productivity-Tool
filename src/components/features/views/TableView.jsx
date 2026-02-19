@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import clsx from 'clsx';
-import { Badge } from '../../ui';
 
 /**
  * TableView - Tabular view for entries with bulk actions
@@ -203,7 +202,7 @@ function TableView({
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[800px]">
+        <table className="w-full min-w-[500px]">
           <thead className="bg-graystone-50 border-b border-graystone-200">
             <tr>
               <th className="px-4 py-3 text-left">
@@ -225,9 +224,7 @@ function TableView({
                   )}
                 </button>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Owner</th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">Team</th>
               <th className="px-6 py-3 text-left text-xs font-bold text-ocean-900 uppercase tracking-wider">
                 <button onClick={() => handleSort('deadline')} className="flex items-center gap-1 hover:text-ocean-600 transition">
                   Deadline
@@ -267,13 +264,7 @@ function TableView({
                     </div>
                     <div className="text-xs text-graystone-500 truncate max-w-[200px]">{entry.caption}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Badge variant={entry.workflowStatus === 'Done' ? 'success' : 'default'}>{entry.workflowStatus}</Badge>
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-graystone-700">{Array.isArray(entry.owner) ? entry.owner.join(', ') : entry.owner}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {entry.team && <span className="bg-graystone-100 px-2 py-1 rounded text-xs font-medium text-graystone-700">{entry.team}</span>}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-graystone-700">
                     {entry.timelineValue}
                   </td>
