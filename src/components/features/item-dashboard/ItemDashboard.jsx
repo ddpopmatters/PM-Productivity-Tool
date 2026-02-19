@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon, Button, Badge, LoadingSpinner } from '../../ui';
 import { validateFilesForUpload, getAllowedExtensions } from '../../../utils/security';
-import { SEED_USERS } from '../../../utils/config';
+import { SEED_USERS, TEAMS } from '../../../utils/config';
 
 // Local className joining utility
 const cx = (...classes) => classes.filter(Boolean).join(' ');
@@ -101,6 +101,7 @@ export default function ItemDashboard({
   const [editOwners, setEditOwners] = useState(entry?.owner || []);
   const [editCollaborators, setEditCollaborators] = useState(entry?.collaborators || []);
   const [editTimeline, setEditTimeline] = useState(entry?.date || entry?.timelineValue || '');
+  const [editTeam, setEditTeam] = useState(entry?.team || '');
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [ownerSearch, setOwnerSearch] = useState('');
 
@@ -108,6 +109,7 @@ export default function ItemDashboard({
     setEditOwners(entry?.owner || []);
     setEditCollaborators(entry?.collaborators || []);
     setEditTimeline(entry?.date || entry?.timelineValue || '');
+    setEditTeam(entry?.team || '');
     setEditingDetails(true);
   };
 
@@ -117,6 +119,7 @@ export default function ItemDashboard({
       const updates = {
         owner: editOwners,
         collaborators: editCollaborators,
+        team: editTeam,
         date: isFullDate ? editTimeline : null,
         timelineValue: editTimeline || null,
       };
@@ -589,9 +592,9 @@ export default function ItemDashboard({
                   />
                 ) : (
                   <h1
-                    className="text-3xl font-bold text-ocean-900 cursor-pointer hover:text-ocean-700 transition-colors"
-                    onClick={() => { setEditTitleValue(entry.title); setEditingTitle(true); }}
-                    title="Click to edit title"
+                    className={cx("text-3xl font-bold text-ocean-900", canEdit && "cursor-pointer hover:text-ocean-700 transition-colors")}
+                    onClick={() => canEdit && (setEditTitleValue(entry.title), setEditingTitle(true))}
+                    title={canEdit ? "Click to edit title" : undefined}
                   >
                     {entry.title}
                   </h1>
@@ -1185,10 +1188,23 @@ export default function ItemDashboard({
                 <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">
                   Team
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-ocean-500"></div>
-                  <span className="text-sm font-medium text-graystone-900">{entry.team}</span>
-                </div>
+                {editingDetails ? (
+                  <select
+                    value={editTeam}
+                    onChange={(e) => setEditTeam(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-ocean-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+                  >
+                    <option value="">No team</option>
+                    {TEAMS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-ocean-500"></div>
+                    <span className="text-sm font-medium text-graystone-900">{entry.team || 'No team'}</span>
+                  </div>
+                )}
               </div>
 
               <div>
