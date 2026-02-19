@@ -86,8 +86,42 @@ export const TIMELINE_TYPES = [
   { value: "date", label: "Specific Date" },
   { value: "month", label: "Month" },
   { value: "quarter", label: "Quarter" },
-  { value: "year", label: "Year" }
+  { value: "year", label: "Year" },
+  { value: "phase", label: "Phase" }
 ];
+
+// Strategic phases with date ranges
+export const PHASES = [
+  { value: 'Phase 1', label: 'Phase 1', description: 'Feb 2026 – Jun 2026', start: '2026-02-01', end: '2026-06-30' },
+  { value: 'Phase 2', label: 'Phase 2', description: 'Jul 2026 – Jun 2028', start: '2026-07-01', end: '2028-06-30' },
+  { value: 'Phase 3', label: 'Phase 3', description: 'Jul 2028 – Jun 2030', start: '2028-07-01', end: '2030-06-30' },
+];
+
+/**
+ * Determine which phase a date falls into, or null if outside all phases.
+ * Accepts YYYY-MM-DD, YYYY-MM, YYYY-QN, or YYYY.
+ */
+export function getPhaseFromDate(dateStr) {
+  if (!dateStr) return null;
+  let isoDate;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    isoDate = dateStr;
+  } else if (/^\d{4}-\d{2}$/.test(dateStr)) {
+    isoDate = dateStr + '-15'; // mid-month
+  } else if (/^\d{4}-Q([1-4])$/.test(dateStr)) {
+    const q = parseInt(dateStr.slice(6));
+    const midMonth = (q - 1) * 3 + 2; // mid-quarter month
+    isoDate = dateStr.slice(0, 4) + '-' + String(midMonth).padStart(2, '0') + '-15';
+  } else if (/^\d{4}$/.test(dateStr)) {
+    isoDate = dateStr + '-07-01'; // mid-year
+  } else {
+    return null;
+  }
+  for (const phase of PHASES) {
+    if (isoDate >= phase.start && isoDate <= phase.end) return phase.value;
+  }
+  return null;
+}
 
 // Job statuses (simplified 3-stage workflow)
 export const JOB_STATUSES = [

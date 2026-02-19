@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 import Button from '../../ui/Button';
 import { getAllowedExtensions } from '../../../utils/security';
+import { PHASES, getPhaseFromDate } from '../../../utils/config';
 
 const AddItemForm = ({
   onSubmit,
@@ -33,6 +34,7 @@ const AddItemForm = ({
   const [monthValue, setMonthValue] = useState(new Date().toISOString().slice(0, 7));
   const [yearValue, setYearValue] = useState(String(new Date().getFullYear()));
   const [quarterValue, setQuarterValue] = useState(String(Math.floor(new Date().getMonth() / 3) + 1));
+  const [phaseValue, setPhaseValue] = useState('Phase 1');
   const [formError, setFormError] = useState("");
 
   const handleSubmit = (e) => {
@@ -55,6 +57,12 @@ const AddItemForm = ({
     else if (timelineType === "month") timelineValue = monthValue;
     else if (timelineType === "quarter") timelineValue = `${yearValue}-Q${quarterValue}`;
     else if (timelineType === "year") timelineValue = String(yearValue);
+    else if (timelineType === "phase") timelineValue = phaseValue;
+
+    // Auto-compute phase from deadline, or use explicit selection
+    const phase = timelineType === "phase"
+      ? phaseValue
+      : getPhaseFromDate(timelineValue || deadline) || null;
 
     onSubmit({
       title,
@@ -69,6 +77,7 @@ const AddItemForm = ({
       date: deadline || new Date().toISOString().slice(0, 10),
       timelineType,
       timelineValue,
+      phase,
       status: "active"
     });
   };
@@ -385,6 +394,27 @@ const AddItemForm = ({
                     className={inputBaseClasses}
                     placeholder="Year"
                   />
+                )}
+
+                {timelineType === "phase" && (
+                  <div className="space-y-2">
+                    {PHASES.map(p => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setPhaseValue(p.value)}
+                        className={clsx(
+                          "w-full px-4 py-3 rounded-lg border text-left transition-all",
+                          phaseValue === p.value
+                            ? "bg-white border-ocean-400 shadow-sm ring-2 ring-ocean-200"
+                            : "border-ocean-200 hover:border-ocean-300 hover:bg-white/50"
+                        )}
+                      >
+                        <div className="text-sm font-semibold text-ocean-900">{p.label}</div>
+                        <div className="text-xs text-graystone-500">{p.description}</div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

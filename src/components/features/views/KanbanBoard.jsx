@@ -194,6 +194,11 @@ function KanbanBoard({ statuses, entries, onOpen, onUpdateStatus, openSubtaskMod
                         </button>
                       </div>
 
+                      {entry.phase && (
+                        <div className="mb-1.5">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-ocean-100 text-ocean-700">{entry.phase}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-xs text-graystone-600">
                         <div className="flex items-center gap-1">
                           <i data-lucide="user" className="w-3 h-3"></i>

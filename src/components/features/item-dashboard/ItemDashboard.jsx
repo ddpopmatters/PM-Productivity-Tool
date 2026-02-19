@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon, Button, Badge, LoadingSpinner } from '../../ui';
 import { validateFilesForUpload, getAllowedExtensions } from '../../../utils/security';
-import { SEED_USERS, TEAMS } from '../../../utils/config';
+import { SEED_USERS, TEAMS, PHASES, getPhaseFromDate } from '../../../utils/config';
 
 // Local className joining utility
 const cx = (...classes) => classes.filter(Boolean).join(' ');
@@ -101,6 +101,7 @@ export default function ItemDashboard({
   const [editOwners, setEditOwners] = useState(entry?.owner || []);
   const [editCollaborators, setEditCollaborators] = useState(entry?.collaborators || []);
   const [editTimeline, setEditTimeline] = useState(entry?.date || entry?.timelineValue || '');
+  const [editPhase, setEditPhase] = useState(entry?.phase || '');
   const [editTeam, setEditTeam] = useState(entry?.team || '');
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [ownerSearch, setOwnerSearch] = useState('');
@@ -109,6 +110,7 @@ export default function ItemDashboard({
     setEditOwners(entry?.owner || []);
     setEditCollaborators(entry?.collaborators || []);
     setEditTimeline(entry?.date || entry?.timelineValue || '');
+    setEditPhase(entry?.phase || '');
     setEditTeam(entry?.team || '');
     setEditingDetails(true);
   };
@@ -116,12 +118,15 @@ export default function ItemDashboard({
   const saveDetails = () => {
     if (onUpdateEntry) {
       const isFullDate = editTimeline && /^\d{4}-\d{2}-\d{2}$/.test(editTimeline);
+      // If phase is explicitly set, use it; otherwise auto-compute from deadline
+      const computedPhase = editPhase || getPhaseFromDate(editTimeline) || null;
       const updates = {
         owner: editOwners,
         collaborators: editCollaborators,
         team: editTeam,
         date: isFullDate ? editTimeline : null,
         timelineValue: editTimeline || null,
+        phase: computedPhase,
       };
       // Resolve all owner emails from SEED_USERS
       const ownerEmails = editOwners.map(name => {
@@ -1410,6 +1415,51 @@ export default function ItemDashboard({
                               ? entry.timelineValue
                               : entry.timelineValue || 'No date'}
                     </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Phase */}
+              <div>
+                <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">
+                  Phase
+                </div>
+                {editingDetails ? (
+                  <div className="space-y-1.5">
+                    {PHASES.map(p => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setEditPhase(editPhase === p.value ? '' : p.value)}
+                        className={cx(
+                          "w-full px-3 py-2 rounded-lg border text-left transition-all text-sm",
+                          editPhase === p.value
+                            ? "bg-ocean-50 border-ocean-400 ring-1 ring-ocean-200 font-medium text-ocean-900"
+                            : "border-graystone-200 text-graystone-600 hover:border-ocean-300"
+                        )}
+                      >
+                        <span className="font-medium">{p.label}</span>
+                        <span className="text-xs text-graystone-400 ml-2">{p.description}</span>
+                      </button>
+                    ))}
+                    {editPhase && (
+                      <button
+                        onClick={() => setEditPhase('')}
+                        className="text-xs text-ocean-600 hover:text-ocean-800 underline"
+                      >
+                        Clear (auto-detect from deadline)
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Icon name="layers" className="w-4 h-4 text-ocean-500" />
+                    <span className="text-sm font-medium text-graystone-900">
+                      {entry.phase || getPhaseFromDate(entry.date || entry.timelineValue) || 'No phase'}
+                    </span>
+                    {!entry.phase && getPhaseFromDate(entry.date || entry.timelineValue) && (
+                      <span className="text-xs text-graystone-400">(auto)</span>
+                    )}
                   </div>
                 )}
               </div>

@@ -16,6 +16,8 @@ import {
   JOB_STATUSES,
   STICKY_COLORS,
   SEED_USERS,
+  PHASES,
+  getPhaseFromDate,
 } from './utils/config';
 
 // Import UI components
@@ -339,6 +341,7 @@ export default function App() {
           custom_fields: item.customFields || [],
           attachments: item.attachments || [],
           item_type: item.itemType || 'project',
+          phase: item.phase || getPhaseFromDate(item.timelineValue || item.date) || null,
         }])
         .select()
         .single();
@@ -376,6 +379,15 @@ export default function App() {
       if (updates.dependencies !== undefined) updateObj.dependencies = updates.dependencies;
       if (updates.customFields !== undefined) updateObj.custom_fields = updates.customFields;
       if (updates.attachments !== undefined) updateObj.attachments = updates.attachments;
+      if (updates.phase !== undefined) updateObj.phase = updates.phase;
+      // Auto-compute phase from deadline when deadline changes and no explicit phase set
+      if (updates.phase === undefined && (updates.timelineValue !== undefined || updates.date !== undefined)) {
+        const dateForPhase = updates.timelineValue || updates.date;
+        if (dateForPhase) {
+          const computed = getPhaseFromDate(dateForPhase);
+          if (computed) updateObj.phase = computed;
+        }
+      }
 
       const { error } = await supabase
         .from('workflow_items')
@@ -964,6 +976,7 @@ export default function App() {
     customFields: row.custom_fields || [],
     attachments: row.attachments || [],
     itemType: row.item_type || 'project',
+    phase: row.phase || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });

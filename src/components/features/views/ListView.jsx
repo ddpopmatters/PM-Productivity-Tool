@@ -176,6 +176,12 @@ function ListView({
                 <span>{entry.team}</span>
                 <span>-</span>
                 <span>{entry.timelineValue}</span>
+                {entry.phase && (
+                  <>
+                    <span>-</span>
+                    <span className="text-ocean-600 font-medium">{entry.phase}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
