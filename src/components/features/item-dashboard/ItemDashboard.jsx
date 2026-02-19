@@ -578,7 +578,7 @@ export default function ItemDashboard({
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="outline">{entry.workflowStatus}</Badge>
                 <span className="text-sm text-graystone-500">
-                  Created on {new Date(entry.date).toLocaleDateString()}
+                  Created on {new Date(entry.createdAt).toLocaleDateString()}
                 </span>
               </div>
             </div>
