@@ -64,6 +64,25 @@ $$;
 -- ============================================
 -- Run this block SECOND in the Supabase SQL editor.
 
+-- Ensure is_collaborator function exists (from 014, may not have been applied)
+CREATE OR REPLACE FUNCTION is_collaborator(collaborators_array TEXT[], user_email TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+    user_name TEXT;
+BEGIN
+    SELECT name INTO user_name
+    FROM user_profiles
+    WHERE email = user_email
+    LIMIT 1;
+
+    IF user_name IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN user_name = ANY(collaborators_array);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
 CREATE POLICY "workflow_items_select" ON workflow_items
     FOR SELECT TO authenticated
     USING (true);
