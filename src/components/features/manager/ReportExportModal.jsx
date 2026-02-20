@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import Icon from '../../ui/Icon';
-import { getPhaseFromDate } from '../../../utils/config';
+import { PHASES, getPhaseFromDate } from '../../../utils/config';
 
 const cx = (...xs) => xs.filter(Boolean).join(" ");
 
@@ -8,6 +8,7 @@ const OVERVIEW_SECTIONS = [
   { id: 'summaryStats', label: 'Summary Statistics', description: 'Total items, due this month' },
   { id: 'teamMembers', label: 'Team Member Summary', description: 'Each member with project count' },
   { id: 'projectsByMember', label: 'Projects by Member', description: 'Detailed project list grouped by team member' },
+  { id: 'projectsByPhase', label: 'Projects by Phase', description: 'Projects grouped by strategic phase' },
 ];
 
 const YEARLY_SECTIONS = [
@@ -208,6 +209,69 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
     });
   }
 
+  // Projects by Phase
+  if (enabledSections.projectsByPhase) {
+    body += `<h2>Projects by Phase</h2>`;
+    const allItems = reportData.memberData.flatMap(m => m.items);
+    PHASES.forEach(phase => {
+      const phaseItems = allItems.filter(item => {
+        const p = item.phase || getPhaseFromDate(item.date || item.timelineValue);
+        return p === phase.value;
+      });
+      // Deduplicate by id (item may appear under multiple members)
+      const seen = new Set();
+      const unique = phaseItems.filter(item => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+      body += `<div class="member-group">
+<div class="member-name">${escapeHtml(phase.label)} <span style="font-weight:normal;color:#64748b;">(${phase.description})</span> &mdash; ${unique.length} project${unique.length !== 1 ? 's' : ''}</div>`;
+      if (unique.length === 0) {
+        body += `<p style="color:#94a3b8;font-size:13px;margin:8px 0;">No projects in this phase</p>`;
+      } else {
+        body += `<table><tr><th>Project</th><th>Owner</th><th>Deadline</th><th>Collaborators</th></tr>`;
+        sortByDate(unique).forEach(item => {
+          const collabs = Array.isArray(item.collaborators) ? item.collaborators.join(', ') : '';
+          body += `<tr>
+<td>${escapeHtml(item.title || '')}</td>
+<td>${escapeHtml(formatOwner(item.owner))}</td>
+<td>${formatDate(item.date || item.timelineValue)}</td>
+<td>${escapeHtml(collabs) || '\u2014'}</td>
+</tr>`;
+        });
+        body += `</table>`;
+      }
+      body += `</div>`;
+    });
+    // Unphased items
+    const unphasedItems = allItems.filter(item => {
+      const p = item.phase || getPhaseFromDate(item.date || item.timelineValue);
+      return !p;
+    });
+    const seenUnphased = new Set();
+    const uniqueUnphased = unphasedItems.filter(item => {
+      if (seenUnphased.has(item.id)) return false;
+      seenUnphased.add(item.id);
+      return true;
+    });
+    if (uniqueUnphased.length > 0) {
+      body += `<div class="member-group">
+<div class="member-name">No Phase Assigned &mdash; ${uniqueUnphased.length} project${uniqueUnphased.length !== 1 ? 's' : ''}</div>
+<table><tr><th>Project</th><th>Owner</th><th>Deadline</th><th>Collaborators</th></tr>`;
+      sortByDate(uniqueUnphased).forEach(item => {
+        const collabs = Array.isArray(item.collaborators) ? item.collaborators.join(', ') : '';
+        body += `<tr>
+<td>${escapeHtml(item.title || '')}</td>
+<td>${escapeHtml(formatOwner(item.owner))}</td>
+<td>${formatDate(item.date || item.timelineValue)}</td>
+<td>${escapeHtml(collabs) || '\u2014'}</td>
+</tr>`;
+      });
+      body += `</table></div>`;
+    }
+  }
+
   // Key Highlights narrative
   if (enabledSections.keyHighlights) {
     body += `<h2>Key Highlights</h2>`;
@@ -300,6 +364,7 @@ const ReportExportModal = ({
     summaryStats: true,
     teamMembers: true,
     projectsByMember: true,
+    projectsByPhase: false,
     periodBreakdown: false,
     yearlyTeamSummary: false,
     projectsByPeriod: false,
