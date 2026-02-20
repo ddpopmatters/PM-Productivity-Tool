@@ -17,6 +17,12 @@ const YEARLY_SECTIONS = [
   { id: 'projectsByPeriod', label: 'Projects by Period', description: 'Detailed project list grouped by time period' },
 ];
 
+const VISUAL_SECTIONS = [
+  { id: 'chartStatus', label: 'Status Breakdown', description: 'Donut chart of projects by workflow status' },
+  { id: 'chartPhase', label: 'Phase Breakdown', description: 'Bar chart of projects by strategic phase' },
+  { id: 'chartMembers', label: 'Team Workload', description: 'Horizontal bar chart of projects per member' },
+];
+
 const NARRATIVE_SECTIONS = [
   { id: 'executiveSummary', label: 'Executive Summary', placeholder: 'Brief overview of team progress, priorities, and outlook...' },
   { id: 'keyHighlights', label: 'Key Highlights', placeholder: 'Notable achievements, milestones reached, successful deliveries...' },
@@ -90,6 +96,54 @@ function formatDate(dateStr) {
   }
   // Anything else — show as-is
   return dateStr;
+}
+
+// ── Chart colours (ocean palette, print-friendly) ────────────
+const CHART_COLORS = ['#0c4a6e', '#0284c7', '#38bdf8', '#7dd3fc', '#06b6d4', '#14b8a6', '#a78bfa', '#f59e0b', '#ef4444', '#84cc16'];
+
+function buildDonutChart(segments, size = 200) {
+  const total = segments.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return '<p style="color:#94a3b8;font-size:13px;">No data</p>';
+  const cx = size / 2, cy = size / 2, r = size * 0.35, stroke = size * 0.18;
+  let cumulative = 0;
+  const paths = segments.map((seg, i) => {
+    const frac = seg.value / total;
+    const startAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+    cumulative += frac;
+    const endAngle = cumulative * 2 * Math.PI - Math.PI / 2;
+    const large = frac > 0.5 ? 1 : 0;
+    const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+    const x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
+    const color = seg.color || CHART_COLORS[i % CHART_COLORS.length];
+    if (frac >= 0.999) {
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" />`;
+    }
+    return `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${stroke}" />`;
+  });
+  const legend = segments.map((seg, i) => {
+    const color = seg.color || CHART_COLORS[i % CHART_COLORS.length];
+    const pct = total > 0 ? Math.round(seg.value / total * 100) : 0;
+    return `<div style="display:flex;align-items:center;gap:6px;font-size:12px;"><span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0;"></span>${escapeHtml(seg.label)} (${seg.value}, ${pct}%)</div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths.join('')}
+<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="22" font-weight="700" fill="#0c4a6e">${total}</text></svg>
+<div style="display:flex;flex-direction:column;gap:4px;">${legend}</div></div>`;
+}
+
+function buildBarChart(bars, maxWidth = 500) {
+  if (bars.length === 0) return '<p style="color:#94a3b8;font-size:13px;">No data</p>';
+  const maxVal = Math.max(...bars.map(b => b.value), 1);
+  const rows = bars.map((bar, i) => {
+    const pct = (bar.value / maxVal) * 100;
+    const color = bar.color || CHART_COLORS[i % CHART_COLORS.length];
+    return `<div style="display:flex;align-items:center;gap:10px;margin:4px 0;">
+<div style="width:120px;font-size:12px;text-align:right;color:#334155;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(bar.label)}</div>
+<div style="flex:1;background:#f1f5f9;border-radius:4px;height:22px;max-width:${maxWidth}px;">
+<div style="width:${Math.max(pct, 2)}%;background:${color};height:100%;border-radius:4px;transition:width 0.3s;"></div></div>
+<div style="width:30px;font-size:12px;font-weight:600;color:#0c4a6e;">${bar.value}</div></div>`;
+  }).join('');
+  return `<div>${rows}</div>`;
 }
 
 // ── Report CSS (shared between preview and export) ──────────
@@ -175,6 +229,62 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
   <div class="stat-card"><div class="value">${reportData.dueThisMonth}</div><div class="label">Due This Month</div></div>
   <div class="stat-card"><div class="value">${reportData.memberData.length}</div><div class="label">Team Members</div></div>
 </div>`;
+  }
+
+  // ── Visualisations ──────────────────────────────────────────
+  const allReportItems = reportData.memberData.flatMap(m => m.items);
+  // Deduplicate (items may appear under multiple members)
+  const seenChart = new Set();
+  const uniqueReportItems = allReportItems.filter(item => {
+    if (seenChart.has(item.id)) return false;
+    seenChart.add(item.id);
+    return true;
+  });
+
+  // Status donut chart
+  if (enabledSections.chartStatus) {
+    const statusCounts = {};
+    uniqueReportItems.forEach(item => {
+      const s = item.workflowStatus || 'No status';
+      statusCounts[s] = (statusCounts[s] || 0) + 1;
+    });
+    const statusColors = {
+      'Idea': '#9ca3af', 'Discovery': '#a855f7', 'Preparation': '#f59e0b',
+      'In Delivery': '#0ea5e9', 'Delivered': '#2dd4bf', 'Impact Assessment': '#818cf8',
+      'Done': '#22c55e',
+    };
+    const segments = Object.entries(statusCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, value]) => ({ label, value, color: statusColors[label] }));
+    body += `<h2>Status Breakdown</h2><div style="margin:12px 0;">${buildDonutChart(segments)}</div>`;
+  }
+
+  // Phase bar chart
+  if (enabledSections.chartPhase) {
+    const phaseCounts = {};
+    PHASES.forEach(p => { phaseCounts[p.value] = 0; });
+    let unphased = 0;
+    uniqueReportItems.forEach(item => {
+      const p = item.phase || getPhaseFromDate(item.date || item.timelineValue);
+      if (p && phaseCounts[p] !== undefined) phaseCounts[p]++;
+      else unphased++;
+    });
+    const bars = PHASES.map((p, i) => ({
+      label: `${p.label} (${p.description})`,
+      value: phaseCounts[p.value],
+      color: CHART_COLORS[i],
+    }));
+    if (unphased > 0) bars.push({ label: 'Unassigned', value: unphased, color: '#9ca3af' });
+    body += `<h2>Phase Breakdown</h2><div style="margin:12px 0;">${buildBarChart(bars)}</div>`;
+  }
+
+  // Team workload bar chart
+  if (enabledSections.chartMembers) {
+    const bars = reportData.memberData
+      .filter(m => m.items.length > 0)
+      .sort((a, b) => b.items.length - a.items.length)
+      .map((m, i) => ({ label: m.name, value: m.items.length, color: CHART_COLORS[i % CHART_COLORS.length] }));
+    body += `<h2>Team Workload</h2><div style="margin:12px 0;">${buildBarChart(bars)}</div>`;
   }
 
   // Team Members Summary
@@ -365,6 +475,9 @@ const ReportExportModal = ({
     teamMembers: true,
     projectsByMember: true,
     projectsByPhase: false,
+    chartStatus: false,
+    chartPhase: false,
+    chartMembers: false,
     periodBreakdown: false,
     yearlyTeamSummary: false,
     projectsByPeriod: false,
@@ -530,6 +643,40 @@ const ReportExportModal = ({
               </div>
               <div className="space-y-1.5">
                 {OVERVIEW_SECTIONS.map(section => (
+                  <label
+                    key={section.id}
+                    className={cx(
+                      "flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition text-sm",
+                      enabledSections[section.id] ? "bg-ocean-50 border-ocean-300" : "bg-white border-graystone-200 hover:border-graystone-300"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabledSections[section.id]}
+                      onChange={() => toggleSection(section.id)}
+                      className="w-3.5 h-3.5 rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
+                    />
+                    <div>
+                      <div className="font-medium text-ocean-900 text-sm leading-tight">{section.label}</div>
+                      <div className="text-xs text-graystone-500 leading-tight">{section.description}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Visualisation Sections */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-ocean-900 uppercase tracking-wider">Visualisations</h3>
+                <div className="flex gap-2">
+                  <button onClick={() => toggleAllInGroup(VISUAL_SECTIONS, true)} className="text-xs text-ocean-600 hover:text-ocean-800">All</button>
+                  <span className="text-graystone-300">|</span>
+                  <button onClick={() => toggleAllInGroup(VISUAL_SECTIONS, false)} className="text-xs text-ocean-600 hover:text-ocean-800">None</button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {VISUAL_SECTIONS.map(section => (
                   <label
                     key={section.id}
                     className={cx(
