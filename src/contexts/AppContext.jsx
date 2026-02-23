@@ -59,20 +59,14 @@ export function AppProvider({ children }) {
       const email = user.email || '';
       setUserEmail(email);
 
-      // Set global variables for activity logging
-      window.__currentUserEmail = email;
-
       // Look up display name from SEED_USERS, fall back to user_metadata or email prefix
       const seedUser = SEED_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
       const userName = seedUser?.name || user.user_metadata?.name || email.split('@')[0] || 'User';
       setCurrentUser(userName);
-      window.__currentUserName = userName;
     } else {
       setAuthUser(null);
       setUserEmail('');
       setCurrentUser('');
-      window.__currentUserEmail = '';
-      window.__currentUserName = '';
     }
   }, []);
 

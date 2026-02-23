@@ -13,12 +13,12 @@ const OVERVIEW_SECTIONS = [
 
 const YEARLY_SECTIONS = [
   { id: 'periodBreakdown', label: 'Period Breakdown', description: 'Project counts by quarter/month' },
+  { id: 'chartPeriod', label: 'Period Chart', description: 'Visual bar chart of projects by quarter/month' },
   { id: 'yearlyTeamSummary', label: 'Team Member Summary', description: 'Yearly project counts per member' },
   { id: 'projectsByPeriod', label: 'Projects by Period', description: 'Detailed project list grouped by time period' },
 ];
 
 const VISUAL_SECTIONS = [
-  { id: 'chartStatus', label: 'Status Breakdown', description: 'Donut chart of projects by workflow status' },
   { id: 'chartPhase', label: 'Phase Breakdown', description: 'Bar chart of projects by strategic phase' },
   { id: 'chartMembers', label: 'Team Workload', description: 'Horizontal bar chart of projects per member' },
 ];
@@ -241,24 +241,6 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
     return true;
   });
 
-  // Status donut chart
-  if (enabledSections.chartStatus) {
-    const statusCounts = {};
-    uniqueReportItems.forEach(item => {
-      const s = item.workflowStatus || 'No status';
-      statusCounts[s] = (statusCounts[s] || 0) + 1;
-    });
-    const statusColors = {
-      'Idea': '#9ca3af', 'Discovery': '#a855f7', 'Preparation': '#f59e0b',
-      'In Delivery': '#0ea5e9', 'Delivered': '#2dd4bf', 'Impact Assessment': '#818cf8',
-      'Done': '#22c55e',
-    };
-    const segments = Object.entries(statusCounts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([label, value]) => ({ label, value, color: statusColors[label] }));
-    body += `<h2>Status Breakdown</h2><div style="margin:12px 0;">${buildDonutChart(segments)}</div>`;
-  }
-
   // Phase bar chart
   if (enabledSections.chartPhase) {
     const phaseCounts = {};
@@ -404,6 +386,16 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
     body += `</table>`;
   }
 
+  // Period bar chart (visual version of period breakdown)
+  if (enabledSections.chartPeriod) {
+    const bars = reportData.periodData.map((p, i) => ({
+      label: p.key,
+      value: p.items.length,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    }));
+    body += `<h2>${yearForReport} &mdash; ${periodType === 'quarter' ? 'Quarterly' : 'Monthly'} Chart</h2><div style="margin:12px 0;">${buildBarChart(bars)}</div>`;
+  }
+
   // Yearly Team Summary
   if (enabledSections.yearlyTeamSummary) {
     body += `<h2>${yearForReport} &mdash; Team Member Summary</h2>
@@ -475,10 +467,10 @@ const ReportExportModal = ({
     teamMembers: true,
     projectsByMember: true,
     projectsByPhase: false,
-    chartStatus: false,
     chartPhase: false,
     chartMembers: false,
     periodBreakdown: false,
+    chartPeriod: false,
     yearlyTeamSummary: false,
     projectsByPeriod: false,
     executiveSummary: false,

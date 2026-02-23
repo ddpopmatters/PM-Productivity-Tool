@@ -6,3 +6,4 @@ export { default as AddJobModal } from './AddJobModal';
 export { default as JobDetailModal } from './JobDetailModal';
 export { default as AddItemTypeModal } from './AddItemTypeModal';
 export { default as ConvertItemModal } from './ConvertItemModal';
+export { default as AddSubtaskModal } from './AddSubtaskModal';

@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icon, Button, Badge, LoadingSpinner } from '../../ui';
 import { validateFilesForUpload, getAllowedExtensions } from '../../../utils/security';
 import { SEED_USERS, TEAMS, PHASES, getPhaseFromDate } from '../../../utils/config';
+import SubtaskDetailModal from './SubtaskDetailModal';
+import DescriptionModal from './DescriptionModal';
+import DocumentsModal from './DocumentsModal';
+import DependenciesModal from './DependenciesModal';
+import CustomFieldsModal from './CustomFieldsModal';
 
 // Local className joining utility
 const cx = (...classes) => classes.filter(Boolean).join(' ');
@@ -1796,738 +1801,147 @@ export default function ItemDashboard({
 
       {/* Subtask Detail Modal */}
       {activeSubtask && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="subtask-detail-title"
-        >
-          <div
-            className="fixed inset-0"
-            onClick={() => {
+        <SubtaskDetailModal
+          activeSubtask={activeSubtask}
+          editingSubtask={editingSubtask}
+          editSubtaskTitle={editSubtaskTitle}
+          editSubtaskDeadline={editSubtaskDeadline}
+          editSubtaskOwner={editSubtaskOwner}
+          editSubtaskContext={editSubtaskContext}
+          onSetEditSubtaskTitle={setEditSubtaskTitle}
+          onSetEditSubtaskDeadline={setEditSubtaskDeadline}
+          onSetEditSubtaskOwner={setEditSubtaskOwner}
+          onSetEditSubtaskContext={setEditSubtaskContext}
+          onClose={() => {
+            setActiveSubtask(null);
+            setEditingSubtask(false);
+          }}
+          onStartEditing={() => {
+            setEditSubtaskTitle(activeSubtask.title);
+            setEditSubtaskDeadline(activeSubtask.deadline || '');
+            setEditSubtaskOwner(activeSubtask.assignedTo || '');
+            setEditSubtaskContext(activeSubtask.context || '');
+            setEditingSubtask(true);
+          }}
+          onCancelEditing={() => setEditingSubtask(false)}
+          onSaveEdit={() => {
+            onEditSubtask(entry.id, activeSubtask.id, {
+              title: editSubtaskTitle,
+              assignedTo: editSubtaskOwner,
+              deadline: editSubtaskDeadline,
+              context: editSubtaskContext,
+            });
+            setActiveSubtask({
+              ...activeSubtask,
+              title: editSubtaskTitle,
+              assignedTo: editSubtaskOwner,
+              deadline: editSubtaskDeadline,
+              context: editSubtaskContext,
+            });
+            setEditingSubtask(false);
+          }}
+          onDelete={() => {
+            if (confirm('Are you sure you want to delete this subtask?')) {
+              onDeleteSubtask(entry.id, activeSubtask.id);
               setActiveSubtask(null);
-              setEditingSubtask(false);
-            }}
-            aria-hidden="true"
-          />
-          <div className="relative bg-white rounded-2xl p-6 w-full max-w-md shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 id="subtask-detail-title" className="text-lg font-bold text-ocean-900">
-                {editingSubtask ? 'Edit Subtask' : 'Subtask Details'}
-              </h3>
-              <button
-                onClick={() => {
-                  setActiveSubtask(null);
-                  setEditingSubtask(false);
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
-                aria-label="Close subtask details"
-              >
-                <Icon name="x" className="w-5 h-5 text-white" />
-              </button>
-            </div>
-
-            {editingSubtask ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    value={editSubtaskTitle}
-                    onChange={(e) => setEditSubtaskTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                      Assignee
-                    </label>
-                    <select
-                      value={editSubtaskOwner}
-                      onChange={(e) => setEditSubtaskOwner(e.target.value)}
-                      className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                    >
-                      <option value="">Unassigned</option>
-                      {USERS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                      Deadline
-                    </label>
-                    <input
-                      type="date"
-                      value={editSubtaskDeadline}
-                      onChange={(e) => setEditSubtaskDeadline(e.target.value)}
-                      className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                    Context / Notes
-                  </label>
-                  <textarea
-                    value={editSubtaskContext}
-                    onChange={(e) => setEditSubtaskContext(e.target.value)}
-                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100 min-h-[80px]"
-                    placeholder="Add any extra details..."
-                  />
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    onClick={() => setEditingSubtask(false)}
-                    className="px-4 py-2 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      onEditSubtask(entry.id, activeSubtask.id, {
-                        title: editSubtaskTitle,
-                        assignedTo: editSubtaskOwner,
-                        deadline: editSubtaskDeadline,
-                        context: editSubtaskContext,
-                      });
-                      setActiveSubtask({
-                        ...activeSubtask,
-                        title: editSubtaskTitle,
-                        assignedTo: editSubtaskOwner,
-                        deadline: editSubtaskDeadline,
-                        context: editSubtaskContext,
-                      });
-                      setEditingSubtask(false);
-                    }}
-                    disabled={!editSubtaskTitle.trim()}
-                    className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">
-                    Title
-                  </div>
-                  <div className="text-sm font-medium text-ocean-900">{activeSubtask.title}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">
-                      Assignee
-                    </div>
-                    <div className="text-graystone-800">
-                      {activeSubtask.assignedTo || 'Unassigned'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">
-                      Deadline
-                    </div>
-                    <div className="text-graystone-800">{activeSubtask.deadline || 'None'}</div>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1">
-                    Context
-                  </div>
-                  <div className="text-sm text-graystone-700 whitespace-pre-line bg-graystone-50 border border-graystone-200 rounded-xl px-3 py-2">
-                    {activeSubtask.context || 'No additional context provided.'}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={!!activeSubtask.completed}
-                    readOnly
-                    className="w-4 h-4 rounded border-graystone-300"
-                  />
-                  <span className="text-sm text-graystone-700">
-                    {activeSubtask.completed ? 'Completed' : 'Open'}
-                  </span>
-                </div>
-
-                {canEdit && (
-                  <div className="flex justify-between items-center pt-4 border-t border-graystone-200 mt-4">
-                    <button
-                      onClick={() => {
-                        if (confirm('Are you sure you want to delete this subtask?')) {
-                          onDeleteSubtask(entry.id, activeSubtask.id);
-                          setActiveSubtask(null);
-                        }
-                      }}
-                      className="px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5"
-                    >
-                      <Icon name="trash-2" className="w-4 h-4" />
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditSubtaskTitle(activeSubtask.title);
-                        setEditSubtaskDeadline(activeSubtask.deadline || '');
-                        setEditSubtaskOwner(activeSubtask.assignedTo || '');
-                        setEditSubtaskContext(activeSubtask.context || '');
-                        setEditingSubtask(true);
-                      }}
-                      className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm flex items-center gap-1.5"
-                    >
-                      <Icon name="edit" className="w-4 h-4" />
-                      Edit Subtask
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+            }
+          }}
+          canEdit={canEdit}
+          USERS={USERS}
+        />
       )}
 
       {/* Description Modal */}
       {descriptionModalOpen && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="description-modal-title"
-        >
-          <div
-            className="fixed inset-0"
-            onClick={() => {
-              setDescriptionDraft(getCaption());
-              setDescriptionModalOpen(false);
-            }}
-            aria-hidden="true"
-          />
-          <div className="relative bg-white rounded-2xl p-6 w-full max-w-xl shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 id="description-modal-title" className="text-lg font-bold text-ocean-900">
-                Edit description
-              </h3>
-              <button
-                onClick={() => {
-                  setDescriptionDraft(getCaption());
-                  setDescriptionModalOpen(false);
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
-                aria-label="Close description editor"
-              >
-                <Icon name="x" className="w-5 h-5 text-white" />
-              </button>
-            </div>
-            <p className="text-sm text-graystone-600 mb-3">
-              Keep this concise—the first few lines appear in the task preview. Use @name to
-              mention someone.
-            </p>
-            <div className="relative">
-              <textarea
-                value={descriptionDraft}
-                onChange={handleDescriptionChange}
-                className="w-full rounded-xl border border-graystone-200 px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200"
-                rows="5"
-                placeholder="Add a short description... Use @ to mention someone"
-              />
-              {descMentionOptions.length > 0 && (
-                <div className="absolute left-0 right-0 mt-1 rounded-xl border border-ocean-200 bg-white shadow-xl z-10 overflow-hidden">
-                  <div className="px-3 py-2 bg-ocean-50 border-b border-ocean-100">
-                    <span className="text-xs font-medium text-ocean-700">Mention someone</span>
-                  </div>
-                  {descMentionOptions.map((name, idx) => (
-                    <button
-                      type="button"
-                      key={name}
-                      onClick={() => handleDescMentionPick(name)}
-                      className={cx(
-                        'w-full text-left px-3 py-2.5 text-sm text-graystone-800 hover:bg-ocean-50 flex items-center gap-3 transition-colors',
-                        idx === 0 && 'bg-ocean-50/50'
-                      )}
-                    >
-                      <span className="w-8 h-8 rounded-full bg-ocean-100 text-ocean-700 flex items-center justify-center text-sm font-bold">
-                        {name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .join('')
-                          .substring(0, 2)}
-                      </span>
-                      <span className="font-medium">{name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 mt-4">
-              <button
-                onClick={() => {
-                  setDescriptionDraft(getCaption());
-                  setDescriptionModalOpen(false);
-                }}
-                className="px-4 py-2 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDescriptionSave}
-                className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
+        <DescriptionModal
+          descriptionDraft={descriptionDraft}
+          descMentionOptions={descMentionOptions}
+          onDescriptionChange={handleDescriptionChange}
+          onDescMentionPick={handleDescMentionPick}
+          onSave={handleDescriptionSave}
+          onClose={() => {
+            setDescriptionDraft(getCaption());
+            setDescriptionModalOpen(false);
+          }}
+        />
       )}
 
       {/* Documents Modal */}
       {documentsModalOpen && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="documents-modal-title"
-        >
-          <div
-            className="fixed inset-0"
-            onClick={() => {
-              setDocumentsDraft(getDocuments());
-              resetDocForm();
-              setDocumentsModalOpen(false);
-            }}
-            aria-hidden="true"
-          />
-          <div className="relative bg-white rounded-2xl p-6 w-full max-w-xl shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 id="documents-modal-title" className="text-lg font-bold text-ocean-900">
-                SharePoint Links
-              </h3>
-              <button
-                onClick={() => {
-                  setDocumentsDraft(getDocuments());
-                  resetDocForm();
-                  setDocumentsModalOpen(false);
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
-                aria-label="Close documents manager"
-              >
-                <Icon name="x" className="w-5 h-5 text-white" />
-              </button>
-            </div>
-            <p className="text-sm text-graystone-600 mb-4">
-              Add links to SharePoint files so the team can find assets fast.
-            </p>
-
-            {/* Add Link Form */}
-            {showAddLinkForm ? (
-              <div className="bg-ocean-50 border border-ocean-200 rounded-xl p-4 mb-4">
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                      Title *
-                    </label>
-                    <input
-                      type="text"
-                      value={newDocTitle}
-                      onChange={(e) => setNewDocTitle(e.target.value)}
-                      placeholder="e.g., Campaign Brief Q1"
-                      className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                      SharePoint URL
-                    </label>
-                    <input
-                      type="url"
-                      value={newDocUrl}
-                      onChange={(e) => setNewDocUrl(e.target.value)}
-                      placeholder="https://sharepoint.com/..."
-                      className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                      Notes
-                    </label>
-                    <textarea
-                      value={newDocNotes}
-                      onChange={(e) => setNewDocNotes(e.target.value)}
-                      placeholder="Add any helpful context about this file..."
-                      className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100 bg-white min-h-[60px]"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      onClick={resetDocForm}
-                      className="px-3 py-1.5 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={addDocumentDraft}
-                      disabled={!newDocTitle.trim() && !newDocUrl.trim()}
-                      className="px-4 py-1.5 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Add Link
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAddLinkForm(true)}
-                className="w-full px-4 py-3 mb-4 bg-ocean-50 text-ocean-700 text-sm font-medium rounded-xl hover:bg-ocean-100 transition-colors border border-ocean-200 border-dashed flex items-center justify-center gap-2"
-              >
-                <Icon name="plus" className="w-4 h-4" />
-                Add SharePoint Link
-              </button>
-            )}
-
-            {/* Links List */}
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {documentsDraft.length > 0 ? (
-                documentsDraft.map((doc, index) => {
-                  const title = getDocTitle(doc);
-                  const url = getDocUrl(doc);
-                  const notes = getDocNotes(doc);
-                  return (
-                    <div
-                      key={`${typeof doc === 'string' ? doc : doc.id}-${index}`}
-                      className="rounded-xl border border-graystone-200 p-3 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2 min-w-0 flex-1">
-                          <Icon name="link" className="w-4 h-4 text-ocean-600 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-graystone-800">{title}</div>
-                            {url && (
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-ocean-600 hover:underline truncate block"
-                              >
-                                {url}
-                              </a>
-                            )}
-                            {notes && (
-                              <div className="text-xs text-graystone-500 mt-1">{notes}</div>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => removeDocumentDraft(index)}
-                          className="p-1 rounded-full hover:bg-graystone-100 transition-colors shrink-0"
-                        >
-                          <Icon name="trash-2" className="w-4 h-4 text-rose-500" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-sm text-graystone-500 bg-graystone-50 border border-dashed border-graystone-200 rounded-xl px-3 py-6 text-center">
-                  <div className="flex justify-center mb-2">
-                    <Icon name="link" className="w-6 h-6 text-graystone-300" />
-                  </div>
-                  No links added yet
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-graystone-200">
-              <button
-                onClick={() => {
-                  setDocumentsDraft(getDocuments());
-                  resetDocForm();
-                  setDocumentsModalOpen(false);
-                }}
-                className="px-4 py-2 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDocumentsSave}
-                className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
+        <DocumentsModal
+          documentsDraft={documentsDraft}
+          showAddLinkForm={showAddLinkForm}
+          newDocTitle={newDocTitle}
+          newDocUrl={newDocUrl}
+          newDocNotes={newDocNotes}
+          onSetNewDocTitle={setNewDocTitle}
+          onSetNewDocUrl={setNewDocUrl}
+          onSetNewDocNotes={setNewDocNotes}
+          onShowAddLinkForm={() => setShowAddLinkForm(true)}
+          onResetDocForm={resetDocForm}
+          onAddDocumentDraft={addDocumentDraft}
+          onRemoveDocumentDraft={removeDocumentDraft}
+          getDocTitle={getDocTitle}
+          getDocUrl={getDocUrl}
+          getDocNotes={getDocNotes}
+          onSave={handleDocumentsSave}
+          onClose={() => {
+            setDocumentsDraft(getDocuments());
+            resetDocForm();
+            setDocumentsModalOpen(false);
+          }}
+        />
       )}
 
       {/* Dependencies Modal */}
       {dependenciesModalOpen && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="dependencies-modal-title"
-        >
-          <div
-            className="fixed inset-0"
-            onClick={() => {
-              setDependenciesModalOpen(false);
-              setDependencySearch('');
-            }}
-            aria-hidden="true"
-          />
-          <div className="relative bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 id="dependencies-modal-title" className="text-lg font-bold text-ocean-900">
-                Add Dependencies
-              </h3>
-              <button
-                onClick={() => {
-                  setDependenciesModalOpen(false);
-                  setDependencySearch('');
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
-                aria-label="Close dependencies dialog"
-              >
-                <Icon name="x" className="w-5 h-5 text-white" />
-              </button>
-            </div>
-            <p className="text-sm text-graystone-600 mb-4">
-              Select items that must be completed before this item can progress.
-            </p>
-
-            {/* Search */}
-            <div className="relative mb-4">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2">
-                <Icon name="search" className="w-4 h-4 text-graystone-400" />
-              </span>
-              <input
-                type="text"
-                placeholder="Search items..."
-                value={dependencySearch}
-                onChange={(e) => setDependencySearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-              />
-            </div>
-
-            {/* Available Items */}
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {allEntries
-                .filter(
-                  (e) =>
-                    e.id !== entry.id &&
-                    !(entry.dependencies || []).includes(e.id) &&
-                    (dependencySearch === '' ||
-                      e.title.toLowerCase().includes(dependencySearch.toLowerCase()) ||
-                      e.owner?.some(o => o.toLowerCase().includes(dependencySearch.toLowerCase())))
-                )
-                .slice(0, 20)
-                .map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      const newDeps = [...(entry.dependencies || []), item.id];
-                      onUpdateEntry(entry.id, { dependencies: newDeps });
-                    }}
-                    className="w-full text-left p-3 rounded-xl border border-graystone-200 hover:border-ocean-300 hover:bg-ocean-50 transition-all flex items-center justify-between group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-graystone-900 truncate">
-                        {item.title}
-                      </div>
-                      <div className="text-xs text-graystone-500 flex items-center gap-2 mt-0.5">
-                        <span>{item.owner}</span>
-                        <span>•</span>
-                        <span
-                          className={cx(
-                            'px-1.5 py-0.5 rounded text-[10px] font-medium',
-                            item.workflowStatus === 'Done'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-amber-100 text-amber-700'
-                          )}
-                        >
-                          {item.workflowStatus}
-                        </span>
-                      </div>
-                    </div>
-                    <Icon
-                      name="plus"
-                      className="w-4 h-4 text-ocean-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    />
-                  </button>
-                ))}
-              {allEntries.filter(
-                (e) =>
-                  e.id !== entry.id &&
-                  !(entry.dependencies || []).includes(e.id) &&
-                  (dependencySearch === '' ||
-                    e.title.toLowerCase().includes(dependencySearch.toLowerCase()) ||
-                    e.owner?.some(o => o.toLowerCase().includes(dependencySearch.toLowerCase())))
-              ).length === 0 && (
-                <div className="text-sm text-graystone-500 text-center py-6 bg-graystone-50 rounded-xl">
-                  No matching items found
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={() => {
-                  setDependenciesModalOpen(false);
-                  setDependencySearch('');
-                }}
-                className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
+        <DependenciesModal
+          entry={entry}
+          allEntries={allEntries}
+          dependencySearch={dependencySearch}
+          onSetDependencySearch={setDependencySearch}
+          onAddDependency={(itemId) => {
+            const newDeps = [...(entry.dependencies || []), itemId];
+            onUpdateEntry(entry.id, { dependencies: newDeps });
+          }}
+          onClose={() => {
+            setDependenciesModalOpen(false);
+            setDependencySearch('');
+          }}
+        />
       )}
 
       {/* Custom Fields Modal */}
       {customFieldsModalOpen && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="custom-fields-modal-title"
-        >
-          <div
-            className="fixed inset-0"
-            onClick={() => {
+        <CustomFieldsModal
+          newFieldName={newFieldName}
+          newFieldValue={newFieldValue}
+          newFieldType={newFieldType}
+          onSetNewFieldName={setNewFieldName}
+          onSetNewFieldValue={setNewFieldValue}
+          onSetNewFieldType={setNewFieldType}
+          onAdd={() => {
+            if (newFieldName.trim() && newFieldValue.trim()) {
+              const newField = {
+                name: newFieldName.trim(),
+                value: newFieldValue.trim(),
+                type: newFieldType,
+              };
+              const existingFields = entry.customFields || [];
+              onUpdateEntry(entry.id, { customFields: [...existingFields, newField] });
               setCustomFieldsModalOpen(false);
               setNewFieldName('');
               setNewFieldValue('');
               setNewFieldType('text');
-            }}
-            aria-hidden="true"
-          />
-          <div className="relative bg-white rounded-2xl p-6 w-full max-w-md shadow-xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 id="custom-fields-modal-title" className="text-lg font-bold text-ocean-900">
-                Add Custom Field
-              </h3>
-              <button
-                onClick={() => {
-                  setCustomFieldsModalOpen(false);
-                  setNewFieldName('');
-                  setNewFieldValue('');
-                  setNewFieldType('text');
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-ocean-500 hover:bg-ocean-600 transition-colors"
-                aria-label="Close custom fields dialog"
-              >
-                <Icon name="x" className="w-5 h-5 text-white" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                  Field Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g., Budget, Priority, External Link"
-                  value={newFieldName}
-                  onChange={(e) => setNewFieldName(e.target.value)}
-                  className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                  Field Type
-                </label>
-                <select
-                  value={newFieldType}
-                  onChange={(e) => setNewFieldType(e.target.value)}
-                  className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                >
-                  <option value="text">Text</option>
-                  <option value="number">Number</option>
-                  <option value="date">Date</option>
-                  <option value="url">URL</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-graystone-500 uppercase tracking-wider mb-1 block">
-                  Value
-                </label>
-                {newFieldType === 'date' ? (
-                  <input
-                    type="date"
-                    value={newFieldValue}
-                    onChange={(e) => setNewFieldValue(e.target.value)}
-                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                  />
-                ) : newFieldType === 'number' ? (
-                  <input
-                    type="number"
-                    placeholder="Enter a number"
-                    value={newFieldValue}
-                    onChange={(e) => setNewFieldValue(e.target.value)}
-                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                  />
-                ) : newFieldType === 'url' ? (
-                  <input
-                    type="url"
-                    placeholder="https://..."
-                    value={newFieldValue}
-                    onChange={(e) => setNewFieldValue(e.target.value)}
-                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    placeholder="Enter value"
-                    value={newFieldValue}
-                    onChange={(e) => setNewFieldValue(e.target.value)}
-                    className="w-full px-3 py-2 border border-graystone-200 rounded-lg text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-100"
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setCustomFieldsModalOpen(false);
-                  setNewFieldName('');
-                  setNewFieldValue('');
-                  setNewFieldType('text');
-                }}
-                className="px-4 py-2 text-sm font-medium text-graystone-600 hover:text-graystone-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (newFieldName.trim() && newFieldValue.trim()) {
-                    const newField = {
-                      name: newFieldName.trim(),
-                      value: newFieldValue.trim(),
-                      type: newFieldType,
-                    };
-                    const existingFields = entry.customFields || [];
-                    onUpdateEntry(entry.id, { customFields: [...existingFields, newField] });
-                    setCustomFieldsModalOpen(false);
-                    setNewFieldName('');
-                    setNewFieldValue('');
-                    setNewFieldType('text');
-                  }
-                }}
-                disabled={!newFieldName.trim() || !newFieldValue.trim()}
-                className="px-4 py-2 bg-ocean-600 text-white text-sm font-medium rounded-lg hover:bg-ocean-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add Field
-              </button>
-            </div>
-          </div>
-        </div>
+            }
+          }}
+          onClose={() => {
+            setCustomFieldsModalOpen(false);
+            setNewFieldName('');
+            setNewFieldValue('');
+            setNewFieldType('text');
+          }}
+        />
       )}
     </>
   );

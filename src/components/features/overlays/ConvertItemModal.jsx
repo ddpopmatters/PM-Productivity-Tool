@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Icon from '../../ui/Icon';
+import { Logger } from '../../../utils/logger';
 
 const cx = (...args) => args.filter(Boolean).join(' ');
 
@@ -146,7 +147,7 @@ const ConvertItemModal = ({
       }
       onClose();
     } catch (err) {
-      console.error('Conversion failed:', err);
+      Logger.error(err, 'Conversion failed');
     } finally {
       setIsConverting(false);
     }
