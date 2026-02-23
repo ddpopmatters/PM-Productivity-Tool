@@ -97,3 +97,124 @@ describe('Validators.isValidPassword', () => {
     expect(Validators.isValidPassword(12345678)).toBe(false);
   });
 });
+
+// -- Form-level validators ---------------------------------------------------
+
+describe('Validators.validateRequired', () => {
+  it('returns null for non-empty string', () => {
+    expect(Validators.validateRequired('hello')).toBeNull();
+  });
+
+  it('returns error for empty string', () => {
+    expect(Validators.validateRequired('')).toBe('This field is required');
+  });
+
+  it('returns error for whitespace-only', () => {
+    expect(Validators.validateRequired('   ')).toBe('This field is required');
+  });
+
+  it('returns error for null and undefined', () => {
+    expect(Validators.validateRequired(null)).toBe('This field is required');
+    expect(Validators.validateRequired(undefined)).toBe('This field is required');
+  });
+
+  it('returns null for numbers and booleans', () => {
+    expect(Validators.validateRequired(0)).toBeNull();
+    expect(Validators.validateRequired(false)).toBeNull();
+  });
+});
+
+describe('Validators.validateMaxLength', () => {
+  it('returns null when string is within limit', () => {
+    const validate = Validators.validateMaxLength(10);
+    expect(validate('short')).toBeNull();
+  });
+
+  it('returns null at exactly the limit', () => {
+    const validate = Validators.validateMaxLength(5);
+    expect(validate('12345')).toBeNull();
+  });
+
+  it('returns error when string exceeds limit', () => {
+    const validate = Validators.validateMaxLength(5);
+    expect(validate('123456')).toBe('Must be 5 characters or fewer');
+  });
+
+  it('returns null for non-string values', () => {
+    const validate = Validators.validateMaxLength(5);
+    expect(validate(null)).toBeNull();
+    expect(validate(123)).toBeNull();
+  });
+});
+
+describe('Validators.validateUrl', () => {
+  it('returns null for valid URLs', () => {
+    expect(Validators.validateUrl('https://example.com')).toBeNull();
+    expect(Validators.validateUrl('http://localhost:3000')).toBeNull();
+  });
+
+  it('returns error for invalid URLs', () => {
+    expect(Validators.validateUrl('not-a-url')).toBe('Must be a valid URL');
+    expect(Validators.validateUrl('just some text')).toBe('Must be a valid URL');
+  });
+
+  it('returns null for empty/null (not required)', () => {
+    expect(Validators.validateUrl('')).toBeNull();
+    expect(Validators.validateUrl(null)).toBeNull();
+    expect(Validators.validateUrl(undefined)).toBeNull();
+  });
+});
+
+describe('Validators.validateDate', () => {
+  it('returns null for valid date strings', () => {
+    expect(Validators.validateDate('2025-01-15')).toBeNull();
+    expect(Validators.validateDate('2025-12-31T23:59:59Z')).toBeNull();
+  });
+
+  it('returns error for invalid date strings', () => {
+    expect(Validators.validateDate('not-a-date')).toBe('Must be a valid date');
+  });
+
+  it('returns null for empty/null (not required)', () => {
+    expect(Validators.validateDate('')).toBeNull();
+    expect(Validators.validateDate(null)).toBeNull();
+  });
+});
+
+describe('Validators.validateForm', () => {
+  it('returns null when all fields pass', () => {
+    const values = { title: 'My Item', url: 'https://example.com' };
+    const rules = {
+      title: [Validators.validateRequired],
+      url: [Validators.validateUrl],
+    };
+    expect(Validators.validateForm(values, rules)).toBeNull();
+  });
+
+  it('returns errors for failing fields', () => {
+    const values = { title: '', url: 'bad' };
+    const rules = {
+      title: [Validators.validateRequired],
+      url: [Validators.validateUrl],
+    };
+    const errors = Validators.validateForm(values, rules);
+    expect(errors.title).toBe('This field is required');
+    expect(errors.url).toBe('Must be a valid URL');
+  });
+
+  it('stops at first error per field', () => {
+    const values = { name: '' };
+    const rules = {
+      name: [Validators.validateRequired, Validators.validateMaxLength(5)],
+    };
+    const errors = Validators.validateForm(values, rules);
+    expect(errors.name).toBe('This field is required');
+  });
+
+  it('handles missing fields in values', () => {
+    const values = {};
+    const rules = { title: [Validators.validateRequired] };
+    const errors = Validators.validateForm(values, rules);
+    expect(errors.title).toBe('This field is required');
+  });
+});

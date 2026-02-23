@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 import ReportExportModal from './ReportExportModal';
 import ManagerTimeline from './ManagerTimeline';
-
-// Local utilities
-const cx = (...xs) => xs.filter(Boolean).join(" ");
 
 const selectBaseClasses =
   "dropdown-font rounded-full border border-black bg-white px-4 py-2 text-sm font-normal text-black shadow-[0_0_20px_rgba(15,157,222,0.2)] transition hover:bg-black hover:text-white focus:border-black focus:outline-none focus:ring-4 focus:ring-[#0F9DDE]/40 focus:ring-offset-2 focus:ring-offset-[#CFEBF8] disabled:cursor-not-allowed disabled:opacity-60";
@@ -501,7 +499,7 @@ const ManagerHub = ({
           <button
             key={tab.id}
             onClick={() => setManagerHubTab && setManagerHubTab(tab.id)}
-            className={cx(
+            className={clsx(
               "flex items-center gap-2 px-4 py-3 text-sm font-medium transition border-b-2 -mb-px",
               (managerHubTab || 'overview') === tab.id
                 ? "text-ocean-700 border-ocean-500"
@@ -554,7 +552,7 @@ const ManagerHub = ({
                   <div
                     key={email}
                     onClick={() => togglePreviewMember(email)}
-                    className={cx(
+                    className={clsx(
                       "p-4 rounded-lg border cursor-pointer transition-all",
                       isSelected
                         ? "bg-ocean-50 border-ocean-500 ring-2 ring-ocean-200"
@@ -735,7 +733,7 @@ const ManagerHub = ({
                     {timelineFilter === 'week' ? 'Busy Weeks' : timelineFilter === 'month' ? 'Monthly Breakdown' : 'Quarterly Breakdown'}
                     <span className="text-sm font-normal text-graystone-500">({yearItems.length} total projects)</span>
                   </h4>
-                  <div className={cx(
+                  <div className={clsx(
                     "grid gap-2",
                     timelineFilter === 'quarter' ? "grid-cols-4" : timelineFilter === 'month' ? "grid-cols-6 md:grid-cols-12" : "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-13"
                   )}>
@@ -748,7 +746,7 @@ const ManagerHub = ({
                         <div className="text-center">
                           <div className="text-xs font-medium text-graystone-600 mb-1">{p.label}</div>
                           <div
-                            className={cx(
+                            className={clsx(
                               "mx-auto rounded-lg transition-all",
                               p.count === 0 ? "bg-graystone-100" : p.count >= maxCount * 0.75 ? "bg-red-400" : p.count >= maxCount * 0.5 ? "bg-amber-400" : "bg-ocean-400"
                             )}
