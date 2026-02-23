@@ -391,6 +391,7 @@ export default function App() {
     switch (nav.currentView) {
       case 'dashboard':
         return (
+          <ErrorBoundary key="dashboard" message="The dashboard encountered an error.">
           <Dashboard
             entries={items.entries}
             currentUser={currentUser}
@@ -412,11 +413,13 @@ export default function App() {
             Badge={Badge}
             events={ev.events}
           />
+          </ErrorBoundary>
         );
 
       case 'item-dashboard': {
         const selectedEntry = items.entries.find(e => e.id === nav.selectedItemId);
         return (
+          <ErrorBoundary key={`item-${nav.selectedItemId}`} message="This item encountered an error. Try navigating back and reopening it.">
           <ItemDashboard
             entry={selectedEntry}
             onBack={nav.goBack}
@@ -438,6 +441,7 @@ export default function App() {
             canEditItem={canEditItem}
             WhiteboardPreviewCard={WhiteboardPreviewCard}
           />
+          </ErrorBoundary>
         );
       }
 
@@ -457,6 +461,7 @@ export default function App() {
         const activeFiltersCount = filters.ownerFilter.length + filters.teamFilter.length;
         const activeTagsCount = filters.tagFilter.length;
         return (
+          <ErrorBoundary key="personal" message="Your projects view encountered an error.">
           <div className="p-6 space-y-6">
             <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -723,34 +728,45 @@ export default function App() {
               </div>
             </div>
           </div>
+          </ErrorBoundary>
         );
       }
 
       case 'jobs':
         return (
+          <ErrorBoundary key="jobs" message="The jobs view encountered an error.">
           <JobsView entries={items.entries} setEntries={items.setEntries} currentUser={currentUser} userEmail={userEmail} darkMode={darkMode} supabase={supabase} Logger={Logger} userProfiles={SEED_USERS} teams={TEAMS} />
+          </ErrorBoundary>
         );
 
       case 'todo':
         return (
+          <ErrorBoundary key="todo" message="The to-do list encountered an error.">
           <ToDoList todos={todosHook.todos} onToggleTodo={todosHook.toggleTodo} onAddTodo={handleAddTodo} onUpdateTodo={todosHook.updateTodo} onDeleteTodo={todosHook.deleteTodo} entries={items.entries} workstreamTasks={ws.workstreamTasks} workstreams={ws.workstreams} currentUser={currentUser} onOpenEntry={nav.openEntry} />
+          </ErrorBoundary>
         );
 
       case 'calendar':
         return (
+          <ErrorBoundary key="calendar" message="The calendar encountered an error.">
           <Suspense fallback={<LoadingSpinner />}>
             <CalendarScreen entries={items.entries} todos={todosHook.todos} workstreamTasks={ws.workstreamTasks} workstreams={ws.workstreams} currentUser={currentUser} onOpenEntry={nav.openEntry} onUpdateEntry={items.updateEntry} onToggleTodo={todosHook.toggleTodo} onOpenWorkstreamTask={nav.openWorkstreamTask} />
           </Suspense>
+          </ErrorBoundary>
         );
 
       case 'events-calendar':
         return (
+          <ErrorBoundary key="events-calendar" message="The events calendar encountered an error.">
           <EventCalendar events={ev.events} entries={items.entries} workstreams={ws.workstreams} workstreamTasks={ws.workstreamTasks} currentUser={currentUser} onCreateEvent={handleCreateEvent} onUpdateEvent={ev.updateEvent} onDeleteEvent={ev.deleteEvent} onNavigateToEntry={(id) => nav.openEntry(id)} onNavigateToWorkstream={(id) => nav.openWorkstreamDetail(id)} />
+          </ErrorBoundary>
         );
 
       case 'add-item':
         return (
+          <ErrorBoundary key="add-item" message="The add item form encountered an error.">
           <AddItemForm onSubmit={handleAddItem} onCancel={nav.goBack} users={USERS} teams={TEAMS} statuses={KANBAN_STATUSES} timelineTypes={TIMELINE_TYPES} currentUser={currentUser} />
+          </ErrorBoundary>
         );
 
       case 'admin':
@@ -766,9 +782,11 @@ export default function App() {
           );
         }
         return (
+          <ErrorBoundary key="admin" message="The admin console encountered an error.">
           <Suspense fallback={<LoadingSpinner />}>
             <AdminConsole onBack={() => nav.navigate('dashboard')} currentUserEmail={userEmail} SUPABASE_API={SUPABASE_API} supabase={supabase} Logger={Logger} APP_CONFIG={APP_CONFIG} TEAMS={TEAMS} SEED_PROFILES={SEED_USERS} isAdmin={isAdmin} LoadingSpinner={LoadingSpinner} />
           </Suspense>
+          </ErrorBoundary>
         );
 
       case 'manager-hub':
@@ -784,6 +802,7 @@ export default function App() {
           );
         }
         return (
+          <ErrorBoundary key="manager-hub" message="The manager hub encountered an error.">
           <Suspense fallback={<LoadingSpinner />}>
             <ManagerHub
               managers={MANAGERS} teams={TEAMS} entries={items.entries} currentUser={currentUser} userEmail={userEmail}
@@ -801,11 +820,14 @@ export default function App() {
               TEAMS={TEAMS} isAdmin={isAdmin} Badge={Badge} APP_CONFIG={APP_CONFIG}
             />
           </Suspense>
+          </ErrorBoundary>
         );
 
       case 'whiteboards':
         return (
+          <ErrorBoundary key="whiteboards" message="The whiteboards view encountered an error.">
           <WhiteboardsView whiteboards={wb.whiteboards} setWhiteboards={wb.setWhiteboards} onOpenWhiteboard={(id) => nav.openWhiteboard(id)} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} />
+          </ErrorBoundary>
         );
 
       case 'whiteboard-canvas': {
@@ -820,15 +842,19 @@ export default function App() {
           );
         }
         return (
+          <ErrorBoundary key={`whiteboard-${nav.selectedWhiteboardId}`} message="The whiteboard encountered an error.">
           <Suspense fallback={<LoadingSpinner />}>
             <WhiteboardCanvas whiteboardId={nav.selectedWhiteboardId} whiteboard={currentWhiteboard} onBack={nav.goBack} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} supabase={supabase} Logger={Logger} STICKY_COLORS={STICKY_COLORS} StickyNote={StickyNote} WhiteboardElement={WhiteboardElement} TextBoxElement={TextBoxElement} ImageElement={ImageElement} ShapeElement={ShapeElement} />
           </Suspense>
+          </ErrorBoundary>
         );
       }
 
       case 'workstreams':
         return (
+          <ErrorBoundary key="workstreams" message="The workstreams view encountered an error.">
           <WorkstreamList workstreams={ws.workstreams} workstreamTasks={ws.workstreamTasks} currentUser={currentUser} userEmail={userEmail} onOpenWorkstream={(id) => nav.openWorkstreamDetail(id)} onCreateWorkstream={handleCreateWorkstream} />
+          </ErrorBoundary>
         );
 
       case 'workstream-detail': {
@@ -843,13 +869,17 @@ export default function App() {
           );
         }
         return (
+          <ErrorBoundary key={`workstream-${nav.selectedWorkstreamId}`} message="This workstream encountered an error.">
           <WorkstreamView workstream={viewWorkstream} workstreamTasks={ws.workstreamTasks.filter(t => t.workstream_id === nav.selectedWorkstreamId)} onBack={nav.goBack} onOpenTask={(taskId) => nav.openWorkstreamTask(nav.selectedWorkstreamId, taskId)} onCreateTask={ws.createWorkstreamTask} onUpdateTask={ws.updateWorkstreamTask} onUpdateWorkstream={ws.updateWorkstream} onDeleteWorkstream={handleDeleteWorkstream} WorkstreamSettings={WorkstreamSettings} userEmail={userEmail} currentUser={currentUser} USERS={USERS} />
+          </ErrorBoundary>
         );
       }
 
       case 'productivity-tools':
         return (
+          <ErrorBoundary key="productivity-tools" message="The productivity tools encountered an error.">
           <ProductivityToolsView userEmail={userEmail} habits={habits} setHabits={setHabits} matrixTasks={matrixTasks} setMatrixTasks={setMatrixTasks} Logger={Logger} PRODUCTIVITY_API={SUPABASE_API} />
+          </ErrorBoundary>
         );
 
       case 'workstream-task-detail': {
@@ -865,7 +895,9 @@ export default function App() {
           );
         }
         return (
+          <ErrorBoundary key={`ws-task-${nav.selectedWorkstreamTaskId}`} message="This task encountered an error.">
           <WorkstreamTaskDetail task={selectedTask} workstream={selectedWorkstream} currentUser={currentUser} userEmail={userEmail} entries={items.entries} onBack={nav.goBack} onUpdate={async (taskId, _wsId, updates) => { await ws.updateWorkstreamTask(taskId, updates); }} onDelete={async (taskId) => { return await ws.deleteWorkstreamTask(taskId); }} onConvert={(item, type) => modals.openConvertModal(item, type)} USERS={USERS} USERS_WITH_EMAILS={SEED_USERS} />
+          </ErrorBoundary>
         );
       }
 
