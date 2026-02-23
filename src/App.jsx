@@ -3,21 +3,29 @@ import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
 import { Logger } from './utils/logger';
-import { useNotifications } from './hooks/useNotifications';
-import { sanitizeEmailForQuery } from './utils/security';
+import { isAdmin, isManager, canEditItem } from './utils/auth';
+import { exportCSV, exportJSON } from './utils/export';
+import {
+  useWorkflowItems,
+  useTodos,
+  useWorkstreams,
+  useWhiteboards,
+  useEvents,
+  useFilters,
+  useNavigation,
+  useModals,
+  useKeyboardShortcuts,
+  useNotifications,
+} from './hooks';
 import {
   APP_CONFIG,
-  SUPABASE_CONFIG,
   USERS,
   TEAMS,
   MANAGERS,
   KANBAN_STATUSES,
   TIMELINE_TYPES,
-  JOB_STATUSES,
   STICKY_COLORS,
   SEED_USERS,
-  PHASES,
-  getPhaseFromDate,
 } from './utils/config';
 
 // Import UI components
@@ -25,28 +33,20 @@ import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination, ErrorBou
 
 // Import feature components
 import {
-  // Views
   ListView,
   TableView,
   KanbanBoard,
   JobsView,
   WhiteboardsView,
   ProductivityToolsView,
-  // Navigation
   Sidebar,
-  // Auth
   LoginScreen,
   AuthCallback,
-  // Dashboard
   Dashboard,
   ItemDashboard,
-  // Todos
   ToDoList,
-  // Forms
   AddItemForm,
-  // Filters
   FilterBar,
-  // Overlays
   NotificationsPanel,
   KeyboardShortcutsHelp,
   GlobalSearchModal,
@@ -55,14 +55,12 @@ import {
   JobDetailModal,
   AddItemTypeModal,
   ConvertItemModal,
-  // Workstreams
+  AddSubtaskModal,
   WorkstreamList,
   WorkstreamView,
   WorkstreamTaskDetail,
   WorkstreamSettings,
-  // Events
   EventCalendar,
-  // Whiteboards
   WhiteboardPreviewCard,
   StickyNote,
   TextBoxElement,
@@ -78,102 +76,8 @@ const WhiteboardCanvas = lazy(() => import('./components/features/whiteboards/Wh
 const AdminConsole = lazy(() => import('./components/features/admin/AdminConsole'));
 const ManagerHub = lazy(() => import('./components/features/manager/ManagerHub'));
 
-// Simple modal for adding subtasks to a project/task
-const AddSubtaskModal = ({ entryId, entries, users, currentUser, onAdd, onClose }) => {
-  const [title, setTitle] = React.useState('');
-  const [assignedTo, setAssignedTo] = React.useState(currentUser || '');
-  const [adding, setAdding] = React.useState(false);
-  const entry = entries.find(e => e.id === entryId);
-
-  const handleSubmit = async () => {
-    if (!title.trim() || adding) return;
-    setAdding(true);
-    await onAdd(title, assignedTo);
-    setAdding(false);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-graystone-200">
-          <h3 className="text-lg font-bold text-ocean-900">Add Subtask</h3>
-          <button onClick={onClose} className="p-1 hover:bg-graystone-100 rounded-lg transition">
-            <Icon name="x" className="w-5 h-5 text-graystone-500" />
-          </button>
-        </div>
-        <div className="p-4 space-y-3">
-          {entry && (
-            <p className="text-xs text-graystone-500">Adding to: <span className="font-medium text-graystone-700">{entry.title}</span></p>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-graystone-700 mb-1">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-              placeholder="Subtask title..."
-              className="w-full px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-graystone-700 mb-1">Assign to</label>
-            <select
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
-            >
-              {(users || []).map(u => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 p-4 border-t border-graystone-200">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-graystone-600 hover:bg-graystone-100 rounded-lg transition"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!title.trim() || adding}
-            className="px-4 py-2 text-sm bg-ocean-500 text-white rounded-lg hover:bg-ocean-600 transition disabled:opacity-50"
-          >
-            {adding ? 'Adding...' : 'Add Subtask'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Helper functions
-const isAdmin = (email) => {
-  const adminEmails = ['jameen.kaur@populationmatters.org', 'daniel.davis@populationmatters.org'];
-  return adminEmails.includes(email?.toLowerCase());
-};
-
-const isManager = (email) => {
-  return MANAGERS.some(m => m.email.toLowerCase() === email?.toLowerCase());
-};
-
-const canEditItem = (entry, userEmail, currentUser) => {
-  if (!entry) return false;
-  if (isAdmin(userEmail)) return true;
-  if (entry.owner?.includes(currentUser)) return true;
-  if (entry.collaborators?.includes(currentUser)) return true;
-  return false;
-};
-
-const getPreseededProfile = (email) => {
-  return SEED_USERS.find(u => u.email.toLowerCase() === email?.toLowerCase());
-};
-
 export default function App() {
-  // Get auth state and UI state from context
+  // Auth state from context
   const {
     authChecked,
     isAuthenticated,
@@ -186,86 +90,18 @@ export default function App() {
     toggleDarkMode,
   } = useApp();
 
-  // Real-time notifications
+  // Domain hooks
+  const items = useWorkflowItems();
+  const todosHook = useTodos();
+  const ws = useWorkstreams();
+  const wb = useWhiteboards();
+  const ev = useEvents();
+  const nav = useNavigation();
+  const modals = useModals();
   const { notifications, unreadCount, markAsRead } = useNotifications(userEmail);
+  const filters = useFilters(items.entries);
 
-  // Core state
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-
-  // View state
-  const [currentView, setCurrentView] = useState('dashboard');
-  const [viewHistory, setViewHistory] = useState([]);
-  const [viewMode, setViewMode] = useState('table');
-  const [selectedItemId, setSelectedItemId] = useState(null);
-  const [selectedTeam, setSelectedTeam] = useState('All');
-
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(25);
-
-  // Search and filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState([]);
-  const [ownerFilter, setOwnerFilter] = useState([]);
-  const [teamFilter, setTeamFilter] = useState([]);
-  const [tagFilter, setTagFilter] = useState([]);
-  const [timelineFilter, setTimelineFilter] = useState('');
-  const [showArchived, setShowArchived] = useState(false);
-
-  // UI state
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
-  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
-  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
-  const [showTagsDropdown, setShowTagsDropdown] = useState(false);
-  const [showViewDropdown, setShowViewDropdown] = useState(false);
-
-  // Modal state
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [showSubtaskModal, setShowSubtaskModal] = useState(false);
-  const [subtaskModalEntryId, setSubtaskModalEntryId] = useState(null);
-  const [showStatsModal, setShowStatsModal] = useState(false);
-  const [statsModalData, setStatsModalData] = useState({ title: '', items: [] });
-  const [showPdfExportModal, setShowPdfExportModal] = useState(false);
-  const [pdfExportContext, setPdfExportContext] = useState('dashboard');
-
-  // Jobs state
-  const [showAddJobModal, setShowAddJobModal] = useState(false);
-  const [showJobDetailModal, setShowJobDetailModal] = useState(false);
-  const [selectedJobId, setSelectedJobId] = useState(null);
-
-  // Add item type modal
-  const [showAddItemTypeModal, setShowAddItemTypeModal] = useState(false);
-
-  // Convert item modal
-  const [showConvertModal, setShowConvertModal] = useState(false);
-  const [convertSourceItem, setConvertSourceItem] = useState(null);
-  const [convertSourceType, setConvertSourceType] = useState(null);
-
-  // Todos state
-  const [todos, setTodos] = useState([]);
-
-  // Workstreams state
-  const [workstreams, setWorkstreams] = useState([]);
-  const [workstreamTasks, setWorkstreamTasks] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [selectedWorkstreamId, setSelectedWorkstreamId] = useState(null);
-  const [selectedWorkstreamTaskId, setSelectedWorkstreamTaskId] = useState(null);
-
-  // Whiteboards state
-  const [whiteboards, setWhiteboards] = useState([]);
-  const [currentWhiteboardId, setCurrentWhiteboardId] = useState(null);
-
-  // Productivity tools state
-  const [habits, setHabits] = useState([]);
-  const [matrixTasks, setMatrixTasks] = useState([]);
-
-  // Manager Hub state
+  // Manager Hub state (kept here — tightly coupled to ManagerHub props)
   const [managerHubTab, setManagerHubTab] = useState('overview');
   const [reportPeriodType, setReportPeriodType] = useState('week');
   const [reportStartDate, setReportStartDate] = useState(() => {
@@ -289,697 +125,34 @@ export default function App() {
     blockersRisks: '',
   });
 
+  // Habits & matrix (simple state, passed to productivity tools)
+  const [habits, setHabits] = useState([]);
+  const [matrixTasks, setMatrixTasks] = useState([]);
+
   // User profiles cache
   const [userProfilesCache, setUserProfilesCache] = useState({});
 
-  // Get supabase client
   const supabase = getSupabase();
 
-  // Convert JS arrays to PostgreSQL array literal strings for TEXT[] columns.
-  // Workaround for PostgREST schema cache not recognising the TEXT→TEXT[] migration.
-  const toPgArray = (arr) => {
-    if (!Array.isArray(arr)) return arr;
-    if (arr.length === 0) return '{}';
-    return '{' + arr.map(v => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"').join(',') + '}';
-  };
-
-  // SUPABASE_API object - mirrors legacy.html
-  const SUPABASE_API = useMemo(() => ({
-    fetchWorkflowItems: async () => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('workflow_items')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) {
-        Logger.error(error, 'Supabase fetch error');
-        return [];
-      }
-      return data || [];
-    },
-
-    saveItem: async (item) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('workflow_items')
-        .insert([{
-          title: item.title,
-          caption: item.caption || '',
-          workflow_status: item.workflowStatus || 'Idea',
-          team: item.team || '',
-          timeline_value: item.timelineValue || '',
-          owner: toPgArray(Array.isArray(item.owner) ? item.owner : [item.owner].filter(Boolean)),
-          owner_email: toPgArray(Array.isArray(item.ownerEmail) ? item.ownerEmail : [userEmail].filter(Boolean)),
-          collaborators: item.collaborators || [],
-          tags: item.tags || [],
-          subtasks: item.subtasks || [],
-          documents: item.documents || [],
-          date: item.date || null,
-          comments: item.comments || [],
-          archived: item.archived || false,
-          dependencies: item.dependencies || [],
-          custom_fields: item.customFields || [],
-          attachments: item.attachments || [],
-          item_type: item.itemType || 'project',
-          phase: item.phase || getPhaseFromDate(item.timelineValue || item.date) || null,
-        }])
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Supabase save error');
-        console.error('Save failed:', error);
-        return null;
-      }
-      return data;
-    },
-
-    updateItem: async (id, updates) => {
-      if (!supabase) return null;
-      const updateObj = { updated_at: new Date().toISOString() };
-      if (updates.title !== undefined) updateObj.title = updates.title;
-      if (updates.caption !== undefined) updateObj.caption = updates.caption;
-      if (updates.workflowStatus !== undefined) updateObj.workflow_status = updates.workflowStatus;
-      if (updates.team !== undefined) updateObj.team = updates.team;
-      if (updates.timelineValue !== undefined) updateObj.timeline_value = updates.timelineValue;
-      if (updates.owner !== undefined) updateObj.owner = toPgArray(updates.owner);
-      if (updates.ownerEmail !== undefined) updateObj.owner_email = toPgArray(updates.ownerEmail);
-      if (updates.collaborators !== undefined) updateObj.collaborators = updates.collaborators;
-      if (updates.tags !== undefined) updateObj.tags = updates.tags;
-      if (updates.subtasks !== undefined) updateObj.subtasks = updates.subtasks;
-      if (updates.documents !== undefined) updateObj.documents = updates.documents;
-      if (updates.date !== undefined) {
-        // Only send date if it's a valid YYYY-MM-DD or null; skip partial formats like "2026-06"
-        const d = updates.date;
-        if (!d || /^\d{4}-\d{2}-\d{2}$/.test(d)) {
-          updateObj.date = d;
-        }
-      }
-      if (updates.comments !== undefined) updateObj.comments = updates.comments;
-      if (updates.archived !== undefined) updateObj.archived = updates.archived;
-      if (updates.dependencies !== undefined) updateObj.dependencies = updates.dependencies;
-      if (updates.customFields !== undefined) updateObj.custom_fields = updates.customFields;
-      if (updates.attachments !== undefined) updateObj.attachments = updates.attachments;
-      if (updates.phase !== undefined) updateObj.phase = updates.phase;
-      // Auto-compute phase from deadline when deadline changes and no explicit phase set
-      if (updates.phase === undefined && (updates.timelineValue !== undefined || updates.date !== undefined)) {
-        const dateForPhase = updates.timelineValue || updates.date;
-        if (dateForPhase) {
-          const computed = getPhaseFromDate(dateForPhase);
-          if (computed) updateObj.phase = computed;
-        }
-      }
-
-      const { error } = await supabase
-        .from('workflow_items')
-        .update(updateObj)
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Supabase update error');
-        console.error('Update failed for id:', id, 'updates:', JSON.stringify(updateObj), 'error:', error.message, error.details, error.hint, error.code);
-        return null;
-      }
-      return true;
-    },
-
-    deleteItem: async (id) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('workflow_items')
-        .delete()
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Supabase delete error');
-        return null;
-      }
-      return true;
-    },
-
-    fetchPersonalTodos: async (email) => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('personal_todos')
-        .select('*')
-        .eq('user_email', email)
-        .order('created_at', { ascending: false });
-      if (error) {
-        Logger.error(error, 'Fetch todos error');
-        return [];
-      }
-      return data || [];
-    },
-
-    savePersonalTodo: async (todo, email) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('personal_todos')
-        .insert([{
-          text: todo.text,
-          completed: todo.completed || false,
-          date: todo.date || null,
-          user_email: email,
-        }])
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Save todo error');
-        return null;
-      }
-      return data;
-    },
-
-    updatePersonalTodo: async (id, updates) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('personal_todos')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Update todo error');
-        return null;
-      }
-      return data;
-    },
-
-    deletePersonalTodo: async (id) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('personal_todos')
-        .delete()
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Delete todo error');
-        return null;
-      }
-      return true;
-    },
-
-    updateWorkstream: async (id, updates) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('workstreams')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Update workstream error');
-        return null;
-      }
-      return data;
-    },
-
-    deleteWorkstream: async (id) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('workstreams')
-        .delete()
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Delete workstream error');
-        return null;
-      }
-      return true;
-    },
-
-    updateWorkstreamTask: async (id, updates) => {
-      if (!supabase) return null;
-      // Map camelCase props to snake_case DB columns
-      const fieldMap = {
-        sortOrder: 'sort_order',
-        assigneeEmail: 'assignee_email',
-        workstreamId: 'workstream_id',
-        taskType: 'task_type',
-        linkedItems: 'linked_items',
-      };
-      const mapped = { updated_at: new Date().toISOString() };
-      for (const [key, value] of Object.entries(updates)) {
-        mapped[fieldMap[key] || key] = value;
-      }
-      const { data, error } = await supabase
-        .from('workstream_tasks')
-        .update(mapped)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Update workstream task error');
-        return null;
-      }
-      return data;
-    },
-
-    deleteWorkstreamTask: async (id) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('workstream_tasks')
-        .delete()
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Delete workstream task error');
-        return null;
-      }
-      return true;
-    },
-
-    // Whiteboard methods
-    fetchWhiteboards: async (email) => {
-      if (!supabase) return [];
-      // Sanitize email to prevent query injection
-      const safeEmail = sanitizeEmailForQuery(email);
-      if (!safeEmail) {
-        Logger.error({ email }, 'Invalid email for whiteboard fetch');
-        return [];
-      }
-      const { data, error } = await supabase
-        .from('whiteboards')
-        .select('*')
-        .or(`owner_email.eq.${safeEmail},shared_with.cs.{${safeEmail}}`)
-        .order('updated_at', { ascending: false });
-      if (error) {
-        Logger.error(error, 'Fetch whiteboards error');
-        return [];
-      }
-      return data || [];
-    },
-
-    createWhiteboard: async (whiteboard) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('whiteboards')
-        .insert([{
-          title: whiteboard.title,
-          owner_email: whiteboard.owner_email,
-          owner_name: whiteboard.owner_name,
-          shared_with: [],
-        }])
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Create whiteboard error');
-        return null;
-      }
-      return data;
-    },
-
-    deleteWhiteboard: async (id) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('whiteboards')
-        .delete()
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Delete whiteboard error');
-        return null;
-      }
-      return true;
-    },
-
-    updateWhiteboard: async (id, updates) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('whiteboards')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Update whiteboard error');
-        return null;
-      }
-      return data;
-    },
-
-    fetchElements: async (whiteboardId) => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('whiteboard_elements')
-        .select('*')
-        .eq('whiteboard_id', whiteboardId)
-        .order('z_index', { ascending: true });
-      if (error) {
-        Logger.error(error, 'Fetch whiteboard elements error');
-        return [];
-      }
-      return data || [];
-    },
-
-    createElement: async (element) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('whiteboard_elements')
-        .insert([element])
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Create whiteboard element error');
-        return null;
-      }
-      return data;
-    },
-
-    updateElement: async (id, updates) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('whiteboard_elements')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Update whiteboard element error');
-        return null;
-      }
-      return data;
-    },
-
-    deleteElement: async (id) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('whiteboard_elements')
-        .delete()
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Delete whiteboard element error');
-        return null;
-      }
-      return true;
-    },
-
-    subscribeToWhiteboard: (whiteboardId, callback) => {
-      if (!supabase) return null;
-      const channel = supabase
-        .channel(`whiteboard:${whiteboardId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'whiteboard_elements',
-            filter: `whiteboard_id=eq.${whiteboardId}`,
-          },
-          callback
-        )
-        .subscribe();
-      return channel;
-    },
-
-    // Workstream methods
-    fetchWorkstreams: async (email) => {
-      if (!supabase) return [];
-      // Sanitize email to prevent query injection
-      const safeEmail = sanitizeEmailForQuery(email);
-      if (!safeEmail) {
-        Logger.error({ email }, 'Invalid email for workstream fetch');
-        return [];
-      }
-      const { data, error } = await supabase
-        .from('workstreams')
-        .select('*')
-        .or(`owner_email.eq.${safeEmail},visibility.eq.shared`)
-        .order('created_at', { ascending: false });
-      if (error) {
-        Logger.error(error, 'Fetch workstreams error');
-        return [];
-      }
-      return data || [];
-    },
-
-    fetchWorkstreamTasks: async () => {
-      if (!supabase) return [];
-      // RLS policies handle visibility — fetch all tasks the user can see
-      const { data, error } = await supabase
-        .from('workstream_tasks')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) {
-        // Table may not exist yet - that's okay
-        if (error.code !== '42P01') {
-          Logger.error(error, 'Fetch workstream tasks error');
-        }
-        return [];
-      }
-      return data || [];
-    },
-
-    // Productivity tools API methods
-    fetchHabits: async (email) => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('habits')
-        .select('*')
-        .eq('user_email', email)
-        .order('created_at', { ascending: false });
-      if (error) {
-        Logger.error(error, 'Fetch habits error');
-        return [];
-      }
-      return data || [];
-    },
-
-    fetchCompletions: async (habitId, startDate, endDate) => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('habit_completions')
-        .select('*')
-        .eq('habit_id', habitId)
-        .gte('date', startDate)
-        .lte('date', endDate);
-      if (error) {
-        Logger.error(error, 'Fetch completions error');
-        return [];
-      }
-      return data || [];
-    },
-
-    createHabit: async (habit) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('habits')
-        .insert([habit])
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Create habit error');
-        return null;
-      }
-      return data;
-    },
-
-    deleteHabit: async (habitId) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('habits')
-        .delete()
-        .eq('id', habitId);
-      if (error) {
-        Logger.error(error, 'Delete habit error');
-        return null;
-      }
-      return true;
-    },
-
-    toggleCompletion: async (habitId, date) => {
-      if (!supabase) return null;
-      // Check if completion exists
-      const { data: existing } = await supabase
-        .from('habit_completions')
-        .select('*')
-        .eq('habit_id', habitId)
-        .eq('date', date)
-        .single();
-
-      if (existing) {
-        // Delete existing
-        const { error } = await supabase
-          .from('habit_completions')
-          .delete()
-          .eq('id', existing.id);
-        if (error) {
-          Logger.error(error, 'Toggle completion error');
-          return null;
-        }
-        return { deleted: true };
-      } else {
-        // Create new
-        const { data, error } = await supabase
-          .from('habit_completions')
-          .insert([{ habit_id: habitId, date }])
-          .select()
-          .single();
-        if (error) {
-          Logger.error(error, 'Toggle completion error');
-          return null;
-        }
-        return data;
-      }
-    },
-
-    fetchMatrixTasks: async (email) => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('matrix_tasks')
-        .select('*')
-        .eq('user_email', email)
-        .order('created_at', { ascending: false });
-      if (error) {
-        Logger.error(error, 'Fetch matrix tasks error');
-        return [];
-      }
-      return data || [];
-    },
-
-    createMatrixTask: async (task) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('matrix_tasks')
-        .insert([task])
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Create matrix task error');
-        return null;
-      }
-      return data;
-    },
-
-    updateMatrixTask: async (taskId, updates) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('matrix_tasks')
-        .update(updates)
-        .eq('id', taskId)
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Update matrix task error');
-        return null;
-      }
-      return data;
-    },
-
-    deleteMatrixTask: async (taskId) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('matrix_tasks')
-        .delete()
-        .eq('id', taskId);
-      if (error) {
-        Logger.error(error, 'Delete matrix task error');
-        return null;
-      }
-      return true;
-    },
-
-    // Events calendar methods
-    fetchEvents: async () => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .order('event_date', { ascending: true });
-      if (error) {
-        if (error.code !== '42P01') {
-          Logger.error(error, 'Fetch events error');
-        }
-        return [];
-      }
-      return data || [];
-    },
-
-    createEvent: async (event) => {
-      if (!supabase) return null;
-      const { data, error } = await supabase
-        .from('events')
-        .insert([{
-          title: event.title,
-          description: event.description || null,
-          event_date: event.eventDate,
-          end_date: event.endDate || null,
-          created_by: event.createdBy,
-          created_by_email: event.createdByEmail,
-          color: event.color || 'ocean',
-          category: event.category || null,
-          location: event.location || null,
-          linked_entry_id: event.linkedEntryId || null,
-          linked_workstream_id: event.linkedWorkstreamId || null,
-        }])
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Create event error');
-        return null;
-      }
-      return data;
-    },
-
-    updateEvent: async (id, updates) => {
-      if (!supabase) return null;
-      const fieldMap = {
-        eventDate: 'event_date',
-        endDate: 'end_date',
-        createdBy: 'created_by',
-        createdByEmail: 'created_by_email',
-        linkedEntryId: 'linked_entry_id',
-        linkedWorkstreamId: 'linked_workstream_id',
-      };
-      const mapped = { updated_at: new Date().toISOString() };
-      for (const [key, value] of Object.entries(updates)) {
-        mapped[fieldMap[key] || key] = value;
-      }
-      const { data, error } = await supabase
-        .from('events')
-        .update(mapped)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) {
-        Logger.error(error, 'Update event error');
-        return null;
-      }
-      return data;
-    },
-
-    deleteEvent: async (id) => {
-      if (!supabase) return null;
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', id);
-      if (error) {
-        Logger.error(error, 'Delete event error');
-        return null;
-      }
-      return true;
-    },
-  }), [supabase, userEmail]);
-
-  // Transform database row to app format
-  const transformEntry = (row) => ({
-    id: row.id,
-    title: row.title,
-    caption: row.caption,
-    workflowStatus: row.workflow_status,
-    team: row.team,
-    timelineValue: row.timeline_value,
-    owner: Array.isArray(row.owner) ? row.owner : row.owner ? [row.owner] : [],
-    ownerEmail: Array.isArray(row.owner_email) ? row.owner_email : row.owner_email ? [row.owner_email] : [],
-    collaborators: row.collaborators || [],
-    tags: row.tags || [],
-    subtasks: row.subtasks || [],
-    documents: row.documents || [],
-    date: row.date,
-    comments: row.comments || [],
-    archived: row.archived || false,
-    dependencies: row.dependencies || [],
-    customFields: row.custom_fields || [],
-    attachments: row.attachments || [],
-    itemType: row.item_type || 'project',
-    phase: row.phase || null,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    navigate: nav.navigate,
+    setShowQuickAdd: modals.setShowQuickAdd,
+    setShowGlobalSearch: modals.setShowGlobalSearch,
+    setShowKeyboardHelp: modals.setShowKeyboardHelp,
+    closeAllOverlays: modals.closeAllOverlays,
   });
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleCloseDropdowns = () => {
+      modals.setShowFiltersDropdown(false);
+      modals.setShowTagsDropdown(false);
+      modals.setShowViewDropdown(false);
+    };
+    document.addEventListener('close-dropdowns', handleCloseDropdowns);
+    return () => document.removeEventListener('close-dropdowns', handleCloseDropdowns);
+  }, [modals]);
 
   // Load data on startup
   useEffect(() => {
@@ -987,322 +160,74 @@ export default function App() {
     if (APP_CONFIG.AUTH_ENABLED && !isAuthenticated) return;
 
     async function loadData() {
-      setLoading(true);
-      try {
-        await initSupabase();
-
-        // Fetch workflow items
-        const items = await SUPABASE_API.fetchWorkflowItems();
-        setEntries(items.map(transformEntry));
-
-        // Fetch personal todos
-        if (userEmail) {
-          const userTodos = await SUPABASE_API.fetchPersonalTodos(userEmail);
-          setTodos(userTodos);
-
-          // Fetch workstreams
-          const userWorkstreams = await SUPABASE_API.fetchWorkstreams(userEmail);
-          setWorkstreams(userWorkstreams);
-
-          // Fetch workstream tasks
-          const userWorkstreamTasks = await SUPABASE_API.fetchWorkstreamTasks();
-          setWorkstreamTasks(userWorkstreamTasks);
-
-          // Fetch events
-          const userEvents = await SUPABASE_API.fetchEvents();
-          setEvents(userEvents);
-        }
-      } catch (error) {
-        Logger.error(error, 'Failed to load data');
-      } finally {
-        setLoading(false);
+      await initSupabase();
+      await items.loadEntries();
+      if (userEmail) {
+        todosHook.loadTodos(userEmail);
+        ws.loadWorkstreams(userEmail);
+        ws.loadWorkstreamTasks();
+        ev.loadEvents();
       }
     }
 
     loadData();
-  }, [authChecked, isAuthenticated, userEmail, SUPABASE_API]);
+  }, [authChecked, isAuthenticated, userEmail]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setShowQuickAdd(true);
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
-        e.preventDefault();
-        setShowGlobalSearch(true);
-        return;
-      }
-
-      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-      if (isTyping) {
-        if (e.key === 'Escape') document.activeElement.blur();
-        return;
-      }
-
-      switch (e.key) {
-        case '?':
-          e.preventDefault();
-          setShowKeyboardHelp(true);
-          break;
-        case 'Escape':
-          setShowKeyboardHelp(false);
-          setShowNotificationsPanel(false);
-          setShowQuickAdd(false);
-          setShowGlobalSearch(false);
-          break;
-        case 'd':
-          if (!e.metaKey && !e.ctrlKey) {
-            e.preventDefault();
-            setCurrentView('dashboard');
-          }
-          break;
-        case 'p':
-          if (!e.metaKey && !e.ctrlKey) {
-            e.preventDefault();
-            setCurrentView('personal');
-          }
-          break;
-        case 't':
-          if (!e.metaKey && !e.ctrlKey) {
-            e.preventDefault();
-            setCurrentView('todo');
-          }
-          break;
-        case 'n':
-          if (!e.metaKey && !e.ctrlKey) {
-            e.preventDefault();
-            setCurrentView('add-item');
-          }
-          break;
-      }
+  // Build SUPABASE_API object for components that still need it (whiteboard, admin, productivity)
+  const SUPABASE_API = useMemo(() => {
+    const whiteboardApi = wb.whiteboardApi;
+    const productivityMethods = {
+      fetchHabits: async (email) => {
+        const { fetchHabits } = await import('./services/productivity');
+        return fetchHabits(email);
+      },
+      fetchCompletions: async (habitId, startDate, endDate) => {
+        const { fetchCompletions } = await import('./services/productivity');
+        return fetchCompletions(habitId, startDate, endDate);
+      },
+      createHabit: async (habit) => {
+        const { createHabit } = await import('./services/productivity');
+        return createHabit(habit);
+      },
+      deleteHabit: async (habitId) => {
+        const { deleteHabit } = await import('./services/productivity');
+        return deleteHabit(habitId);
+      },
+      toggleCompletion: async (habitId, date) => {
+        const { toggleCompletion } = await import('./services/productivity');
+        return toggleCompletion(habitId, date);
+      },
+      fetchMatrixTasks: async (email) => {
+        const { fetchMatrixTasks } = await import('./services/productivity');
+        return fetchMatrixTasks(email);
+      },
+      createMatrixTask: async (task) => {
+        const { createMatrixTask } = await import('./services/productivity');
+        return createMatrixTask(task);
+      },
+      updateMatrixTask: async (taskId, updates) => {
+        const { updateMatrixTask } = await import('./services/productivity');
+        return updateMatrixTask(taskId, updates);
+      },
+      deleteMatrixTask: async (taskId) => {
+        const { deleteMatrixTask } = await import('./services/productivity');
+        return deleteMatrixTask(taskId);
+      },
     };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (!e.target.closest('[data-dropdown]')) {
-        setShowFiltersDropdown(false);
-        setShowTagsDropdown(false);
-        setShowViewDropdown(false);
-      }
+    return {
+      ...whiteboardApi,
+      ...productivityMethods,
+      // Legacy methods still needed by some components
+      fetchWorkflowItems: async () => {
+        const { fetchWorkflowItems } = await import('./services/workflowItems');
+        return fetchWorkflowItems();
+      },
     };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+  }, [wb.whiteboardApi]);
 
-  // Handler functions
-  const handleNavigate = useCallback((view) => {
-    setCurrentView(prev => {
-      // Don't push duplicate consecutive entries
-      if (prev !== view) {
-        setViewHistory(h => [...h.slice(-19), prev]);
-      }
-      return view;
-    });
-    setSidebarOpen(false);
-  }, []);
-
-  const handleBack = useCallback(() => {
-    setViewHistory(prev => {
-      if (prev.length === 0) {
-        setCurrentView('dashboard');
-        return prev;
-      }
-      const next = [...prev];
-      const last = next.pop();
-      setCurrentView(last);
-      return next;
-    });
-    setSidebarOpen(false);
-  }, []);
-
-  const handleOpenEntry = useCallback((id) => {
-    setSelectedItemId(id);
-    setCurrentView(prev => {
-      setViewHistory(h => [...h.slice(-19), prev]);
-      return 'item-dashboard';
-    });
-  }, []);
-
-  const handleUpdateEntry = useCallback(async (entryId, updates) => {
-    // Auto-archive when status is set to Complete or done
-    const finalUpdates = { ...updates };
-    if (updates.workflowStatus === 'Complete' || updates.workflowStatus === 'done') {
-      finalUpdates.archived = true;
-    }
-
-    const result = await SUPABASE_API.updateItem(entryId, finalUpdates);
-    if (result) {
-      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...finalUpdates } : e));
-    }
-  }, [SUPABASE_API]);
-
-  const handleUpdateStatus = useCallback(async (id, newStatus) => {
-    await handleUpdateEntry(id, { workflowStatus: newStatus });
-  }, [handleUpdateEntry]);
-
-  const handleAddItem = useCallback(async (newItem) => {
-    const saved = await SUPABASE_API.saveItem({
-      ...newItem,
-      owner: [currentUser],
-      ownerEmail: [userEmail],
-    });
-    if (saved) {
-      setEntries(prev => [transformEntry(saved), ...prev]);
-      // Stay on current view - don't redirect
-    }
-  }, [SUPABASE_API, currentUser]);
-
-  const handleToggleSubtask = useCallback(async (entryId, subtaskId) => {
-    const entry = entries.find(e => e.id === entryId);
-    if (!entry) return;
-
-    const updatedSubtasks = entry.subtasks.map(st =>
-      st.id === subtaskId ? { ...st, completed: !st.completed } : st
-    );
-    await handleUpdateEntry(entryId, { subtasks: updatedSubtasks });
-  }, [entries, handleUpdateEntry]);
-
-  const handleDeleteSubtask = useCallback(async (entryId, subtaskId) => {
-    const entry = entries.find(e => e.id === entryId);
-    if (!entry) return;
-
-    const updatedSubtasks = entry.subtasks.filter(st => st.id !== subtaskId);
-    await handleUpdateEntry(entryId, { subtasks: updatedSubtasks });
-  }, [entries, handleUpdateEntry]);
-
-  const handleEditSubtask = useCallback(async (entryId, subtaskId, updates) => {
-    const entry = entries.find(e => e.id === entryId);
-    if (!entry) return;
-
-    const updatedSubtasks = entry.subtasks.map(st =>
-      st.id === subtaskId ? { ...st, ...updates } : st
-    );
-    await handleUpdateEntry(entryId, { subtasks: updatedSubtasks });
-  }, [entries, handleUpdateEntry]);
-
-  const openSubtaskModal = useCallback((entryId) => {
-    setSubtaskModalEntryId(entryId);
-    setShowSubtaskModal(true);
-  }, []);
-
-  const handleAddSubtask = useCallback(async (title, assignedTo) => {
-    if (!subtaskModalEntryId || !title.trim()) return;
-    const entry = entries.find(e => e.id === subtaskModalEntryId);
-    if (!entry) return;
-
-    const newSubtask = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      assignedTo: assignedTo || currentUser,
-      completed: false,
-    };
-    const updatedSubtasks = [...(entry.subtasks || []), newSubtask];
-    await handleUpdateEntry(subtaskModalEntryId, { subtasks: updatedSubtasks });
-    setShowSubtaskModal(false);
-    setSubtaskModalEntryId(null);
-  }, [subtaskModalEntryId, entries, currentUser, handleUpdateEntry]);
-
-  const handleAddTodo = useCallback(async (newTodo) => {
-    const saved = await SUPABASE_API.savePersonalTodo(newTodo, userEmail);
-    if (saved) {
-      setTodos(prev => [saved, ...prev]);
-    }
-  }, [SUPABASE_API, userEmail]);
-
-  const handleToggleTodo = useCallback(async (todoId) => {
-    const todo = todos.find(t => t.id === todoId);
-    if (!todo) return;
-
-    const updated = await SUPABASE_API.updatePersonalTodo(todoId, { completed: !todo.completed });
-    if (updated) {
-      setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
-    }
-  }, [todos, SUPABASE_API]);
-
-  const handleUpdateTodo = useCallback(async (todoId, updates) => {
-    const updated = await SUPABASE_API.updatePersonalTodo(todoId, updates);
-    if (updated) {
-      setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
-    }
-  }, [SUPABASE_API]);
-
-  const handleDeleteTodo = useCallback(async (todoId) => {
-    const success = await SUPABASE_API.deletePersonalTodo(todoId);
-    if (success) {
-      setTodos(prev => prev.filter(t => t.id !== todoId));
-    }
-  }, [SUPABASE_API]);
-
-  // Workstream handlers
-  const handleUpdateWorkstream = useCallback(async (id, updates) => {
-    const updated = await SUPABASE_API.updateWorkstream(id, updates);
-    if (updated) {
-      setWorkstreams(prev => prev.map(w => w.id === id ? updated : w));
-      return updated;
-    }
-    return null;
-  }, [SUPABASE_API]);
-
-  const handleDeleteWorkstream = useCallback(async (id) => {
-    const success = await SUPABASE_API.deleteWorkstream(id);
-    if (success) {
-      setWorkstreams(prev => prev.filter(w => w.id !== id));
-      setWorkstreamTasks(prev => prev.filter(t => t.workstream_id !== id));
-      handleNavigate('workstreams');
-      return true;
-    }
-    return false;
-  }, [SUPABASE_API]);
-
-  // Workstream task handlers
-  const handleOpenWorkstreamTask = useCallback((workstreamId, taskId) => {
-    setSelectedWorkstreamId(workstreamId);
-    setSelectedWorkstreamTaskId(taskId);
-    setCurrentView(prev => {
-      setViewHistory(h => [...h.slice(-19), prev]);
-      return 'workstream-task-detail';
-    });
-  }, []);
-
-  const handleUpdateWorkstreamTask = useCallback(async (taskId, workstreamIdOrUpdates, maybeUpdates) => {
-    // Support both (taskId, updates) and (taskId, workstreamId, updates) signatures
-    const updates = maybeUpdates !== undefined ? maybeUpdates : workstreamIdOrUpdates;
-    const updated = await SUPABASE_API.updateWorkstreamTask(taskId, updates);
-    if (updated) {
-      setWorkstreamTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t));
-    }
-  }, [SUPABASE_API]);
-
-  const handleDeleteWorkstreamTask = useCallback(async (taskId) => {
-    // Note: Confirmation is handled by the UI component (WorkstreamTaskDetail)
-    const result = await SUPABASE_API.deleteWorkstreamTask(taskId);
-    if (result) {
-      setWorkstreamTasks(prev => prev.filter(t => t.id !== taskId));
-      return true;
-    }
-    return false;
-  }, [SUPABASE_API]);
-
-  // Open convert modal
-  const handleOpenConvertModal = useCallback((item, sourceType) => {
-    setConvertSourceItem(item);
-    setConvertSourceType(sourceType);
-    setShowConvertModal(true);
-  }, []);
-
-  // Convert to Task
+  // Convert handlers (cross-hook coordination)
   const handleConvertToTask = useCallback(async (sourceItem, sourceType, formData) => {
     if (!supabase) return;
-
-    // Create new task (job) entry
     const { data, error } = await supabase
       .from('workflow_items')
       .insert([{
@@ -1315,60 +240,23 @@ export default function App() {
         tags: formData.tags || [],
         date: formData.date || null,
         item_type: 'job',
-        archived: false,
-        collaborators: [],
-        subtasks: [],
-        documents: [],
-        comments: [],
-        dependencies: [],
-        custom_fields: {},
-        attachments: []
+        archived: false, collaborators: [], subtasks: [], documents: [],
+        comments: [], dependencies: [], custom_fields: {}, attachments: [],
       }])
-      .select()
-      .single();
-
-    if (error) {
-      Logger.error(error, 'Convert to task error');
-      return;
-    }
-
-    // Add to entries
-    const newEntry = {
-      id: data.id,
-      title: data.title,
-      caption: data.caption,
-      workflowStatus: data.workflow_status,
-      team: data.team,
-      owner: data.owner,
-      ownerEmail: data.owner_email,
-      tags: data.tags || [],
-      date: data.date,
-      itemType: 'job',
-      archived: false,
-      collaborators: [],
-      subtasks: [],
-      documents: [],
-      comments: [],
-      createdAt: data.created_at,
-      updatedAt: data.updated_at
-    };
-    setEntries(prev => [newEntry, ...prev]);
-
-    // Archive/delete the source item
+      .select().single();
+    if (error) { Logger.error(error, 'Convert to task error'); return; }
+    const newEntry = items.transformEntry(data);
+    items.setEntries(prev => [newEntry, ...prev]);
     if (sourceType === 'project' || sourceType === 'task') {
       await supabase.from('workflow_items').update({ archived: true }).eq('id', sourceItem.id);
-      setEntries(prev => prev.map(e => e.id === sourceItem.id ? { ...e, archived: true } : e));
+      items.archiveEntry(sourceItem.id);
     } else if (sourceType === 'workstream') {
-      await SUPABASE_API.deleteWorkstreamTask(sourceItem.id);
-      setWorkstreamTasks(prev => prev.filter(t => t.id !== sourceItem.id));
+      await ws.deleteWorkstreamTask(sourceItem.id);
     }
-  }, [supabase, currentUser, userEmail, SUPABASE_API]);
+  }, [supabase, currentUser, userEmail, items, ws]);
 
-  // Convert to Project
   const handleConvertToProject = useCallback(async (sourceItem, sourceType, formData) => {
     if (!supabase) return;
-
-    // Create new project entry
     const { data, error } = await supabase
       .from('workflow_items')
       .insert([{
@@ -1383,60 +271,24 @@ export default function App() {
         tags: formData.tags || [],
         date: formData.date || null,
         item_type: 'project',
-        archived: false,
-        subtasks: [],
-        documents: [],
+        archived: false, subtasks: [], documents: [],
         comments: formData.comments || [],
-        dependencies: [],
-        custom_fields: {},
-        attachments: []
+        dependencies: [], custom_fields: {}, attachments: [],
       }])
-      .select()
-      .single();
-
-    if (error) {
-      Logger.error(error, 'Convert to project error');
-      return;
-    }
-
-    // Add to entries
-    const newEntry = {
-      id: data.id,
-      title: data.title,
-      caption: data.caption,
-      workflowStatus: data.workflow_status,
-      team: data.team,
-      timelineValue: data.timeline_value,
-      owner: data.owner,
-      ownerEmail: data.owner_email,
-      collaborators: data.collaborators || [],
-      tags: data.tags || [],
-      date: data.date,
-      itemType: 'project',
-      archived: false,
-      subtasks: [],
-      documents: [],
-      comments: data.comments || [],
-      createdAt: data.created_at,
-      updatedAt: data.updated_at
-    };
-    setEntries(prev => [newEntry, ...prev]);
-
-    // Archive/delete the source item
+      .select().single();
+    if (error) { Logger.error(error, 'Convert to project error'); return; }
+    const newEntry = items.transformEntry(data);
+    items.setEntries(prev => [newEntry, ...prev]);
     if (sourceType === 'project' || sourceType === 'task') {
       await supabase.from('workflow_items').update({ archived: true }).eq('id', sourceItem.id);
-      setEntries(prev => prev.map(e => e.id === sourceItem.id ? { ...e, archived: true } : e));
+      items.archiveEntry(sourceItem.id);
     } else if (sourceType === 'workstream') {
-      await SUPABASE_API.deleteWorkstreamTask(sourceItem.id);
-      setWorkstreamTasks(prev => prev.filter(t => t.id !== sourceItem.id));
+      await ws.deleteWorkstreamTask(sourceItem.id);
     }
-  }, [supabase, currentUser, userEmail, SUPABASE_API]);
+  }, [supabase, currentUser, userEmail, items, ws]);
 
-  // Convert to Workstream Task
   const handleConvertToWorkstream = useCallback(async (sourceItem, sourceType, formData, workstreamId) => {
     if (!supabase) return;
-
-    // Create new workstream task
     const { data, error } = await supabase
       .from('workstream_tasks')
       .insert([{
@@ -1450,141 +302,57 @@ export default function App() {
         assignee_email: formData.assigneeEmail || '',
         requester: formData.requester || '',
         tags: formData.tags || [],
-        comments: [],
-        sort_order: 0
+        comments: [], sort_order: 0,
       }])
-      .select()
-      .single();
-
-    if (error) {
-      Logger.error(error, 'Convert to workstream task error');
-      return;
-    }
-
-    // Add to workstream tasks
-    setWorkstreamTasks(prev => [data, ...prev]);
-
-    // Archive/delete the source item
+      .select().single();
+    if (error) { Logger.error(error, 'Convert to workstream task error'); return; }
+    ws.setWorkstreamTasks(prev => [data, ...prev]);
     if (sourceType === 'project' || sourceType === 'task') {
       await supabase.from('workflow_items').update({ archived: true }).eq('id', sourceItem.id);
-      setEntries(prev => prev.map(e => e.id === sourceItem.id ? { ...e, archived: true } : e));
+      items.archiveEntry(sourceItem.id);
     } else if (sourceType === 'workstream') {
-      // Moving between workstreams - delete from old
-      await SUPABASE_API.deleteWorkstreamTask(sourceItem.id);
-      setWorkstreamTasks(prev => prev.filter(t => t.id !== sourceItem.id));
+      await ws.deleteWorkstreamTask(sourceItem.id);
     }
-  }, [supabase, SUPABASE_API]);
+  }, [supabase, items, ws]);
 
-  const handleOpenPdfExport = useCallback((context) => {
-    setPdfExportContext(context);
-    setShowPdfExportModal(true);
-  }, []);
+  // Subtask modal handler
+  const handleAddSubtask = useCallback(async (title, assignedTo) => {
+    if (!modals.subtaskModalEntryId) return;
+    await items.addSubtask(modals.subtaskModalEntryId, title, assignedTo, currentUser);
+    modals.closeSubtaskModal();
+  }, [modals.subtaskModalEntryId, items, currentUser, modals]);
 
-  // Workstream handlers
-  const handleCreateWorkstream = useCallback(async (workstreamData) => {
-    if (!supabase) return null;
-    const { data, error } = await supabase
-      .from('workstreams')
-      .insert([{
-        title: workstreamData.title,
-        description: workstreamData.description || '',
-        owner: workstreamData.owner,
-        owner_email: userEmail,
-        visibility: workstreamData.visibility || 'personal',
-        color: workstreamData.color || 'blue',
-      }])
-      .select()
-      .single();
-    if (error) {
-      Logger.error(error, 'Create workstream error');
-      return null;
-    }
-    setWorkstreams(prev => [data, ...prev]);
-    return data;
-  }, [supabase, userEmail]);
+  // Bulk operations
+  const handleBulkStatusChange = useCallback(async (ids, newStatus) => {
+    await Promise.all(ids.map(id => items.updateStatus(id, newStatus)));
+  }, [items]);
 
-  // Create workstream task
-  const handleCreateWorkstreamTask = useCallback(async (taskData) => {
-    if (!supabase) return null;
-    const { data, error } = await supabase
-      .from('workstream_tasks')
-      .insert([{
-        workstream_id: taskData.workstreamId,
-        title: taskData.title,
-        description: taskData.description || '',
-        priority: taskData.priority || 'medium',
-        status: 'open',
-        deadline: taskData.deadline || null,
-        assignee: taskData.assignee || '',
-        assignee_email: taskData.assigneeEmail || '',
-        requester: taskData.requester || '',
-        task_type: taskData.taskType || 'Issue',
-        tags: taskData.tags || [],
-        comments: [],
-        sort_order: taskData.sortOrder || 0
-      }])
-      .select()
-      .single();
-    if (error) {
-      Logger.error(error, 'Create workstream task error');
-      return null;
-    }
-    setWorkstreamTasks(prev => [data, ...prev]);
-    return data;
-  }, [supabase]);
+  const handleBulkDelete = useCallback(async (ids) => {
+    await Promise.all(ids.map(id => items.deleteEntry(id)));
+  }, [items]);
 
-  // Event calendar handlers
+  // Wrapped handlers that bind user context
+  const handleAddItem = useCallback(async (newItem) => {
+    return items.addItem(newItem, currentUser, userEmail);
+  }, [items, currentUser, userEmail]);
+
   const handleCreateEvent = useCallback(async (eventData) => {
-    const saved = await SUPABASE_API.createEvent({
-      ...eventData,
-      createdBy: currentUser,
-      createdByEmail: userEmail,
-    });
-    if (saved) {
-      setEvents(prev => [...prev, saved].sort((a, b) => a.event_date.localeCompare(b.event_date)));
-    }
-    return saved;
-  }, [SUPABASE_API, currentUser, userEmail]);
+    return ev.createEvent(eventData, currentUser, userEmail);
+  }, [ev, currentUser, userEmail]);
 
-  const handleUpdateEvent = useCallback(async (id, updates) => {
-    const updated = await SUPABASE_API.updateEvent(id, updates);
-    if (updated) {
-      setEvents(prev => prev.map(e => e.id === id ? updated : e));
-    }
-    return updated;
-  }, [SUPABASE_API]);
+  const handleAddTodo = useCallback(async (newTodo) => {
+    return todosHook.addTodo(newTodo, userEmail);
+  }, [todosHook, userEmail]);
 
-  const handleDeleteEvent = useCallback(async (id) => {
-    const result = await SUPABASE_API.deleteEvent(id);
-    if (result) {
-      setEvents(prev => prev.filter(e => e.id !== id));
-    }
-    return result;
-  }, [SUPABASE_API]);
+  const handleCreateWorkstream = useCallback(async (workstreamData) => {
+    return ws.createWorkstream(workstreamData, userEmail);
+  }, [ws, userEmail]);
 
-  const openStatsModal = useCallback((title, items) => {
-    setStatsModalData({ title, items });
-    setShowStatsModal(true);
-  }, []);
-
-  // Filter entries
-  const filteredEntries = useMemo(() => {
-    return entries.filter(entry => {
-      if (!showArchived && entry.archived) return false;
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesTitle = entry.title?.toLowerCase().includes(query);
-        const matchesCaption = entry.caption?.toLowerCase().includes(query);
-        const matchesTags = entry.tags?.some(t => t.toLowerCase().includes(query));
-        if (!matchesTitle && !matchesCaption && !matchesTags) return false;
-      }
-      if (statusFilter.length && !statusFilter.includes(entry.workflowStatus)) return false;
-      if (ownerFilter.length && !entry.owner?.some(o => ownerFilter.includes(o))) return false;
-      if (teamFilter.length && !teamFilter.includes(entry.team)) return false;
-      if (tagFilter.length && !entry.tags?.some(t => tagFilter.includes(t))) return false;
-      return true;
-    });
-  }, [entries, showArchived, searchQuery, statusFilter, ownerFilter, teamFilter, tagFilter]);
+  const handleDeleteWorkstream = useCallback(async (id) => {
+    const success = await ws.deleteWorkstream(id);
+    if (success) nav.navigate('workstreams');
+    return success;
+  }, [ws, nav]);
 
   // Auth check - show loading
   if (!authChecked) {
@@ -1607,7 +375,7 @@ export default function App() {
   }
 
   // Loading data
-  if (loading) {
+  if (items.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-ocean-50 to-aqua-50">
         <div className="text-center">
@@ -1620,53 +388,51 @@ export default function App() {
 
   // Render current view
   const renderView = () => {
-    switch (currentView) {
+    switch (nav.currentView) {
       case 'dashboard':
         return (
           <Dashboard
-            entries={entries}
+            entries={items.entries}
             currentUser={currentUser}
             userEmail={userEmail}
-            onOpenEntry={handleOpenEntry}
-            onOpenPdfExport={handleOpenPdfExport}
-            onNavigate={handleNavigate}
-            todos={todos}
-            onToggleTodo={handleToggleTodo}
+            onOpenEntry={nav.openEntry}
+            onOpenPdfExport={modals.openPdfExport}
+            onNavigate={nav.navigate}
+            todos={todosHook.todos}
+            onToggleTodo={todosHook.toggleTodo}
             onAddTodo={handleAddTodo}
-            onUpdateTodo={handleUpdateTodo}
-            onDeleteTodo={handleDeleteTodo}
-            onUpdateEntry={handleUpdateEntry}
-            onEditSubtask={handleEditSubtask}
-            workstreams={workstreams}
-            workstreamTasks={workstreamTasks}
-            onOpenWorkstreamTask={handleOpenWorkstreamTask}
-            onUpdateWorkstreamTask={handleUpdateWorkstreamTask}
+            onUpdateTodo={todosHook.updateTodo}
+            onDeleteTodo={todosHook.deleteTodo}
+            onUpdateEntry={items.updateEntry}
+            onEditSubtask={items.editSubtask}
+            workstreams={ws.workstreams}
+            workstreamTasks={ws.workstreamTasks}
+            onOpenWorkstreamTask={nav.openWorkstreamTask}
+            onUpdateWorkstreamTask={ws.updateWorkstreamTask}
             Badge={Badge}
-            events={events}
+            events={ev.events}
           />
         );
 
-      case 'item-dashboard':
-        const selectedEntry = entries.find(e => e.id === selectedItemId);
+      case 'item-dashboard': {
+        const selectedEntry = items.entries.find(e => e.id === nav.selectedItemId);
         return (
           <ItemDashboard
             entry={selectedEntry}
-            onBack={handleBack}
-            onToggleSubtask={handleToggleSubtask}
-            onDeleteSubtask={handleDeleteSubtask}
-            onEditSubtask={handleEditSubtask}
-            onUpdateEntry={handleUpdateEntry}
-            openSubtaskModal={openSubtaskModal}
+            onBack={nav.goBack}
+            onToggleSubtask={items.toggleSubtask}
+            onDeleteSubtask={items.deleteSubtask}
+            onEditSubtask={items.editSubtask}
+            onUpdateEntry={items.updateEntry}
+            openSubtaskModal={modals.openSubtaskModal}
             currentUser={currentUser}
             userEmail={userEmail}
-            allEntries={entries}
+            allEntries={items.entries}
             onNavigateToWhiteboard={(id) => {
-              setCurrentWhiteboardId(id);
-              handleNavigate('whiteboards');
+              wb.setCurrentWhiteboardId(id);
+              nav.navigate('whiteboards');
             }}
-            onConvert={(item, type) => {
-              handleOpenConvertModal(item, type);
-            }}
+            onConvert={(item, type) => modals.openConvertModal(item, type)}
             USERS={USERS}
             KANBAN_STATUSES={KANBAN_STATUSES}
             userProfilesCache={userProfilesCache}
@@ -1676,420 +442,318 @@ export default function App() {
             WhiteboardPreviewCard={WhiteboardPreviewCard}
           />
         );
+      }
 
-      case 'personal':
-        const myPersonalProjects = filteredEntries.filter(e => (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail)) && e.itemType !== 'job');
-        const ownedProjects = filteredEntries.filter(e => (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail)) && e.itemType !== 'job' && !e.archived);
-        const collaboratorProjects = filteredEntries.filter(e => e.collaborators?.includes(currentUser) && !e.owner?.includes(currentUser) && !e.ownerEmail?.includes(userEmail) && e.itemType !== 'job' && !e.archived);
+      case 'personal': {
+        const myPersonalProjects = filters.filteredEntries.filter(e => (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail)) && e.itemType !== 'job');
+        const ownedProjects = filters.filteredEntries.filter(e => (e.owner?.includes(currentUser) || e.ownerEmail?.includes(userEmail)) && e.itemType !== 'job' && !e.archived);
+        const collaboratorProjects = filters.filteredEntries.filter(e => e.collaborators?.includes(currentUser) && !e.owner?.includes(currentUser) && !e.ownerEmail?.includes(userEmail) && e.itemType !== 'job' && !e.archived);
         const thisMonth = new Date();
         const thisMonthStr = `${thisMonth.getFullYear()}-${String(thisMonth.getMonth() + 1).padStart(2, '0')}`;
-        const dueThisMonth = filteredEntries.filter(e => {
+        const dueThisMonth = filters.filteredEntries.filter(e => {
           if (e.itemType === 'job' || e.archived) return false;
           if (!e.owner?.includes(currentUser) && !e.ownerEmail?.includes(userEmail) && !e.collaborators?.includes(currentUser)) return false;
           const dateStr = e.date || e.timelineValue;
           return dateStr && dateStr.startsWith(thisMonthStr);
         });
-        const personalTags = [...new Set(entries.flatMap(e => e.tags || []))];
-        const activeFiltersCount = ownerFilter.length + teamFilter.length;
-        const activeTagsCount = tagFilter.length;
-        const toggleFilter = (item, currentList, setList) => {
-          if (currentList.includes(item)) {
-            setList(currentList.filter(i => i !== item));
-          } else {
-            setList([...currentList, item]);
-          }
-        };
+        const personalTags = [...new Set(items.entries.flatMap(e => e.tags || []))];
+        const activeFiltersCount = filters.ownerFilter.length + filters.teamFilter.length;
+        const activeTagsCount = filters.tagFilter.length;
         return (
           <div className="p-6 space-y-6">
-            {/* Header Card */}
             <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-bold mb-1">Your Projects</h1>
                   <p className="text-ocean-100 text-sm">View and manage your owned projects</p>
                 </div>
-                <button
-                  onClick={() => setShowAddItemModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors border border-white/20"
-                >
-                  <Icon name="plus" className="w-4 h-4" />
-                  New Project
-                </button>
+                <div className="flex items-center gap-2">
+                  <div className="relative" data-dropdown>
+                    <button
+                      onClick={() => modals.setShowExportMenu?.(!modals.showExportMenu)}
+                      className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors border border-white/20 text-sm"
+                    >
+                      <Icon name="download" className="w-4 h-4" />
+                      Export
+                    </button>
+                    {modals.showExportMenu && (
+                      <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-ocean-100 p-1 z-50">
+                        <button onClick={() => { exportCSV(myPersonalProjects, 'my-projects'); modals.setShowExportMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-graystone-700 hover:bg-ocean-50 transition flex items-center gap-2">
+                          <Icon name="file-spreadsheet" className="w-4 h-4 text-green-600" /> Export CSV
+                        </button>
+                        <button onClick={() => { exportJSON(myPersonalProjects, 'my-projects'); modals.setShowExportMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-graystone-700 hover:bg-ocean-50 transition flex items-center gap-2">
+                          <Icon name="file-json" className="w-4 h-4 text-blue-600" /> Export JSON
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => modals.setShowAddItemModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors border border-white/20"
+                  >
+                    <Icon name="plus" className="w-4 h-4" />
+                    New Project
+                  </button>
+                </div>
               </div>
             </div>
-            {/* Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Owned</p>
-                    <p className="text-3xl font-bold text-ocean-900">{ownedProjects.length}</p>
+              {[
+                { label: 'Owned', count: ownedProjects.length, icon: 'user', desc: 'Projects you own' },
+                { label: 'Collaborating', count: collaboratorProjects.length, icon: 'users', desc: 'Projects you collaborate on' },
+                { label: 'Due This Month', count: dueThisMonth.length, icon: 'calendar', desc: thisMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) },
+              ].map(stat => (
+                <div key={stat.label} className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">{stat.label}</p>
+                      <p className="text-3xl font-bold text-ocean-900">{stat.count}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
+                      <Icon name={stat.icon} className="w-6 h-6 text-white" />
+                    </div>
                   </div>
-                  <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
-                    <Icon name="user" className="w-6 h-6 text-white" />
-                  </div>
+                  <p className="text-xs text-graystone-500 mt-2">{stat.desc}</p>
                 </div>
-                <p className="text-xs text-graystone-500 mt-2">Projects you own</p>
-              </div>
-              <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Collaborating</p>
-                    <p className="text-3xl font-bold text-ocean-900">{collaboratorProjects.length}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
-                    <Icon name="users" className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-                <p className="text-xs text-graystone-500 mt-2">Projects you collaborate on</p>
-              </div>
-              <div className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">Due This Month</p>
-                    <p className="text-3xl font-bold text-ocean-900">{dueThisMonth.length}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-ocean-500 rounded-xl flex items-center justify-center">
-                    <Icon name="calendar" className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-                <p className="text-xs text-graystone-500 mt-2">{thisMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</p>
-              </div>
+              ))}
             </div>
-            {/* Projects Card with Filters */}
             <div className="bg-white rounded-xl border border-ocean-100 shadow-sm">
-              {/* Header with Search and Filters */}
               <div className="p-4 border-b border-ocean-100">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Search */}
-                    <div className="relative group">
-                      <Icon name="search" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-graystone-400" />
-                      <input
-                        type="text"
-                        placeholder="Search..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 pr-4 py-2 border border-ocean-200 rounded-lg text-sm text-ocean-900 placeholder-graystone-400 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 transition-all w-40 lg:w-48"
-                      />
-                    </div>
-                    {/* Filters Dropdown */}
-                    <div className="relative" data-dropdown>
-                      <button
-                        onClick={() => { setShowFiltersDropdown(!showFiltersDropdown); setShowTagsDropdown(false); setShowViewDropdown(false); }}
-                        aria-label="Filter by team and user"
-                        aria-expanded={showFiltersDropdown}
-                        aria-haspopup="true"
-                        className={clsx(
-                          "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
-                          showFiltersDropdown || activeFiltersCount > 0
-                            ? "bg-ocean-50 text-ocean-700 border-ocean-200"
-                            : "bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
-                        )}
-                      >
-                        <Icon name="filter" className="w-4 h-4" aria-hidden="true" />
-                        Filters
-                        {activeFiltersCount > 0 && (
-                          <span className="bg-ocean-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                            {activeFiltersCount}
-                          </span>
-                        )}
-                      </button>
-                      {showFiltersDropdown && (
-                        <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 md:p-4 z-50">
-                          <div className="space-y-4">
-                            <div>
-                              <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Teams</h4>
-                              <div className="space-y-1">
-                                {TEAMS.map(team => (
-                                  <label key={team} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={teamFilter.includes(team)}
-                                      onChange={() => toggleFilter(team, teamFilter, setTeamFilter)}
-                                      className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
-                                    />
-                                    <span className="text-sm text-ocean-900">{team}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="border-t border-ocean-50 pt-3">
-                              <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Users</h4>
-                              <div className="space-y-1 max-h-40 overflow-y-auto">
-                                {USERS.map(user => (
-                                  <label key={user} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={ownerFilter.includes(user)}
-                                      onChange={() => toggleFilter(user, ownerFilter, setOwnerFilter)}
-                                      className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
-                                    />
-                                    <span className="text-sm text-ocean-900">{user}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="border-t border-ocean-50 pt-3">
-                              <label className="flex items-center justify-between p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
-                                <span className="text-sm text-ocean-900 flex items-center gap-2">
-                                  <Icon name="archive" className="w-4 h-4 text-graystone-500" />
-                                  Show Archived
-                                </span>
-                                <div
-                                  className={clsx(
-                                    "w-10 h-5 rounded-full transition-colors relative cursor-pointer",
-                                    showArchived ? "bg-ocean-500" : "bg-graystone-300"
-                                  )}
-                                  onClick={() => setShowArchived(!showArchived)}
-                                >
-                                  <div className={clsx(
-                                    "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                                    showArchived ? "translate-x-5" : "translate-x-0.5"
-                                  )}></div>
-                                </div>
-                              </label>
+                  <div className="relative group">
+                    <Icon name="search" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-graystone-400" />
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      value={filters.searchQuery}
+                      onChange={(e) => filters.setSearchQuery(e.target.value)}
+                      className="pl-9 pr-4 py-2 border border-ocean-200 rounded-lg text-sm text-ocean-900 placeholder-graystone-400 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 transition-all w-40 lg:w-48"
+                    />
+                  </div>
+                  <div className="relative" data-dropdown>
+                    <button
+                      onClick={() => { modals.setShowFiltersDropdown(!modals.showFiltersDropdown); modals.setShowTagsDropdown(false); modals.setShowViewDropdown(false); }}
+                      className={clsx(
+                        "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
+                        modals.showFiltersDropdown || activeFiltersCount > 0
+                          ? "bg-ocean-50 text-ocean-700 border-ocean-200"
+                          : "bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
+                      )}
+                    >
+                      <Icon name="filter" className="w-4 h-4" />
+                      Filters
+                      {activeFiltersCount > 0 && (
+                        <span className="bg-ocean-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">{activeFiltersCount}</span>
+                      )}
+                    </button>
+                    {modals.showFiltersDropdown && (
+                      <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 md:p-4 z-50">
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Teams</h4>
+                            <div className="space-y-1">
+                              {TEAMS.map(team => (
+                                <label key={team} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                                  <input type="checkbox" checked={filters.teamFilter.includes(team)} onChange={() => filters.toggleFilter(team, filters.teamFilter, filters.setTeamFilter)} className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500" />
+                                  <span className="text-sm text-ocean-900">{team}</span>
+                                </label>
+                              ))}
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                    {/* Tags Dropdown */}
-                    <div className="relative" data-dropdown>
-                      <button
-                        onClick={() => { setShowTagsDropdown(!showTagsDropdown); setShowFiltersDropdown(false); setShowViewDropdown(false); }}
-                        className={clsx(
-                          "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
-                          showTagsDropdown || activeTagsCount > 0
-                            ? "bg-ocean-50 text-ocean-700 border-ocean-200"
-                            : "bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
-                        )}
-                      >
-                        <Icon name="tag" className="w-4 h-4" />
-                        Tags
-                        {activeTagsCount > 0 && (
-                          <span className="bg-ocean-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                            {activeTagsCount}
-                          </span>
-                        )}
-                      </button>
-                      {showTagsDropdown && (
-                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-ocean-100 p-4 z-50">
-                          <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Filter by Tags</h4>
-                          <div className="space-y-1 max-h-60 overflow-y-auto">
-                            {personalTags.map(tag => (
-                              <label key={tag} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={tagFilter.includes(tag)}
-                                  onChange={() => toggleFilter(tag, tagFilter, setTagFilter)}
-                                  className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500"
-                                />
-                                <span className="text-sm text-ocean-900">{tag}</span>
-                              </label>
-                            ))}
-                            {personalTags.length === 0 && (
-                              <p className="text-xs text-graystone-400 italic p-2">No tags available</p>
-                            )}
+                          <div className="border-t border-ocean-50 pt-3">
+                            <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Users</h4>
+                            <div className="space-y-1 max-h-40 overflow-y-auto">
+                              {USERS.map(user => (
+                                <label key={user} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                                  <input type="checkbox" checked={filters.ownerFilter.includes(user)} onChange={() => filters.toggleFilter(user, filters.ownerFilter, filters.setOwnerFilter)} className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500" />
+                                  <span className="text-sm text-ocean-900">{user}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="border-t border-ocean-50 pt-3">
+                            <label className="flex items-center justify-between p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                              <span className="text-sm text-ocean-900 flex items-center gap-2">
+                                <Icon name="archive" className="w-4 h-4 text-graystone-500" />
+                                Show Archived
+                              </span>
+                              <div
+                                className={clsx("w-10 h-5 rounded-full transition-colors relative cursor-pointer", filters.showArchived ? "bg-ocean-500" : "bg-graystone-300")}
+                                onClick={() => filters.setShowArchived(!filters.showArchived)}
+                              >
+                                <div className={clsx("absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform", filters.showArchived ? "translate-x-5" : "translate-x-0.5")}></div>
+                              </div>
+                            </label>
                           </div>
                         </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative" data-dropdown>
+                    <button
+                      onClick={() => { modals.setShowTagsDropdown(!modals.showTagsDropdown); modals.setShowFiltersDropdown(false); modals.setShowViewDropdown(false); }}
+                      className={clsx(
+                        "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border",
+                        modals.showTagsDropdown || activeTagsCount > 0
+                          ? "bg-ocean-50 text-ocean-700 border-ocean-200"
+                          : "bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
                       )}
-                    </div>
-                    {/* View Switcher */}
-                    <div className="relative" data-dropdown>
-                      <button
-                        onClick={() => { setShowViewDropdown(!showViewDropdown); setShowFiltersDropdown(false); setShowTagsDropdown(false); }}
-                        className="px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
-                      >
-                        <Icon
-                          name={
-                            viewMode === 'kanban' ? 'kanban' :
-                              viewMode === 'table' ? 'table' :
-                                viewMode === 'gantt' ? 'bar-chart-2' : 'calendar'
-                          }
-                          className="w-4 h-4"
-                        />
-                        <span className="capitalize hidden sm:inline">{viewMode === 'kanban' ? 'Board' : viewMode === 'calendar' ? 'Timeline' : viewMode}</span>
-                        <Icon name="chevron-down" className="w-3 h-3 opacity-70" />
-                      </button>
-                      {showViewDropdown && (
-                        <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-ocean-100 p-1 z-50">
-                          {[
-                            { id: 'kanban', label: 'Board', icon: 'kanban' },
-                            { id: 'table', label: 'Table', icon: 'table' },
-                            { id: 'gantt', label: 'Gantt', icon: 'bar-chart-2' },
-                            { id: 'calendar', label: 'Timeline', icon: 'calendar' }
-                          ].map(view => (
-                            <button
-                              key={view.id}
-                              onClick={() => { setViewMode(view.id); setShowViewDropdown(false); }}
-                              className={clsx(
-                                "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2",
-                                viewMode === view.id
-                                  ? "bg-ocean-50 text-ocean-700"
-                                  : "text-graystone-600 hover:bg-graystone-50 hover:text-ocean-900"
-                              )}
-                            >
-                              <Icon name={view.icon} className="w-4 h-4" />
-                              {view.label}
-                            </button>
+                    >
+                      <Icon name="tag" className="w-4 h-4" />
+                      Tags
+                      {activeTagsCount > 0 && (
+                        <span className="bg-ocean-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">{activeTagsCount}</span>
+                      )}
+                    </button>
+                    {modals.showTagsDropdown && (
+                      <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-ocean-100 p-4 z-50">
+                        <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Filter by Tags</h4>
+                        <div className="space-y-1 max-h-60 overflow-y-auto">
+                          {personalTags.map(tag => (
+                            <label key={tag} className="flex items-center gap-2 p-1.5 hover:bg-ocean-50 rounded cursor-pointer">
+                              <input type="checkbox" checked={filters.tagFilter.includes(tag)} onChange={() => filters.toggleFilter(tag, filters.tagFilter, filters.setTagFilter)} className="rounded border-graystone-300 text-ocean-600 focus:ring-ocean-500" />
+                              <span className="text-sm text-ocean-900">{tag}</span>
+                            </label>
                           ))}
+                          {personalTags.length === 0 && <p className="text-xs text-graystone-400 italic p-2">No tags available</p>}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative" data-dropdown>
+                    <button
+                      onClick={() => { modals.setShowViewDropdown(!modals.showViewDropdown); modals.setShowFiltersDropdown(false); modals.setShowTagsDropdown(false); }}
+                      className="px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
+                    >
+                      <Icon name={nav.viewMode === 'kanban' ? 'kanban' : nav.viewMode === 'table' ? 'table' : nav.viewMode === 'gantt' ? 'bar-chart-2' : 'calendar'} className="w-4 h-4" />
+                      <span className="capitalize hidden sm:inline">{nav.viewMode === 'kanban' ? 'Board' : nav.viewMode === 'calendar' ? 'Timeline' : nav.viewMode}</span>
+                      <Icon name="chevron-down" className="w-3 h-3 opacity-70" />
+                    </button>
+                    {modals.showViewDropdown && (
+                      <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-ocean-100 p-1 z-50">
+                        {[
+                          { id: 'kanban', label: 'Board', icon: 'kanban' },
+                          { id: 'table', label: 'Table', icon: 'table' },
+                          { id: 'gantt', label: 'Gantt', icon: 'bar-chart-2' },
+                          { id: 'calendar', label: 'Timeline', icon: 'calendar' },
+                        ].map(view => (
+                          <button
+                            key={view.id}
+                            onClick={() => { nav.setViewMode(view.id); modals.setShowViewDropdown(false); }}
+                            className={clsx(
+                              "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2",
+                              nav.viewMode === view.id ? "bg-ocean-50 text-ocean-700" : "text-graystone-600 hover:bg-graystone-50 hover:text-ocean-900"
+                            )}
+                          >
+                            <Icon name={view.icon} className="w-4 h-4" />
+                            {view.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {(activeFiltersCount > 0 || activeTagsCount > 0) && (
+                    <button
+                      onClick={() => {
+                        const name = prompt('Save current filter as:');
+                        if (name?.trim()) filters.saveCurrentFilter(name.trim());
+                      }}
+                      className="px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 border bg-white text-graystone-600 border-ocean-200 hover:bg-ocean-50"
+                    >
+                      <Icon name="bookmark-plus" className="w-4 h-4" />
+                      <span className="hidden sm:inline">Save</span>
+                    </button>
+                  )}
                 </div>
-                {/* Active Filter Chips */}
+                {filters.savedFilters.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="text-xs text-graystone-500 font-medium">Saved:</span>
+                    {filters.savedFilters.map(sf => (
+                      <div key={sf.id} className="flex items-center gap-1">
+                        <button
+                          onClick={() => filters.applySavedFilter(sf)}
+                          className="px-2.5 py-1 rounded-full bg-ocean-50 hover:bg-ocean-100 text-ocean-700 text-xs font-medium transition-colors border border-ocean-200"
+                        >
+                          {sf.name}
+                        </button>
+                        <button
+                          onClick={() => filters.deleteSavedFilter(sf.id)}
+                          className="p-0.5 hover:bg-graystone-100 rounded-full transition"
+                        >
+                          <Icon name="x" className="w-3 h-3 text-graystone-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {(activeFiltersCount > 0 || activeTagsCount > 0) && (
                   <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-ocean-100">
-                    {teamFilter.map(team => (
-                      <button
-                        key={`team-${team}`}
-                        onClick={() => toggleFilter(team, teamFilter, setTeamFilter)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors"
-                      >
-                        <span>{team}</span>
-                        <Icon name="x" className="w-3 h-3" />
+                    {filters.teamFilter.map(team => (
+                      <button key={`team-${team}`} onClick={() => filters.toggleFilter(team, filters.teamFilter, filters.setTeamFilter)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors">
+                        <span>{team}</span><Icon name="x" className="w-3 h-3" />
                       </button>
                     ))}
-                    {ownerFilter.map(user => (
-                      <button
-                        key={`user-${user}`}
-                        onClick={() => toggleFilter(user, ownerFilter, setOwnerFilter)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors"
-                      >
-                        <span>{user}</span>
-                        <Icon name="x" className="w-3 h-3" />
+                    {filters.ownerFilter.map(user => (
+                      <button key={`user-${user}`} onClick={() => filters.toggleFilter(user, filters.ownerFilter, filters.setOwnerFilter)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors">
+                        <span>{user}</span><Icon name="x" className="w-3 h-3" />
                       </button>
                     ))}
-                    {tagFilter.map(tag => (
-                      <button
-                        key={`tag-${tag}`}
-                        onClick={() => toggleFilter(tag, tagFilter, setTagFilter)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors"
-                      >
-                        <Icon name="tag" className="w-3 h-3" />
-                        <span>{tag}</span>
-                        <Icon name="x" className="w-3 h-3" />
+                    {filters.tagFilter.map(tag => (
+                      <button key={`tag-${tag}`} onClick={() => filters.toggleFilter(tag, filters.tagFilter, filters.setTagFilter)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors">
+                        <Icon name="tag" className="w-3 h-3" /><span>{tag}</span><Icon name="x" className="w-3 h-3" />
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-              {/* View Content */}
               <div className="p-6">
-                {viewMode === 'kanban' && (
-                  <KanbanBoard
-                    statuses={KANBAN_STATUSES}
-                    entries={myPersonalProjects}
-                    onOpen={handleOpenEntry}
-                    onUpdateStatus={handleUpdateStatus}
-                    openSubtaskModal={openSubtaskModal}
-                    currentUser={currentUser}
-                  />
+                {nav.viewMode === 'kanban' && (
+                  <KanbanBoard statuses={KANBAN_STATUSES} entries={myPersonalProjects} onOpen={nav.openEntry} onUpdateStatus={items.updateStatus} openSubtaskModal={modals.openSubtaskModal} currentUser={currentUser} />
                 )}
-                {viewMode === 'table' && (
-                  <TableView
-                    entries={myPersonalProjects}
-                    onOpen={handleOpenEntry}
-                  />
+                {nav.viewMode === 'table' && (
+                  <TableView entries={myPersonalProjects} onOpen={nav.openEntry} onBulkStatusChange={handleBulkStatusChange} onBulkDelete={handleBulkDelete} statuses={KANBAN_STATUSES} />
                 )}
-                {viewMode === 'gantt' && (
+                {nav.viewMode === 'gantt' && (
                   <Suspense fallback={<TableSkeleton rows={6} cols={5} />}>
-                    <GanttView
-                      entries={myPersonalProjects}
-                      onOpen={handleOpenEntry}
-                    />
+                    <GanttView entries={myPersonalProjects} onOpen={nav.openEntry} />
                   </Suspense>
                 )}
-                {viewMode === 'calendar' && (
+                {nav.viewMode === 'calendar' && (
                   <Suspense fallback={<ListSkeleton rows={5} />}>
-                    <CalendarScreen
-                      entries={myPersonalProjects}
-                      onOpen={handleOpenEntry}
-                      openSubtaskModal={openSubtaskModal}
-                      isEmbedded={true}
-                    />
+                    <CalendarScreen entries={myPersonalProjects} onOpen={nav.openEntry} openSubtaskModal={modals.openSubtaskModal} isEmbedded={true} />
                   </Suspense>
                 )}
               </div>
             </div>
           </div>
         );
+      }
 
       case 'jobs':
         return (
-          <JobsView
-            entries={entries}
-            setEntries={setEntries}
-            currentUser={currentUser}
-            userEmail={userEmail}
-            darkMode={darkMode}
-            supabase={supabase}
-            Logger={Logger}
-            userProfiles={SEED_USERS}
-            teams={TEAMS}
-          />
+          <JobsView entries={items.entries} setEntries={items.setEntries} currentUser={currentUser} userEmail={userEmail} darkMode={darkMode} supabase={supabase} Logger={Logger} userProfiles={SEED_USERS} teams={TEAMS} />
         );
 
       case 'todo':
         return (
-          <ToDoList
-            todos={todos}
-            onToggleTodo={handleToggleTodo}
-            onAddTodo={handleAddTodo}
-            onUpdateTodo={handleUpdateTodo}
-            onDeleteTodo={handleDeleteTodo}
-            entries={entries}
-            workstreamTasks={workstreamTasks}
-            workstreams={workstreams}
-            currentUser={currentUser}
-            onOpenEntry={handleOpenEntry}
-          />
+          <ToDoList todos={todosHook.todos} onToggleTodo={todosHook.toggleTodo} onAddTodo={handleAddTodo} onUpdateTodo={todosHook.updateTodo} onDeleteTodo={todosHook.deleteTodo} entries={items.entries} workstreamTasks={ws.workstreamTasks} workstreams={ws.workstreams} currentUser={currentUser} onOpenEntry={nav.openEntry} />
         );
 
       case 'calendar':
         return (
           <Suspense fallback={<LoadingSpinner />}>
-            <CalendarScreen
-              entries={entries}
-              todos={todos}
-              workstreamTasks={workstreamTasks}
-              workstreams={workstreams}
-              currentUser={currentUser}
-              onOpenEntry={handleOpenEntry}
-              onUpdateEntry={handleUpdateEntry}
-              onToggleTodo={handleToggleTodo}
-              onOpenWorkstreamTask={handleOpenWorkstreamTask}
-            />
+            <CalendarScreen entries={items.entries} todos={todosHook.todos} workstreamTasks={ws.workstreamTasks} workstreams={ws.workstreams} currentUser={currentUser} onOpenEntry={nav.openEntry} onUpdateEntry={items.updateEntry} onToggleTodo={todosHook.toggleTodo} onOpenWorkstreamTask={nav.openWorkstreamTask} />
           </Suspense>
         );
 
       case 'events-calendar':
         return (
-          <EventCalendar
-            events={events}
-            entries={entries}
-            workstreams={workstreams}
-            workstreamTasks={workstreamTasks}
-            currentUser={currentUser}
-            onCreateEvent={handleCreateEvent}
-            onUpdateEvent={handleUpdateEvent}
-            onDeleteEvent={handleDeleteEvent}
-            onNavigateToEntry={(id) => { handleOpenEntry(id); }}
-            onNavigateToWorkstream={(id) => { setSelectedWorkstreamId(id); handleNavigate('workstreams'); }}
-          />
+          <EventCalendar events={ev.events} entries={items.entries} workstreams={ws.workstreams} workstreamTasks={ws.workstreamTasks} currentUser={currentUser} onCreateEvent={handleCreateEvent} onUpdateEvent={ev.updateEvent} onDeleteEvent={ev.deleteEvent} onNavigateToEntry={(id) => nav.openEntry(id)} onNavigateToWorkstream={(id) => nav.openWorkstreamDetail(id)} />
         );
 
       case 'add-item':
         return (
-          <AddItemForm
-            onSubmit={handleAddItem}
-            onCancel={handleBack}
-            users={USERS}
-            teams={TEAMS}
-            statuses={KANBAN_STATUSES}
-            timelineTypes={TIMELINE_TYPES}
-            currentUser={currentUser}
-          />
+          <AddItemForm onSubmit={handleAddItem} onCancel={nav.goBack} users={USERS} teams={TEAMS} statuses={KANBAN_STATUSES} timelineTypes={TIMELINE_TYPES} currentUser={currentUser} />
         );
 
       case 'admin':
@@ -2106,18 +770,7 @@ export default function App() {
         }
         return (
           <Suspense fallback={<LoadingSpinner />}>
-            <AdminConsole
-              onBack={() => handleNavigate('dashboard')}
-              currentUserEmail={userEmail}
-              SUPABASE_API={SUPABASE_API}
-              supabase={supabase}
-              Logger={Logger}
-              APP_CONFIG={APP_CONFIG}
-              TEAMS={TEAMS}
-              SEED_PROFILES={SEED_USERS}
-              isAdmin={isAdmin}
-              LoadingSpinner={LoadingSpinner}
-            />
+            <AdminConsole onBack={() => nav.navigate('dashboard')} currentUserEmail={userEmail} SUPABASE_API={SUPABASE_API} supabase={supabase} Logger={Logger} APP_CONFIG={APP_CONFIG} TEAMS={TEAMS} SEED_PROFILES={SEED_USERS} isAdmin={isAdmin} LoadingSpinner={LoadingSpinner} />
           </Suspense>
         );
 
@@ -2136,190 +789,95 @@ export default function App() {
         return (
           <Suspense fallback={<LoadingSpinner />}>
             <ManagerHub
-              managers={MANAGERS}
-              teams={TEAMS}
-              entries={entries}
-              currentUser={currentUser}
-              userEmail={userEmail}
-              openStatsModal={openStatsModal}
-              onOpen={handleOpenEntry}
-              onUpdateStatus={handleUpdateStatus}
-              openSubtaskModal={openSubtaskModal}
-              onOpenPdfExport={handleOpenPdfExport}
-              managerHubTab={managerHubTab}
-              setManagerHubTab={setManagerHubTab}
-              reportPeriodType={reportPeriodType}
-              setReportPeriodType={setReportPeriodType}
-              reportStartDate={reportStartDate}
-              setReportStartDate={setReportStartDate}
-              reportEndDate={reportEndDate}
-              setReportEndDate={setReportEndDate}
-              reportSections={reportSections}
-              setReportSections={setReportSections}
-              projectsDisplayMode={projectsDisplayMode}
-              setProjectsDisplayMode={setProjectsDisplayMode}
-              reportNarratives={reportNarratives}
-              setReportNarratives={setReportNarratives}
-              workstreams={workstreams}
-              workstreamTasks={workstreamTasks}
-              onNavigateToWorkstream={(workstreamId) => {
-                setSelectedWorkstreamId(workstreamId);
-                handleNavigate('workstream-detail');
-              }}
-              TEAMS={TEAMS}
-              isAdmin={isAdmin}
-              Badge={Badge}
-              APP_CONFIG={APP_CONFIG}
+              managers={MANAGERS} teams={TEAMS} entries={items.entries} currentUser={currentUser} userEmail={userEmail}
+              openStatsModal={modals.openStatsModal} onOpen={nav.openEntry} onUpdateStatus={items.updateStatus}
+              openSubtaskModal={modals.openSubtaskModal} onOpenPdfExport={modals.openPdfExport}
+              managerHubTab={managerHubTab} setManagerHubTab={setManagerHubTab}
+              reportPeriodType={reportPeriodType} setReportPeriodType={setReportPeriodType}
+              reportStartDate={reportStartDate} setReportStartDate={setReportStartDate}
+              reportEndDate={reportEndDate} setReportEndDate={setReportEndDate}
+              reportSections={reportSections} setReportSections={setReportSections}
+              projectsDisplayMode={projectsDisplayMode} setProjectsDisplayMode={setProjectsDisplayMode}
+              reportNarratives={reportNarratives} setReportNarratives={setReportNarratives}
+              workstreams={ws.workstreams} workstreamTasks={ws.workstreamTasks}
+              onNavigateToWorkstream={(id) => nav.openWorkstreamDetail(id)}
+              TEAMS={TEAMS} isAdmin={isAdmin} Badge={Badge} APP_CONFIG={APP_CONFIG}
             />
           </Suspense>
         );
 
       case 'whiteboards':
         return (
-          <WhiteboardsView
-            whiteboards={whiteboards}
-            setWhiteboards={setWhiteboards}
-            onOpenWhiteboard={(id) => {
-              setCurrentWhiteboardId(id);
-              handleNavigate('whiteboard-canvas');
-            }}
-            userEmail={userEmail}
-            currentUser={currentUser}
-            WHITEBOARD_API={SUPABASE_API}
-          />
+          <WhiteboardsView whiteboards={wb.whiteboards} setWhiteboards={wb.setWhiteboards} onOpenWhiteboard={(id) => { wb.setCurrentWhiteboardId(id); nav.navigate('whiteboard-canvas'); }} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} />
         );
 
-      case 'whiteboard-canvas':
-        const currentWhiteboard = whiteboards.find(w => w.id === currentWhiteboardId);
+      case 'whiteboard-canvas': {
+        const currentWhiteboard = wb.whiteboards.find(w => w.id === wb.currentWhiteboardId);
         if (!currentWhiteboard) {
           return (
             <div className="text-center py-12">
               <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-ocean-900 mb-2">Whiteboard Not Found</h2>
-              <Button onClick={handleBack}>Back to Whiteboards</Button>
+              <Button onClick={nav.goBack}>Back to Whiteboards</Button>
             </div>
           );
         }
         return (
           <Suspense fallback={<LoadingSpinner />}>
-            <WhiteboardCanvas
-              whiteboardId={currentWhiteboardId}
-              whiteboard={currentWhiteboard}
-              onBack={handleBack}
-              userEmail={userEmail}
-              currentUser={currentUser}
-              WHITEBOARD_API={SUPABASE_API}
-              supabase={supabase}
-              Logger={Logger}
-              STICKY_COLORS={STICKY_COLORS}
-              StickyNote={StickyNote}
-              WhiteboardElement={WhiteboardElement}
-              TextBoxElement={TextBoxElement}
-              ImageElement={ImageElement}
-              ShapeElement={ShapeElement}
-            />
+            <WhiteboardCanvas whiteboardId={wb.currentWhiteboardId} whiteboard={currentWhiteboard} onBack={nav.goBack} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} supabase={supabase} Logger={Logger} STICKY_COLORS={STICKY_COLORS} StickyNote={StickyNote} WhiteboardElement={WhiteboardElement} TextBoxElement={TextBoxElement} ImageElement={ImageElement} ShapeElement={ShapeElement} />
           </Suspense>
         );
+      }
 
       case 'workstreams':
         return (
-          <WorkstreamList
-            workstreams={workstreams}
-            workstreamTasks={workstreamTasks}
-            currentUser={currentUser}
-            userEmail={userEmail}
-            onOpenWorkstream={(id) => {
-              setSelectedWorkstreamId(id);
-              handleNavigate('workstream-detail');
-            }}
-            onCreateWorkstream={handleCreateWorkstream}
-          />
+          <WorkstreamList workstreams={ws.workstreams} workstreamTasks={ws.workstreamTasks} currentUser={currentUser} userEmail={userEmail} onOpenWorkstream={(id) => nav.openWorkstreamDetail(id)} onCreateWorkstream={handleCreateWorkstream} />
         );
 
-      case 'workstream-detail':
-        const viewWorkstream = workstreams.find(w => w.id === selectedWorkstreamId);
+      case 'workstream-detail': {
+        const viewWorkstream = ws.workstreams.find(w => w.id === nav.selectedWorkstreamId);
         if (!viewWorkstream) {
           return (
             <div className="text-center py-12">
               <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-ocean-900 mb-2">Workstream Not Found</h2>
-              <Button onClick={handleBack}>Back to Workstreams</Button>
+              <Button onClick={nav.goBack}>Back to Workstreams</Button>
             </div>
           );
         }
         return (
-          <WorkstreamView
-            workstream={viewWorkstream}
-            workstreamTasks={workstreamTasks.filter(t => t.workstream_id === selectedWorkstreamId)}
-            onBack={handleBack}
-            onOpenTask={(taskId) => {
-              setSelectedWorkstreamTaskId(taskId);
-              handleNavigate('workstream-task-detail');
-            }}
-            onCreateTask={handleCreateWorkstreamTask}
-            onUpdateTask={handleUpdateWorkstreamTask}
-            onUpdateWorkstream={handleUpdateWorkstream}
-            onDeleteWorkstream={handleDeleteWorkstream}
-            WorkstreamSettings={WorkstreamSettings}
-            userEmail={userEmail}
-            currentUser={currentUser}
-            USERS={USERS}
-          />
+          <WorkstreamView workstream={viewWorkstream} workstreamTasks={ws.workstreamTasks.filter(t => t.workstream_id === nav.selectedWorkstreamId)} onBack={nav.goBack} onOpenTask={(taskId) => { nav.setSelectedWorkstreamTaskId(taskId); nav.navigate('workstream-task-detail'); }} onCreateTask={ws.createWorkstreamTask} onUpdateTask={ws.updateWorkstreamTask} onUpdateWorkstream={ws.updateWorkstream} onDeleteWorkstream={handleDeleteWorkstream} WorkstreamSettings={WorkstreamSettings} userEmail={userEmail} currentUser={currentUser} USERS={USERS} />
         );
+      }
 
       case 'productivity-tools':
         return (
-          <ProductivityToolsView
-            userEmail={userEmail}
-            habits={habits}
-            setHabits={setHabits}
-            matrixTasks={matrixTasks}
-            setMatrixTasks={setMatrixTasks}
-            Logger={Logger}
-            PRODUCTIVITY_API={SUPABASE_API}
-          />
+          <ProductivityToolsView userEmail={userEmail} habits={habits} setHabits={setHabits} matrixTasks={matrixTasks} setMatrixTasks={setMatrixTasks} Logger={Logger} PRODUCTIVITY_API={SUPABASE_API} />
         );
 
-      case 'workstream-task-detail':
-        const selectedWorkstream = workstreams.find(w => w.id === selectedWorkstreamId);
-        const selectedTask = workstreamTasks.find(t => t.id === selectedWorkstreamTaskId);
+      case 'workstream-task-detail': {
+        const selectedWorkstream = ws.workstreams.find(w => w.id === nav.selectedWorkstreamId);
+        const selectedTask = ws.workstreamTasks.find(t => t.id === nav.selectedWorkstreamTaskId);
         if (!selectedWorkstream || !selectedTask) {
           return (
             <div className="text-center py-12">
               <Icon name="alert-circle" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-ocean-900 mb-2">Task Not Found</h2>
-              <Button onClick={handleBack}>Back to Workstreams</Button>
+              <Button onClick={nav.goBack}>Back to Workstreams</Button>
             </div>
           );
         }
         return (
-          <WorkstreamTaskDetail
-            task={selectedTask}
-            workstream={selectedWorkstream}
-            currentUser={currentUser}
-            userEmail={userEmail}
-            entries={entries}
-            onBack={handleBack}
-            onUpdate={async (taskId, workstreamId, updates) => {
-              await handleUpdateWorkstreamTask(taskId, updates);
-            }}
-            onDelete={async (taskId, workstreamId) => {
-              return await handleDeleteWorkstreamTask(taskId);
-            }}
-            onConvert={(item, type) => {
-              handleOpenConvertModal(item, type);
-            }}
-            USERS={USERS}
-            USERS_WITH_EMAILS={SEED_USERS}
-          />
+          <WorkstreamTaskDetail task={selectedTask} workstream={selectedWorkstream} currentUser={currentUser} userEmail={userEmail} entries={items.entries} onBack={nav.goBack} onUpdate={async (taskId, _wsId, updates) => { await ws.updateWorkstreamTask(taskId, updates); }} onDelete={async (taskId) => { return await ws.deleteWorkstreamTask(taskId); }} onConvert={(item, type) => modals.openConvertModal(item, type)} USERS={USERS} USERS_WITH_EMAILS={SEED_USERS} />
         );
+      }
 
       default:
         return (
           <div className="text-center py-12">
             <Icon name="file-question" className="w-16 h-16 text-graystone-300 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-ocean-900 mb-2">View Not Found</h2>
-            <Button onClick={() => handleNavigate('dashboard')}>Go to Dashboard</Button>
+            <Button onClick={() => nav.navigate('dashboard')}>Go to Dashboard</Button>
           </div>
         );
     }
@@ -2329,19 +887,11 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-ocean-50 via-aqua-50 to-white">
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-ocean-100 px-4 py-3 flex items-center justify-between">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 rounded-lg hover:bg-ocean-50 text-ocean-700"
-          aria-label="Open menu"
-        >
+        <button onClick={() => nav.setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-ocean-50 text-ocean-700" aria-label="Open menu">
           <Icon name="menu" className="w-6 h-6" />
         </button>
         <h1 className="font-heading text-lg text-ocean-900">Momentum Hub</h1>
-        <button
-          onClick={() => setShowNotificationsPanel(true)}
-          className="relative p-2 rounded-lg hover:bg-ocean-50 text-ocean-700"
-          aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-        >
+        <button onClick={() => modals.setShowNotificationsPanel(true)} className="relative p-2 rounded-lg hover:bg-ocean-50 text-ocean-700" aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}>
           <Icon name="bell" className="w-6 h-6" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
@@ -2352,21 +902,7 @@ export default function App() {
       </header>
 
       {/* Sidebar */}
-      <Sidebar
-        currentView={currentView}
-        onNavigate={handleNavigate}
-        onSignOut={handleSignOut}
-        currentUser={currentUser}
-        userEmail={userEmail}
-        isAdmin={isAdmin}
-        isManager={isManager}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        darkMode={darkMode}
-        setDarkMode={toggleDarkMode}
-        config={APP_CONFIG}
-        onAddNewItem={() => setShowAddItemTypeModal(true)}
-      />
+      <Sidebar currentView={nav.currentView} onNavigate={nav.navigate} onSignOut={handleSignOut} currentUser={currentUser} userEmail={userEmail} isAdmin={isAdmin} isManager={isManager} isOpen={nav.sidebarOpen} onClose={() => nav.setSidebarOpen(false)} darkMode={darkMode} setDarkMode={toggleDarkMode} config={APP_CONFIG} onAddNewItem={() => modals.setShowAddItemTypeModal(true)} />
 
       {/* Main content */}
       <main className="pt-16 lg:pt-0 p-6 lg:p-8 lg:ml-64 min-h-screen overflow-auto">
@@ -2378,141 +914,56 @@ export default function App() {
       </main>
 
       {/* Modals */}
-      {showKeyboardHelp && (
-        <KeyboardShortcutsHelp onClose={() => setShowKeyboardHelp(false)} />
-      )}
+      {modals.showKeyboardHelp && <KeyboardShortcutsHelp onClose={() => modals.setShowKeyboardHelp(false)} />}
 
-      {showGlobalSearch && (
+      {modals.showGlobalSearch && (
         <GlobalSearchModal
-          entries={entries}
-          onClose={() => setShowGlobalSearch(false)}
-          onSelect={(id) => {
-            setShowGlobalSearch(false);
-            handleOpenEntry(id);
-          }}
+          show={modals.showGlobalSearch}
+          entries={items.entries}
+          whiteboards={wb.whiteboards}
+          workstreamTasks={ws.workstreamTasks}
+          workstreams={ws.workstreams}
+          events={ev.events}
+          todos={todosHook.todos}
+          onClose={() => modals.setShowGlobalSearch(false)}
+          onSelectItem={(item) => { modals.setShowGlobalSearch(false); nav.openEntry(item.id); }}
+          onSelectWhiteboard={(whiteboard) => { modals.setShowGlobalSearch(false); wb.setCurrentWhiteboardId(whiteboard.id); nav.navigate('whiteboards'); }}
+          onSelectWorkstreamTask={(task) => { modals.setShowGlobalSearch(false); nav.openWorkstreamTask(task.workstream_id, task.id); }}
+          onSelectEvent={() => { modals.setShowGlobalSearch(false); nav.navigate('events-calendar'); }}
+          onSelectTodo={() => { modals.setShowGlobalSearch(false); nav.navigate('todo'); }}
         />
       )}
 
-      {showQuickAdd && (
-        <QuickAddModal
-          onClose={() => setShowQuickAdd(false)}
-          onSubmit={(item) => {
-            handleAddItem(item);
-            setShowQuickAdd(false);
-          }}
-          users={USERS}
-          teams={TEAMS}
-          currentUser={currentUser}
-        />
+      {modals.showQuickAdd && (
+        <QuickAddModal onClose={() => modals.setShowQuickAdd(false)} onSubmit={(item) => { handleAddItem(item); modals.setShowQuickAdd(false); }} users={USERS} teams={TEAMS} currentUser={currentUser} />
       )}
 
-      {showNotificationsPanel && (
-        <NotificationsPanel
-          notifications={notifications}
-          onClose={() => setShowNotificationsPanel(false)}
-          onNotificationClick={(n) => {
-            markAsRead(n.id);
-            if (n.entryId) handleOpenEntry(n.entryId);
-            setShowNotificationsPanel(false);
-          }}
-          isOpen={showNotificationsPanel}
-        />
+      {modals.showNotificationsPanel && (
+        <NotificationsPanel notifications={notifications} onClose={() => modals.setShowNotificationsPanel(false)} onNotificationClick={(n) => { markAsRead(n.id); if (n.entryId) nav.openEntry(n.entryId); modals.setShowNotificationsPanel(false); }} isOpen={modals.showNotificationsPanel} />
       )}
 
-      {showAddJobModal && (
-        <AddJobModal
-          onClose={() => setShowAddJobModal(false)}
-          onSubmit={async (jobData) => {
-            await handleAddItem({ ...jobData, itemType: 'job' });
-            setShowAddJobModal(false);
-          }}
-          users={USERS}
-          currentUser={currentUser}
-        />
+      {modals.showAddJobModal && (
+        <AddJobModal onClose={() => modals.setShowAddJobModal(false)} onSubmit={async (jobData) => { await handleAddItem({ ...jobData, itemType: 'job' }); modals.setShowAddJobModal(false); }} users={USERS} currentUser={currentUser} />
       )}
 
-      {/* Add Project Modal (direct to project form) */}
-      {showAddItemModal && (
-        <AddItemTypeModal
-          show={showAddItemModal}
-          onClose={() => setShowAddItemModal(false)}
-          onCreateProject={handleAddItem}
-          onCreateJob={handleAddItem}
-          onCreateWorkstream={handleCreateWorkstream}
-          currentUser={currentUser}
-          userEmail={userEmail}
-          users={USERS}
-          teams={TEAMS}
-          initialStep="project"
-        />
+      {modals.showAddItemModal && (
+        <AddItemTypeModal show={modals.showAddItemModal} onClose={() => modals.setShowAddItemModal(false)} onCreateProject={handleAddItem} onCreateJob={handleAddItem} onCreateWorkstream={handleCreateWorkstream} currentUser={currentUser} userEmail={userEmail} users={USERS} teams={TEAMS} initialStep="project" />
       )}
 
-      {showJobDetailModal && selectedJobId && (
-        <JobDetailModal
-          job={entries.find(e => e.id === selectedJobId)}
-          show={showJobDetailModal}
-          onClose={() => {
-            setShowJobDetailModal(false);
-            setSelectedJobId(null);
-          }}
-          onUpdate={(updates) => handleUpdateEntry(selectedJobId, updates)}
-          onDelete={handleDeleteEntry}
-          onConvert={(item, type) => {
-            setShowJobDetailModal(false);
-            setSelectedJobId(null);
-            handleOpenConvertModal(item, type);
-          }}
-          userProfiles={Object.values(userProfilesCache)}
-          teams={TEAMS}
-          userEmail={userEmail}
-          currentUser={currentUser}
-        />
+      {modals.showJobDetailModal && modals.selectedJobId && (
+        <JobDetailModal job={items.entries.find(e => e.id === modals.selectedJobId)} show={modals.showJobDetailModal} onClose={modals.closeJobDetailModal} onUpdate={(updates) => items.updateEntry(modals.selectedJobId, updates)} onDelete={items.deleteEntry} onConvert={(item, type) => { modals.closeJobDetailModal(); modals.openConvertModal(item, type); }} userProfiles={Object.values(userProfilesCache)} teams={TEAMS} userEmail={userEmail} currentUser={currentUser} />
       )}
 
-      {showAddItemTypeModal && (
-        <AddItemTypeModal
-          show={showAddItemTypeModal}
-          onClose={() => setShowAddItemTypeModal(false)}
-          onCreateProject={handleAddItem}
-          onCreateJob={handleAddItem}
-          onCreateWorkstream={handleCreateWorkstream}
-          currentUser={currentUser}
-          userEmail={userEmail}
-          users={USERS}
-          teams={TEAMS}
-        />
+      {modals.showAddItemTypeModal && (
+        <AddItemTypeModal show={modals.showAddItemTypeModal} onClose={() => modals.setShowAddItemTypeModal(false)} onCreateProject={handleAddItem} onCreateJob={handleAddItem} onCreateWorkstream={handleCreateWorkstream} currentUser={currentUser} userEmail={userEmail} users={USERS} teams={TEAMS} />
       )}
 
-      {showSubtaskModal && subtaskModalEntryId && (
-        <AddSubtaskModal
-          entryId={subtaskModalEntryId}
-          entries={entries}
-          users={USERS}
-          currentUser={currentUser}
-          onAdd={handleAddSubtask}
-          onClose={() => { setShowSubtaskModal(false); setSubtaskModalEntryId(null); }}
-        />
+      {modals.showSubtaskModal && modals.subtaskModalEntryId && (
+        <AddSubtaskModal entryId={modals.subtaskModalEntryId} entries={items.entries} users={USERS} currentUser={currentUser} onAdd={handleAddSubtask} onClose={modals.closeSubtaskModal} />
       )}
 
-      {showConvertModal && convertSourceItem && (
-        <ConvertItemModal
-          show={showConvertModal}
-          onClose={() => {
-            setShowConvertModal(false);
-            setConvertSourceItem(null);
-            setConvertSourceType(null);
-          }}
-          sourceItem={convertSourceItem}
-          sourceType={convertSourceType}
-          workstreams={workstreams}
-          teams={TEAMS}
-          userProfiles={Object.values(userProfilesCache)}
-          currentUser={currentUser}
-          userEmail={userEmail}
-          onConvertToTask={handleConvertToTask}
-          onConvertToProject={handleConvertToProject}
-          onConvertToWorkstream={handleConvertToWorkstream}
-        />
+      {modals.showConvertModal && modals.convertSourceItem && (
+        <ConvertItemModal show={modals.showConvertModal} onClose={modals.closeConvertModal} sourceItem={modals.convertSourceItem} sourceType={modals.convertSourceType} workstreams={ws.workstreams} teams={TEAMS} userProfiles={Object.values(userProfilesCache)} currentUser={currentUser} userEmail={userEmail} onConvertToTask={handleConvertToTask} onConvertToProject={handleConvertToProject} onConvertToWorkstream={handleConvertToWorkstream} />
       )}
     </div>
   );
