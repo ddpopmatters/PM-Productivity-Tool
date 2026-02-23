@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
+import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 import { PHASES, getPhaseFromDate } from '../../../utils/config';
-
-const cx = (...xs) => xs.filter(Boolean).join(" ");
 
 const OVERVIEW_SECTIONS = [
   { id: 'summaryStats', label: 'Summary Statistics', description: 'Total items, due this month' },
@@ -28,6 +27,54 @@ const NARRATIVE_SECTIONS = [
   { id: 'keyHighlights', label: 'Key Highlights', placeholder: 'Notable achievements, milestones reached, successful deliveries...' },
   { id: 'blockersRisks', label: 'Blockers & Risks', placeholder: 'Current blockers, upcoming risks, resource constraints...' },
 ];
+
+const TIMEFRAME_PRESETS = [
+  { id: 'thisMonth', label: 'This Month' },
+  { id: 'lastMonth', label: 'Last Month' },
+  { id: 'thisQuarter', label: 'This Quarter' },
+  { id: 'lastQuarter', label: 'Last Quarter' },
+  { id: 'thisYear', label: 'This Year' },
+  { id: 'lastYear', label: 'Last Year' },
+  { id: 'ytd', label: 'Year to Date' },
+];
+
+function getPresetRange(presetId) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-indexed
+  const q = Math.floor(m / 3);
+  switch (presetId) {
+    case 'thisMonth':
+      return { start: `${y}-${String(m + 1).padStart(2, '0')}-01`, end: `${y}-${String(m + 1).padStart(2, '0')}-31` };
+    case 'lastMonth': {
+      const d = new Date(y, m - 1, 1);
+      const ly = d.getFullYear(), lm = d.getMonth() + 1;
+      return { start: `${ly}-${String(lm).padStart(2, '0')}-01`, end: `${ly}-${String(lm).padStart(2, '0')}-31` };
+    }
+    case 'thisQuarter': {
+      const qs = q * 3 + 1;
+      return { start: `${y}-${String(qs).padStart(2, '0')}-01`, end: `${y}-${String(qs + 2).padStart(2, '0')}-31` };
+    }
+    case 'lastQuarter': {
+      const d = new Date(y, (q - 1) * 3, 1);
+      const lqy = d.getFullYear(), lqs = d.getMonth() + 1;
+      return { start: `${lqy}-${String(lqs).padStart(2, '0')}-01`, end: `${lqy}-${String(lqs + 2).padStart(2, '0')}-31` };
+    }
+    case 'thisYear':
+      return { start: `${y}-01-01`, end: `${y}-12-31` };
+    case 'lastYear':
+      return { start: `${y - 1}-01-01`, end: `${y - 1}-12-31` };
+    case 'ytd':
+      return { start: `${y}-01-01`, end: `${y}-${String(m + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}` };
+    default:
+      return null;
+  }
+}
+
+function formatRangeLabel(start, end) {
+  const fmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${fmt(start)} to ${fmt(end)}`;
+}
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -188,7 +235,7 @@ tr:last-child td { border-bottom: none; }
 
 // ── HTML Builder ─────────────────────────────────────────────
 
-function buildReportHtml({ reportTitle, enabledSections, narratives, reportData, yearForReport, periodType, selectedManager, orgName }) {
+function buildReportHtml({ reportTitle, enabledSections, narratives, reportData, yearForReport, periodType, selectedManager, orgName, timeframeLabel }) {
   const now = new Date();
   const generatedDate = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const teamName = selectedManager?.team || 'Team';
@@ -201,7 +248,7 @@ function buildReportHtml({ reportTitle, enabledSections, narratives, reportData,
   // Header always shown
   body += `<div class="header">
   <h1>${escapeHtml(reportTitle)}</h1>
-  <div class="subtitle">${escapeHtml(teamName)} &mdash; ${escapeHtml(managerName)}</div>
+  <div class="subtitle">${escapeHtml(teamName)} &mdash; ${escapeHtml(managerName)}${timeframeLabel ? ` &mdash; ${escapeHtml(timeframeLabel)}` : ''}</div>
   <div class="meta">Generated ${generatedDate}</div>
 </div>`;
 
@@ -487,6 +534,10 @@ const ReportExportModal = ({
   const [reportTitle, setReportTitle] = useState('Project Report');
   const [yearForReport, setYearForReport] = useState(selectedYear || new Date().getFullYear());
   const [periodType, setPeriodType] = useState('quarter');
+  const [timeframeMode, setTimeframeMode] = useState('all');
+  const [timeframePreset, setTimeframePreset] = useState('thisMonth');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const iframeRef = useRef(null);
 
   const toggleSection = (id) => {
@@ -501,28 +552,51 @@ const ReportExportModal = ({
 
   const anySelected = Object.values(enabledSections).some(Boolean);
 
+  // Resolve active timeframe range
+  const timeframeRange = useMemo(() => {
+    if (timeframeMode === 'preset') return getPresetRange(timeframePreset);
+    if (timeframeMode === 'custom' && customStartDate && customEndDate) return { start: customStartDate, end: customEndDate };
+    return null;
+  }, [timeframeMode, timeframePreset, customStartDate, customEndDate]);
+
+  // Filter items by timeframe
+  const filteredItems = useMemo(() => {
+    if (!items || !timeframeRange) return items;
+    const { start, end } = timeframeRange;
+    return items.filter(item => {
+      const sd = sortableDate(item);
+      return sd >= start && sd <= end;
+    });
+  }, [items, timeframeRange]);
+
+  // Human-readable label for report header
+  const timeframeLabel = useMemo(() => {
+    if (!timeframeRange) return null;
+    return formatRangeLabel(timeframeRange.start, timeframeRange.end);
+  }, [timeframeRange]);
+
   // Compute report data
   const reportData = useMemo(() => {
-    if (!selectedManager || !items) return null;
+    if (!selectedManager || !filteredItems) return null;
 
     const reports = selectedManager.reports || [];
     const now = new Date();
     const thisMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const dueThisMonth = items.filter(item => {
+    const dueThisMonth = filteredItems.filter(item => {
       const itemDate = item.date || item.timelineValue;
       if (!itemDate) return false;
       return itemDate.startsWith(thisMonthStr) && (item.workflowStatus || '').toLowerCase() !== 'done';
     });
 
     const memberData = reports.map(memberName => {
-      const memberItems = items.filter(i =>
+      const memberItems = filteredItems.filter(i =>
         i.owner?.some(o => o.toLowerCase() === memberName.toLowerCase())
       );
       return { name: memberName, items: memberItems };
     });
 
-    const yearItems = items.filter(item => {
+    const yearItems = filteredItems.filter(item => {
       const itemDate = item.date || item.timelineValue;
       if (!itemDate) return false;
       return itemDate.startsWith(String(yearForReport));
@@ -563,8 +637,8 @@ const ReportExportModal = ({
       items: yearItems.filter(i => i.owner?.some(o => o.toLowerCase() === memberName.toLowerCase()))
     }));
 
-    return { totalItems: items.length, dueThisMonth: dueThisMonth.length, memberData, yearItems, periodData, yearMemberData };
-  }, [selectedManager, items, yearForReport, periodType]);
+    return { totalItems: filteredItems.length, dueThisMonth: dueThisMonth.length, memberData, yearItems, periodData, yearMemberData };
+  }, [selectedManager, filteredItems, yearForReport, periodType]);
 
   // Build preview HTML reactively
   const previewHtml = useMemo(() => {
@@ -577,8 +651,9 @@ const ReportExportModal = ({
       periodType,
       selectedManager,
       orgName: APP_CONFIG?.ORG_NAME || 'Organisation',
+      timeframeLabel,
     });
-  }, [reportTitle, enabledSections, narratives, reportData, yearForReport, periodType, selectedManager, APP_CONFIG]);
+  }, [reportTitle, enabledSections, narratives, reportData, yearForReport, periodType, selectedManager, APP_CONFIG, timeframeLabel]);
 
   const handleExport = useCallback(() => {
     const win = window.open('', '_blank');
@@ -623,6 +698,60 @@ const ReportExportModal = ({
               />
             </div>
 
+            {/* Timeframe */}
+            <div>
+              <h3 className="text-xs font-semibold text-ocean-900 uppercase tracking-wider mb-2">Timeframe</h3>
+              <div className="flex gap-1 mb-2">
+                {[['all', 'All Time'], ['preset', 'Preset'], ['custom', 'Custom']].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setTimeframeMode(mode)}
+                    className={clsx(
+                      "flex-1 text-xs font-medium py-1.5 rounded-lg border transition",
+                      timeframeMode === mode
+                        ? "bg-ocean-600 text-white border-ocean-600"
+                        : "bg-white text-graystone-600 border-graystone-200 hover:border-graystone-300"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {timeframeMode === 'preset' && (
+                <select
+                  value={timeframePreset}
+                  onChange={(e) => setTimeframePreset(e.target.value)}
+                  className="w-full text-sm border border-graystone-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500"
+                >
+                  {TIMEFRAME_PRESETS.map(p => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                </select>
+              )}
+              {timeframeMode === 'custom' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="flex-1 text-sm border border-graystone-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500"
+                  />
+                  <span className="text-xs text-graystone-400">to</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="flex-1 text-sm border border-graystone-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500"
+                  />
+                </div>
+              )}
+              {timeframeLabel && (
+                <div className="mt-1.5 text-xs text-ocean-700 bg-ocean-50 rounded-lg px-2.5 py-1.5">
+                  Showing: {timeframeLabel} ({filteredItems?.length ?? 0} item{filteredItems?.length !== 1 ? 's' : ''})
+                </div>
+              )}
+            </div>
+
             {/* Overview Sections */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -637,7 +766,7 @@ const ReportExportModal = ({
                 {OVERVIEW_SECTIONS.map(section => (
                   <label
                     key={section.id}
-                    className={cx(
+                    className={clsx(
                       "flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition text-sm",
                       enabledSections[section.id] ? "bg-ocean-50 border-ocean-300" : "bg-white border-graystone-200 hover:border-graystone-300"
                     )}
@@ -671,7 +800,7 @@ const ReportExportModal = ({
                 {VISUAL_SECTIONS.map(section => (
                   <label
                     key={section.id}
-                    className={cx(
+                    className={clsx(
                       "flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition text-sm",
                       enabledSections[section.id] ? "bg-ocean-50 border-ocean-300" : "bg-white border-graystone-200 hover:border-graystone-300"
                     )}
@@ -732,7 +861,7 @@ const ReportExportModal = ({
                 {YEARLY_SECTIONS.map(section => (
                   <label
                     key={section.id}
-                    className={cx(
+                    className={clsx(
                       "flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition text-sm",
                       enabledSections[section.id] ? "bg-ocean-50 border-ocean-300" : "bg-white border-graystone-200 hover:border-graystone-300"
                     )}
@@ -759,7 +888,7 @@ const ReportExportModal = ({
                 {NARRATIVE_SECTIONS.map(section => (
                   <div key={section.id}>
                     <label
-                      className={cx(
+                      className={clsx(
                         "flex items-center gap-2.5 p-2.5 border cursor-pointer transition text-sm",
                         enabledSections[section.id]
                           ? "bg-ocean-50 border-ocean-300 rounded-t-lg border-b-0"
@@ -829,7 +958,7 @@ const ReportExportModal = ({
             <button
               onClick={handleExport}
               disabled={!anySelected}
-              className={cx(
+              className={clsx(
                 "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition",
                 anySelected
                   ? "bg-ocean-600 text-white hover:bg-ocean-700"
