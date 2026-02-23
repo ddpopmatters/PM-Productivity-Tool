@@ -428,10 +428,7 @@ export default function App() {
             currentUser={currentUser}
             userEmail={userEmail}
             allEntries={items.entries}
-            onNavigateToWhiteboard={(id) => {
-              wb.setCurrentWhiteboardId(id);
-              nav.navigate('whiteboards');
-            }}
+            onNavigateToWhiteboard={(id) => nav.openWhiteboard(id)}
             onConvert={(item, type) => modals.openConvertModal(item, type)}
             USERS={USERS}
             KANBAN_STATUSES={KANBAN_STATUSES}
@@ -808,11 +805,11 @@ export default function App() {
 
       case 'whiteboards':
         return (
-          <WhiteboardsView whiteboards={wb.whiteboards} setWhiteboards={wb.setWhiteboards} onOpenWhiteboard={(id) => { wb.setCurrentWhiteboardId(id); nav.navigate('whiteboard-canvas'); }} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} />
+          <WhiteboardsView whiteboards={wb.whiteboards} setWhiteboards={wb.setWhiteboards} onOpenWhiteboard={(id) => nav.openWhiteboard(id)} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} />
         );
 
       case 'whiteboard-canvas': {
-        const currentWhiteboard = wb.whiteboards.find(w => w.id === wb.currentWhiteboardId);
+        const currentWhiteboard = wb.whiteboards.find(w => w.id === nav.selectedWhiteboardId);
         if (!currentWhiteboard) {
           return (
             <div className="text-center py-12">
@@ -824,7 +821,7 @@ export default function App() {
         }
         return (
           <Suspense fallback={<LoadingSpinner />}>
-            <WhiteboardCanvas whiteboardId={wb.currentWhiteboardId} whiteboard={currentWhiteboard} onBack={nav.goBack} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} supabase={supabase} Logger={Logger} STICKY_COLORS={STICKY_COLORS} StickyNote={StickyNote} WhiteboardElement={WhiteboardElement} TextBoxElement={TextBoxElement} ImageElement={ImageElement} ShapeElement={ShapeElement} />
+            <WhiteboardCanvas whiteboardId={nav.selectedWhiteboardId} whiteboard={currentWhiteboard} onBack={nav.goBack} userEmail={userEmail} currentUser={currentUser} WHITEBOARD_API={SUPABASE_API} supabase={supabase} Logger={Logger} STICKY_COLORS={STICKY_COLORS} StickyNote={StickyNote} WhiteboardElement={WhiteboardElement} TextBoxElement={TextBoxElement} ImageElement={ImageElement} ShapeElement={ShapeElement} />
           </Suspense>
         );
       }
@@ -846,7 +843,7 @@ export default function App() {
           );
         }
         return (
-          <WorkstreamView workstream={viewWorkstream} workstreamTasks={ws.workstreamTasks.filter(t => t.workstream_id === nav.selectedWorkstreamId)} onBack={nav.goBack} onOpenTask={(taskId) => { nav.setSelectedWorkstreamTaskId(taskId); nav.navigate('workstream-task-detail'); }} onCreateTask={ws.createWorkstreamTask} onUpdateTask={ws.updateWorkstreamTask} onUpdateWorkstream={ws.updateWorkstream} onDeleteWorkstream={handleDeleteWorkstream} WorkstreamSettings={WorkstreamSettings} userEmail={userEmail} currentUser={currentUser} USERS={USERS} />
+          <WorkstreamView workstream={viewWorkstream} workstreamTasks={ws.workstreamTasks.filter(t => t.workstream_id === nav.selectedWorkstreamId)} onBack={nav.goBack} onOpenTask={(taskId) => nav.openWorkstreamTask(nav.selectedWorkstreamId, taskId)} onCreateTask={ws.createWorkstreamTask} onUpdateTask={ws.updateWorkstreamTask} onUpdateWorkstream={ws.updateWorkstream} onDeleteWorkstream={handleDeleteWorkstream} WorkstreamSettings={WorkstreamSettings} userEmail={userEmail} currentUser={currentUser} USERS={USERS} />
         );
       }
 
@@ -927,7 +924,7 @@ export default function App() {
           todos={todosHook.todos}
           onClose={() => modals.setShowGlobalSearch(false)}
           onSelectItem={(item) => { modals.setShowGlobalSearch(false); nav.openEntry(item.id); }}
-          onSelectWhiteboard={(whiteboard) => { modals.setShowGlobalSearch(false); wb.setCurrentWhiteboardId(whiteboard.id); nav.navigate('whiteboards'); }}
+          onSelectWhiteboard={(whiteboard) => { modals.setShowGlobalSearch(false); nav.openWhiteboard(whiteboard.id); }}
           onSelectWorkstreamTask={(task) => { modals.setShowGlobalSearch(false); nav.openWorkstreamTask(task.workstream_id, task.id); }}
           onSelectEvent={() => { modals.setShowGlobalSearch(false); nav.navigate('events-calendar'); }}
           onSelectTodo={() => { modals.setShowGlobalSearch(false); nav.navigate('todo'); }}
