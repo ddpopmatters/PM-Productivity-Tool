@@ -222,6 +222,26 @@ export default function App() {
         const { fetchWorkflowItems } = await import('./services/workflowItems');
         return fetchWorkflowItems();
       },
+      // Admin console methods
+      fetchUserProfiles: async () => {
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .order('name');
+        if (error) { Logger.error(error, 'Failed to fetch user profiles'); return []; }
+        return data || [];
+      },
+      fetchRecentActivity: async (limit = 100) => {
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from('activity_log')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        if (error) { Logger.error(error, 'Failed to fetch activity log'); return []; }
+        return data || [];
+      },
     };
   }, [wb.whiteboardApi]);
 

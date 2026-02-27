@@ -5,6 +5,7 @@ export const APP_CONFIG = {
   LOGO_URL: "https://populationmatters.org/wp-content/uploads/2022/03/PM-logo.png",
   DEBUG_MODE: false,
   AUTH_ENABLED: true,
+  SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || "",
 };
 
 // Supabase Configuration - credentials loaded from environment variables
