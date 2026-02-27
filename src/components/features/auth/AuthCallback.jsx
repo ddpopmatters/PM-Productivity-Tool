@@ -61,6 +61,25 @@ const AuthCallback = ({
           setStatus('reset-password');
         } else if (session) {
           // Email confirmed or magic link - user is now signed in
+          // Mark user as active by setting claimed_at
+          if (supabase && session.user?.email) {
+            try {
+              const email = session.user.email.toLowerCase();
+              const { data } = await supabase
+                .from('user_profiles')
+                .select('claimed_at')
+                .eq('email', email)
+                .single();
+              if (data && !data.claimed_at) {
+                await supabase
+                  .from('user_profiles')
+                  .update({ claimed_at: new Date().toISOString() })
+                  .eq('email', email);
+              }
+            } catch (e) {
+              // Non-critical — don't block callback flow
+            }
+          }
           setStatus('success');
           if (onAuthChangeRef.current) {
             onAuthChangeRef.current(session.user);
