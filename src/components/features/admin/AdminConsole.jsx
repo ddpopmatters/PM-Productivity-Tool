@@ -47,13 +47,18 @@ const AdminConsole = ({
         SUPABASE_API.fetchTeams(),
       ]);
 
-      // Bootstrap: ensure hardcoded admin has admin role in DB
-      if (supabase && currentUserEmail && isAdmin(currentUserEmail)) {
+      // Bootstrap: ensure hardcoded admin has admin role and claimed_at in DB
+      if (supabase && currentUserEmail) {
         const myProfile = profiles.find(p => p.email.toLowerCase() === currentUserEmail.toLowerCase());
-        if (myProfile && myProfile.role !== 'admin') {
-          await supabase.from('user_profiles').update({ role: 'admin' })
-            .eq('email', currentUserEmail.toLowerCase());
-          myProfile.role = 'admin';
+        if (myProfile) {
+          const updates = {};
+          if (isAdmin(currentUserEmail) && myProfile.role !== 'admin') updates.role = 'admin';
+          if (!myProfile.claimed_at) updates.claimed_at = new Date().toISOString();
+          if (Object.keys(updates).length > 0) {
+            await supabase.from('user_profiles').update(updates)
+              .eq('email', currentUserEmail.toLowerCase());
+            Object.assign(myProfile, updates);
+          }
         }
       }
 
