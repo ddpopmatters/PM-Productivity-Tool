@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { isAdmin, isManager, canEditItem, getPreseededProfile } from './auth';
 
 describe('isAdmin', () => {
-  it('returns true for Jameen (admin)', () => {
-    expect(isAdmin('jameen.kaur@populationmatters.org')).toBe(true);
+  it('returns false for Jameen (not admin)', () => {
+    expect(isAdmin('jameen.kaur@populationmatters.org')).toBe(false);
   });
 
   it('returns true for Dan (admin)', () => {
@@ -11,7 +11,6 @@ describe('isAdmin', () => {
   });
 
   it('is case-insensitive', () => {
-    expect(isAdmin('JAMEEN.KAUR@POPULATIONMATTERS.ORG')).toBe(true);
     expect(isAdmin('Daniel.Davis@PopulationMatters.org')).toBe(true);
   });
 
@@ -57,7 +56,7 @@ describe('canEditItem', () => {
 
   it('returns true for admins regardless of ownership', () => {
     const entry = { owner: ['Someone Else'], collaborators: [] };
-    expect(canEditItem(entry, 'jameen.kaur@populationmatters.org', 'Jameen')).toBe(true);
+    expect(canEditItem(entry, 'daniel.davis@populationmatters.org', 'Dan Davis')).toBe(true);
   });
 
   it('returns true if currentUser is in the owner array', () => {
@@ -82,7 +81,7 @@ describe('getPreseededProfile', () => {
     expect(profile).toBeDefined();
     expect(profile.name).toBe('Dan Davis');
     expect(profile.team).toBe('Advocacy & Influence');
-    expect(profile.role).toBe('manager');
+    expect(profile.role).toBe('admin');
   });
 
   it('is case-insensitive', () => {
