@@ -35,8 +35,8 @@ export const STATUSES = [
 
 // Default seed users (fallback when Supabase unavailable)
 export const SEED_USERS = [
-  { email: "jameen.kaur@populationmatters.org", name: "Jameen Kaur", team: "Advocacy & Influence", role: "admin" },
-  { email: "daniel.davis@populationmatters.org", name: "Dan Davis", team: "Advocacy & Influence", role: "manager" },
+  { email: "jameen.kaur@populationmatters.org", name: "Jameen Kaur", team: "Advocacy & Influence", role: "manager" },
+  { email: "daniel.davis@populationmatters.org", name: "Dan Davis", team: "Advocacy & Influence", role: "admin" },
   { email: "emma.lewendon-strutt@populationmatters.org", name: "Emma Lewendon-Strutt", team: "Research", role: "member" },
   { email: "josh.hill@populationmatters.org", name: "Josh Hill", team: "Research", role: "member" },
   { email: "francesca.harrison@populationmatters.org", name: "Francesca Harrison", team: "Advocacy & Influence", role: "member" },

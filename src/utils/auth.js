@@ -1,7 +1,7 @@
 import { MANAGERS, SEED_USERS } from './config';
 
 export const isAdmin = (email) => {
-  const adminEmails = ['jameen.kaur@populationmatters.org', 'daniel.davis@populationmatters.org'];
+  const adminEmails = ['daniel.davis@populationmatters.org'];
   return adminEmails.includes(email?.toLowerCase());
 };
 
