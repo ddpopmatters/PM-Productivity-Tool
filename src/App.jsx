@@ -838,7 +838,7 @@ export default function App() {
         return (
           <ErrorBoundary key="admin" message="The admin console encountered an error.">
           <Suspense fallback={<LoadingSpinner />}>
-            <AdminConsole onBack={() => nav.navigate('dashboard')} currentUserEmail={userEmail} SUPABASE_API={SUPABASE_API} supabase={supabase} Logger={Logger} APP_CONFIG={APP_CONFIG} TEAMS={TEAMS} SEED_PROFILES={SEED_USERS} isAdmin={isAdmin} LoadingSpinner={LoadingSpinner} />
+            <AdminConsole onBack={() => nav.navigate('dashboard')} currentUserEmail={userEmail} SUPABASE_API={SUPABASE_API} getSupabase={getSupabase} Logger={Logger} APP_CONFIG={APP_CONFIG} TEAMS={TEAMS} SEED_PROFILES={SEED_USERS} isAdmin={isAdmin} LoadingSpinner={LoadingSpinner} />
           </Suspense>
           </ErrorBoundary>
         );

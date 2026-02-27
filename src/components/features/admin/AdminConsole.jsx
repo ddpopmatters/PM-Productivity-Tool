@@ -9,7 +9,7 @@ const AdminConsole = ({
   currentUserEmail,
   // Dependencies passed as props
   SUPABASE_API,
-  supabase,
+  getSupabase,
   Logger,
   APP_CONFIG,
   TEAMS,
@@ -48,14 +48,15 @@ const AdminConsole = ({
       ]);
 
       // Bootstrap: ensure hardcoded admin has admin role and claimed_at in DB
-      if (supabase && currentUserEmail) {
+      const sb = getSupabase();
+      if (sb && currentUserEmail) {
         const myProfile = profiles.find(p => p.email.toLowerCase() === currentUserEmail.toLowerCase());
         if (myProfile) {
           const updates = {};
           if (isAdmin(currentUserEmail) && myProfile.role !== 'admin') updates.role = 'admin';
           if (!myProfile.claimed_at) updates.claimed_at = new Date().toISOString();
           if (Object.keys(updates).length > 0) {
-            await supabase.from('user_profiles').update(updates)
+            await sb.from('user_profiles').update(updates)
               .eq('email', currentUserEmail.toLowerCase());
             Object.assign(myProfile, updates);
           }
@@ -95,7 +96,7 @@ const AdminConsole = ({
       const email = inviteEmail.toLowerCase().trim();
       const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await getSupabase().auth.getSession();
       if (!session) throw new Error('You must be logged in to send invites');
 
       const response = await fetch(`${APP_CONFIG.SUPABASE_URL}/functions/v1/invite-user`, {
@@ -139,7 +140,7 @@ const AdminConsole = ({
       const profileTeam = team || seedProfile?.team || '';
       const profileRole = role || seedProfile?.role || 'member';
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await getSupabase().auth.getSession();
       if (!session) throw new Error('You must be logged in to send invites');
 
       const response = await fetch(`${APP_CONFIG.SUPABASE_URL}/functions/v1/invite-user`, {
@@ -177,7 +178,7 @@ const AdminConsole = ({
     setMessage({ type: '', text: '' });
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await getSupabase().auth.getSession();
       if (!session) throw new Error('You must be logged in to resend invites');
 
       const response = await fetch(`${APP_CONFIG.SUPABASE_URL}/functions/v1/invite-user`, {
@@ -213,7 +214,7 @@ const AdminConsole = ({
     setMessage({ type: '', text: '' });
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await getSupabase().auth.getSession();
       if (!session) throw new Error('You must be logged in to delete invites');
 
       const response = await fetch(`${APP_CONFIG.SUPABASE_URL}/functions/v1/delete-invite`, {
@@ -254,7 +255,7 @@ const AdminConsole = ({
     setMessage({ type: '', text: '' });
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await getSupabase().auth.getSession();
       if (!session) throw new Error('You must be logged in to delete users');
 
       const response = await fetch(`${APP_CONFIG.SUPABASE_URL}/functions/v1/delete-user`, {
@@ -281,12 +282,13 @@ const AdminConsole = ({
   };
 
   const updateUserRole = async (email, newRole) => {
-    if (!supabase) return false;
+    const sb = getSupabase();
+    if (!sb) return false;
     if (email.toLowerCase() === currentUserEmail.toLowerCase() && newRole !== 'admin') {
       setMessage({ type: 'error', text: "You cannot demote yourself" });
       return false;
     }
-    const { error } = await supabase
+    const { error } = await sb
       .from('user_profiles')
       .update({ role: newRole })
       .eq('email', email.toLowerCase().trim());
@@ -295,8 +297,9 @@ const AdminConsole = ({
   };
 
   const updateUserTeam = async (email, newTeam) => {
-    if (!supabase) return false;
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return false;
+    const { error } = await sb
       .from('user_profiles')
       .update({ team: newTeam })
       .eq('email', email.toLowerCase().trim());
@@ -360,8 +363,9 @@ const AdminConsole = ({
   const handleAddProfile = async (e) => {
     e.preventDefault();
     if (!newProfile.email.trim() || !newProfile.name.trim()) return;
-    if (!supabase) return;
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return;
+    const { error } = await sb
       .from('user_profiles')
       .upsert([{
         email: newProfile.email.toLowerCase().trim(),
