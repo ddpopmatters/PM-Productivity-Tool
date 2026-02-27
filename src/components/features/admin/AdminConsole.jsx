@@ -7,20 +7,13 @@ const cx = (...xs) => xs.filter(Boolean).join(" ");
 const AdminConsole = ({
   onBack,
   currentUserEmail,
-  onConfigChange,
   // Dependencies passed as props
   SUPABASE_API,
   supabase,
   Logger,
-  logActivity,
   APP_CONFIG,
   TEAMS,
   SEED_PROFILES,
-  addAdmin,
-  removeAdmin,
-  addManager,
-  removeManager,
-  addProfile,
   isAdmin,
   LoadingSpinner,
 }) => {
@@ -48,6 +41,17 @@ const AdminConsole = ({
     async function loadClaimedProfiles() {
       setLoadingProfiles(true);
       const profiles = await SUPABASE_API.fetchUserProfiles();
+
+      // Bootstrap: ensure hardcoded admin has admin role in DB
+      if (supabase && currentUserEmail && isAdmin(currentUserEmail)) {
+        const myProfile = profiles.find(p => p.email.toLowerCase() === currentUserEmail.toLowerCase());
+        if (myProfile && myProfile.role !== 'admin') {
+          await supabase.from('user_profiles').update({ role: 'admin' })
+            .eq('email', currentUserEmail.toLowerCase());
+          myProfile.role = 'admin';
+        }
+      }
+
       setClaimedProfiles(profiles);
       setLoadingProfiles(false);
     }
@@ -263,10 +267,20 @@ const AdminConsole = ({
     }
   };
 
+  const updateUserRole = async (email, newRole) => {
+    if (!supabase) return false;
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ role: newRole })
+      .eq('email', email.toLowerCase().trim());
+    if (error) { Logger.error(error, `Failed to update role for ${email}`); return false; }
+    return true;
+  };
+
   const handleAddAdmin = async (e) => {
     e.preventDefault();
     if (!newAdminEmail.trim()) return;
-    const success = await addAdmin(newAdminEmail);
+    const success = await updateUserRole(newAdminEmail, 'admin');
     if (success) {
       setMessage({ type: 'success', text: `${newAdminEmail} promoted to admin` });
       const profiles = await SUPABASE_API.fetchUserProfiles();
@@ -275,7 +289,6 @@ const AdminConsole = ({
       setMessage({ type: 'error', text: `Failed to promote ${newAdminEmail}` });
     }
     setNewAdminEmail('');
-    forceUpdate(n => n + 1);
   };
 
   const handleRemoveAdmin = async (email) => {
@@ -283,17 +296,20 @@ const AdminConsole = ({
       setMessage({ type: 'error', text: "You cannot remove yourself as admin" });
       return;
     }
-    await removeAdmin(email);
-    setMessage({ type: 'success', text: `${email} demoted to manager` });
-    const profiles = await SUPABASE_API.fetchUserProfiles();
-    setClaimedProfiles(profiles);
-    forceUpdate(n => n + 1);
+    const success = await updateUserRole(email, 'manager');
+    if (success) {
+      setMessage({ type: 'success', text: `${email} demoted to manager` });
+      const profiles = await SUPABASE_API.fetchUserProfiles();
+      setClaimedProfiles(profiles);
+    } else {
+      setMessage({ type: 'error', text: `Failed to demote ${email}` });
+    }
   };
 
   const handleAddManager = async (e) => {
     e.preventDefault();
     if (!newManagerEmail.trim()) return;
-    const success = await addManager(newManagerEmail);
+    const success = await updateUserRole(newManagerEmail, 'manager');
     if (success) {
       setMessage({ type: 'success', text: `${newManagerEmail} promoted to manager` });
       const profiles = await SUPABASE_API.fetchUserProfiles();
@@ -302,24 +318,40 @@ const AdminConsole = ({
       setMessage({ type: 'error', text: `Failed to promote ${newManagerEmail}` });
     }
     setNewManagerEmail('');
-    forceUpdate(n => n + 1);
   };
 
   const handleRemoveManager = async (email) => {
-    await removeManager(email);
-    setMessage({ type: 'success', text: `${email} demoted to member` });
-    const profiles = await SUPABASE_API.fetchUserProfiles();
-    setClaimedProfiles(profiles);
-    forceUpdate(n => n + 1);
+    const success = await updateUserRole(email, 'member');
+    if (success) {
+      setMessage({ type: 'success', text: `${email} demoted to member` });
+      const profiles = await SUPABASE_API.fetchUserProfiles();
+      setClaimedProfiles(profiles);
+    } else {
+      setMessage({ type: 'error', text: `Failed to demote ${email}` });
+    }
   };
 
-  const handleAddProfile = (e) => {
+  const handleAddProfile = async (e) => {
     e.preventDefault();
     if (!newProfile.email.trim() || !newProfile.name.trim()) return;
-    addProfile(newProfile);
+    if (!supabase) return;
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert([{
+        email: newProfile.email.toLowerCase().trim(),
+        name: newProfile.name,
+        team: newProfile.team,
+        role: newProfile.role,
+      }], { onConflict: 'email' });
+    if (error) {
+      Logger.error(error, 'Failed to add profile');
+      setMessage({ type: 'error', text: `Failed to create profile for ${newProfile.name}` });
+      return;
+    }
     setMessage({ type: 'success', text: `Profile created for ${newProfile.name}` });
     setNewProfile({ email: '', name: '', team: TEAMS[0], role: 'member' });
-    forceUpdate(n => n + 1);
+    const profiles = await SUPABASE_API.fetchUserProfiles();
+    setClaimedProfiles(profiles);
   };
 
   if (!isAdmin(currentUserEmail)) {
