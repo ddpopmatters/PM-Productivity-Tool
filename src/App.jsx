@@ -222,10 +222,11 @@ export default function App() {
         const { fetchWorkflowItems } = await import('./services/workflowItems');
         return fetchWorkflowItems();
       },
-      // Admin console methods
+      // Admin console methods — use getSupabase() at call time to avoid stale closure
       fetchUserProfiles: async () => {
-        if (!supabase) return [];
-        const { data, error } = await supabase
+        const sb = getSupabase();
+        if (!sb) return [];
+        const { data, error } = await sb
           .from('user_profiles')
           .select('*')
           .order('name');
@@ -233,8 +234,9 @@ export default function App() {
         return data || [];
       },
       fetchRecentActivity: async (limit = 100) => {
-        if (!supabase) return [];
-        const { data, error } = await supabase
+        const sb = getSupabase();
+        if (!sb) return [];
+        const { data, error } = await sb
           .from('activity_log')
           .select('*')
           .order('created_at', { ascending: false })
@@ -244,8 +246,9 @@ export default function App() {
       },
       // Teams CRUD
       fetchTeams: async () => {
-        if (!supabase) return [];
-        const { data, error } = await supabase
+        const sb = getSupabase();
+        if (!sb) return [];
+        const { data, error } = await sb
           .from('teams')
           .select('*')
           .order('name');
@@ -253,8 +256,9 @@ export default function App() {
         return data || [];
       },
       createTeam: async (name) => {
-        if (!supabase) return null;
-        const { data, error } = await supabase
+        const sb = getSupabase();
+        if (!sb) return null;
+        const { data, error } = await sb
           .from('teams')
           .insert([{ name }])
           .select()
@@ -263,8 +267,9 @@ export default function App() {
         return data;
       },
       deleteTeam: async (id) => {
-        if (!supabase) return false;
-        const { error } = await supabase
+        const sb = getSupabase();
+        if (!sb) return false;
+        const { error } = await sb
           .from('teams')
           .delete()
           .eq('id', id);
