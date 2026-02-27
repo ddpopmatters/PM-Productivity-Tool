@@ -63,6 +63,26 @@ export function AppProvider({ children }) {
       const seedUser = SEED_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
       const userName = seedUser?.name || user.user_metadata?.name || email.split('@')[0] || 'User';
       setCurrentUser(userName);
+
+      // Set claimed_at if not already set (marks user as active)
+      try {
+        const supabase = getSupabase();
+        if (supabase && email) {
+          const { data } = await supabase
+            .from('user_profiles')
+            .select('claimed_at')
+            .eq('email', email.toLowerCase())
+            .single();
+          if (data && !data.claimed_at) {
+            await supabase
+              .from('user_profiles')
+              .update({ claimed_at: new Date().toISOString() })
+              .eq('email', email.toLowerCase());
+          }
+        }
+      } catch (e) {
+        // Non-critical — don't block auth flow
+      }
     } else {
       setAuthUser(null);
       setUserEmail('');

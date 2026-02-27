@@ -24,12 +24,13 @@ const AdminConsole = ({
   const [sendingEmail, setSendingEmail] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const [newAdminEmail, setNewAdminEmail] = useState('');
-  const [newManagerEmail, setNewManagerEmail] = useState('');
-  const [newProfile, setNewProfile] = useState({ email: '', name: '', team: TEAMS[0], role: 'member' });
+  const [newProfile, setNewProfile] = useState({ email: '', name: '', team: '', role: 'member' });
 
   const [claimedProfiles, setClaimedProfiles] = useState([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
+
+  const [teams, setTeams] = useState([]);
+  const [newTeamName, setNewTeamName] = useState('');
 
   const [activityLog, setActivityLog] = useState([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
@@ -37,10 +38,14 @@ const AdminConsole = ({
 
   const [, forceUpdate] = useState(0);
 
+  // Load profiles and teams on mount
   useEffect(() => {
-    async function loadClaimedProfiles() {
+    async function loadData() {
       setLoadingProfiles(true);
-      const profiles = await SUPABASE_API.fetchUserProfiles();
+      const [profiles, dbTeams] = await Promise.all([
+        SUPABASE_API.fetchUserProfiles(),
+        SUPABASE_API.fetchTeams(),
+      ]);
 
       // Bootstrap: ensure hardcoded admin has admin role in DB
       if (supabase && currentUserEmail && isAdmin(currentUserEmail)) {
@@ -53,9 +58,10 @@ const AdminConsole = ({
       }
 
       setClaimedProfiles(profiles);
+      setTeams(dbTeams.length > 0 ? dbTeams : TEAMS.map(name => ({ id: name, name })));
       setLoadingProfiles(false);
     }
-    loadClaimedProfiles();
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -68,6 +74,8 @@ const AdminConsole = ({
     }
     loadActivityLog();
   }, [activeTab]);
+
+  const teamNames = teams.map(t => t.name || t);
 
   const claimedEmails = claimedProfiles.map(p => p.email.toLowerCase());
   const pendingProfiles = SEED_PROFILES.filter(p => !claimedEmails.includes(p.email.toLowerCase()));
@@ -91,7 +99,7 @@ const AdminConsole = ({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ email, name, team: TEAMS[0], role: 'member' })
+        body: JSON.stringify({ email, name, team: teamNames[0] || '', role: 'member' })
       });
 
       const result = await response.json();
@@ -269,6 +277,10 @@ const AdminConsole = ({
 
   const updateUserRole = async (email, newRole) => {
     if (!supabase) return false;
+    if (email.toLowerCase() === currentUserEmail.toLowerCase() && newRole !== 'admin') {
+      setMessage({ type: 'error', text: "You cannot demote yourself" });
+      return false;
+    }
     const { error } = await supabase
       .from('user_profiles')
       .update({ role: newRole })
@@ -277,57 +289,66 @@ const AdminConsole = ({
     return true;
   };
 
-  const handleAddAdmin = async (e) => {
-    e.preventDefault();
-    if (!newAdminEmail.trim()) return;
-    const success = await updateUserRole(newAdminEmail, 'admin');
-    if (success) {
-      setMessage({ type: 'success', text: `${newAdminEmail} promoted to admin` });
-      const profiles = await SUPABASE_API.fetchUserProfiles();
-      setClaimedProfiles(profiles);
-    } else {
-      setMessage({ type: 'error', text: `Failed to promote ${newAdminEmail}` });
-    }
-    setNewAdminEmail('');
+  const updateUserTeam = async (email, newTeam) => {
+    if (!supabase) return false;
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ team: newTeam })
+      .eq('email', email.toLowerCase().trim());
+    if (error) { Logger.error(error, `Failed to update team for ${email}`); return false; }
+    return true;
   };
 
-  const handleRemoveAdmin = async (email) => {
-    if (email.toLowerCase() === currentUserEmail.toLowerCase()) {
-      setMessage({ type: 'error', text: "You cannot remove yourself as admin" });
+  const handleRoleChange = async (profile, newRole) => {
+    const success = await updateUserRole(profile.email, newRole);
+    if (success) {
+      setClaimedProfiles(prev => prev.map(p =>
+        p.email === profile.email ? { ...p, role: newRole } : p
+      ));
+      setMessage({ type: 'success', text: `${profile.name} updated to ${newRole}` });
+    } else {
+      setMessage({ type: 'error', text: `Failed to update role for ${profile.name}` });
+    }
+  };
+
+  const handleTeamChange = async (profile, newTeam) => {
+    const success = await updateUserTeam(profile.email, newTeam);
+    if (success) {
+      setClaimedProfiles(prev => prev.map(p =>
+        p.email === profile.email ? { ...p, team: newTeam } : p
+      ));
+      setMessage({ type: 'success', text: `${profile.name} moved to ${newTeam}` });
+    } else {
+      setMessage({ type: 'error', text: `Failed to update team for ${profile.name}` });
+    }
+  };
+
+  const handleAddTeam = async (e) => {
+    e.preventDefault();
+    const name = newTeamName.trim();
+    if (!name) return;
+    if (teamNames.some(t => t.toLowerCase() === name.toLowerCase())) {
+      setMessage({ type: 'error', text: `Team "${name}" already exists` });
       return;
     }
-    const success = await updateUserRole(email, 'manager');
-    if (success) {
-      setMessage({ type: 'success', text: `${email} demoted to manager` });
-      const profiles = await SUPABASE_API.fetchUserProfiles();
-      setClaimedProfiles(profiles);
+    const created = await SUPABASE_API.createTeam(name);
+    if (created) {
+      setTeams(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewTeamName('');
+      setMessage({ type: 'success', text: `Team "${name}" created` });
     } else {
-      setMessage({ type: 'error', text: `Failed to demote ${email}` });
+      setMessage({ type: 'error', text: `Failed to create team "${name}"` });
     }
   };
 
-  const handleAddManager = async (e) => {
-    e.preventDefault();
-    if (!newManagerEmail.trim()) return;
-    const success = await updateUserRole(newManagerEmail, 'manager');
+  const handleDeleteTeam = async (team) => {
+    if (!confirm(`Delete the "${team.name}" team? Users in this team won't be removed.`)) return;
+    const success = await SUPABASE_API.deleteTeam(team.id);
     if (success) {
-      setMessage({ type: 'success', text: `${newManagerEmail} promoted to manager` });
-      const profiles = await SUPABASE_API.fetchUserProfiles();
-      setClaimedProfiles(profiles);
+      setTeams(prev => prev.filter(t => t.id !== team.id));
+      setMessage({ type: 'success', text: `Team "${team.name}" deleted` });
     } else {
-      setMessage({ type: 'error', text: `Failed to promote ${newManagerEmail}` });
-    }
-    setNewManagerEmail('');
-  };
-
-  const handleRemoveManager = async (email) => {
-    const success = await updateUserRole(email, 'member');
-    if (success) {
-      setMessage({ type: 'success', text: `${email} demoted to member` });
-      const profiles = await SUPABASE_API.fetchUserProfiles();
-      setClaimedProfiles(profiles);
-    } else {
-      setMessage({ type: 'error', text: `Failed to demote ${email}` });
+      setMessage({ type: 'error', text: `Failed to delete team "${team.name}"` });
     }
   };
 
@@ -349,7 +370,7 @@ const AdminConsole = ({
       return;
     }
     setMessage({ type: 'success', text: `Profile created for ${newProfile.name}` });
-    setNewProfile({ email: '', name: '', team: TEAMS[0], role: 'member' });
+    setNewProfile({ email: '', name: '', team: teamNames[0] || '', role: 'member' });
     const profiles = await SUPABASE_API.fetchUserProfiles();
     setClaimedProfiles(profiles);
   };
@@ -371,9 +392,8 @@ const AdminConsole = ({
 
   const tabs = [
     { id: 'invites', label: 'Invitations', icon: 'mail' },
-    { id: 'admins', label: 'Admins', icon: 'shield' },
-    { id: 'managers', label: 'Managers', icon: 'briefcase' },
     { id: 'profiles', label: 'User Profiles', icon: 'users' },
+    { id: 'teams', label: 'Teams', icon: 'briefcase' },
     { id: 'activity', label: 'Activity Log', icon: 'activity' },
   ];
 
@@ -417,6 +437,12 @@ const AdminConsole = ({
     if (d.comment_text) return d.comment_text.substring(0, 50) + (d.comment_text.length > 50 ? '...' : '');
     if (d.team) return `Team: ${d.team}`;
     return '-';
+  };
+
+  const roleColors = {
+    admin: 'bg-amber-100 text-amber-700 border-amber-300',
+    manager: 'bg-ocean-100 text-ocean-700 border-ocean-300',
+    member: 'bg-graystone-100 text-graystone-600 border-graystone-300',
   };
 
   return (
@@ -504,103 +530,15 @@ const AdminConsole = ({
             </div>
           )}
 
-          {activeTab === 'admins' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-bold text-ocean-900 mb-2">Administrators</h2>
-                <p className="text-sm text-graystone-600 mb-4">Admins have full access to the Admin Console and can manage all users.</p>
-                <form onSubmit={handleAddAdmin} className="flex gap-3 mb-4">
-                  <input type="email" value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)}
-                    placeholder={`new-admin@${APP_CONFIG.ORG_DOMAIN}`}
-                    className="flex-1 px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition" required />
-                  <button type="submit" disabled={!newAdminEmail.trim()}
-                    className="px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 disabled:opacity-50 transition flex items-center gap-2">
-                    <Icon name="user-plus" className="w-4 h-4" />
-                    Promote to Admin
-                  </button>
-                </form>
-
-                <div className="space-y-2">
-                  {claimedProfiles.filter(p => p.role === 'admin').map((profile) => (
-                    <div key={profile.id || profile.email} className="flex items-center justify-between p-4 bg-amber-50 rounded-xl border border-amber-200">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold">
-                          <Icon name="shield" className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-ocean-900">{profile.name}</div>
-                          <div className="text-xs text-graystone-500">
-                            {profile.email.toLowerCase() === currentUserEmail.toLowerCase() ? `${profile.email} (You)` : profile.email}
-                          </div>
-                        </div>
-                      </div>
-                      {profile.email.toLowerCase() !== currentUserEmail.toLowerCase() && (
-                        <button onClick={() => handleRemoveAdmin(profile.email)} className="px-3 py-1 text-red-600 hover:bg-red-50 rounded-lg transition text-sm">
-                          Demote
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {claimedProfiles.filter(p => p.role === 'admin').length === 0 && (
-                    <div className="text-center py-8 text-graystone-500 bg-graystone-50 rounded-xl border border-graystone-200">No admins found. Add one above.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'managers' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-bold text-ocean-900 mb-2">Manager Hub Access</h2>
-                <p className="text-sm text-graystone-600 mb-4">Users with manager access can view the Manager Hub and see team workloads.</p>
-                <form onSubmit={handleAddManager} className="flex gap-3 mb-4">
-                  <input type="email" value={newManagerEmail} onChange={(e) => setNewManagerEmail(e.target.value)}
-                    placeholder={`manager@${APP_CONFIG.ORG_DOMAIN}`}
-                    className="flex-1 px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition" required />
-                  <button type="submit" disabled={!newManagerEmail.trim()}
-                    className="px-6 py-3 bg-ocean-500 text-white rounded-xl font-semibold hover:bg-ocean-600 disabled:opacity-50 transition flex items-center gap-2">
-                    <Icon name="user-plus" className="w-4 h-4" />
-                    Promote to Manager
-                  </button>
-                </form>
-
-                <div className="space-y-2">
-                  {claimedProfiles.filter(p => p.role === 'manager' || p.role === 'admin').map((profile) => (
-                    <div key={profile.id || profile.email} className="flex items-center justify-between p-4 bg-ocean-50 rounded-xl border border-ocean-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-ocean-500 text-white flex items-center justify-center font-bold">
-                          <Icon name="briefcase" className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-ocean-900">{profile.name}</div>
-                          <div className="text-xs text-graystone-500">{profile.role === 'admin' ? 'Admin + Manager' : 'Manager'} • {profile.email}</div>
-                        </div>
-                      </div>
-                      {profile.role !== 'admin' && (
-                        <button onClick={() => handleRemoveManager(profile.email)} className="px-3 py-1 text-red-600 hover:bg-red-50 rounded-lg transition text-sm">
-                          Demote
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {claimedProfiles.filter(p => p.role === 'manager' || p.role === 'admin').length === 0 && (
-                    <div className="text-center py-8 text-graystone-500 bg-graystone-50 rounded-xl border border-graystone-200">No managers found. Add one above.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'profiles' && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-bold text-ocean-900 mb-2 flex items-center gap-2">
                   <Icon name="users" className="w-5 h-5" />
-                  Active Users
+                  All Users
                   <span className="text-sm font-normal text-graystone-500">({claimedProfiles.length})</span>
                 </h2>
-                <p className="text-sm text-graystone-600 mb-4">Users who have signed up and claimed their accounts.</p>
+                <p className="text-sm text-graystone-600 mb-4">Manage roles and teams inline. Changes save immediately.</p>
 
                 {loadingProfiles ? (
                   <div className="py-8"><LoadingSpinner size="md" text="Loading users..." /></div>
@@ -611,21 +549,44 @@ const AdminConsole = ({
                 ) : (
                   <div className="space-y-2">
                     {claimedProfiles.map((profile) => (
-                      <div key={profile.id} className={cx("flex items-center justify-between p-4 bg-white rounded-xl border", isPendingInvite(profile) ? "border-amber-200" : "border-green-200")}>
+                      <div key={profile.id} className={cx("flex items-center justify-between p-4 bg-white rounded-xl border", isPendingInvite(profile) ? "border-amber-200" : "border-graystone-200")}>
                         <div className="flex items-center gap-3">
                           <div className={cx("w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm", isPendingInvite(profile) ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700")}>
                             {profile.name.split(' ').map(n => n[0]).join('')}
                           </div>
                           <div>
-                            <div className="font-medium text-ocean-900">{profile.name}</div>
+                            <div className="font-medium text-ocean-900">
+                              {profile.name}
+                              {profile.email.toLowerCase() === currentUserEmail.toLowerCase() && (
+                                <span className="text-xs text-graystone-400 ml-1">(You)</span>
+                              )}
+                            </div>
                             <div className="text-xs text-graystone-500">{profile.email}</div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          {profile.team && <span className="px-2 py-1 bg-graystone-100 text-graystone-600 rounded text-xs">{profile.team}</span>}
-                          <span className={cx("px-2 py-1 rounded text-xs", profile.role === 'admin' ? "bg-amber-100 text-amber-700" : profile.role === 'manager' ? "bg-ocean-100 text-ocean-700" : "bg-graystone-100 text-graystone-600")}>
-                            {profile.role}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={profile.team || ''}
+                            onChange={(e) => handleTeamChange(profile, e.target.value)}
+                            className="px-2 py-1 border border-graystone-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none"
+                          >
+                            <option value="">No team</option>
+                            {teamNames.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                          <select
+                            value={profile.role || 'member'}
+                            onChange={(e) => handleRoleChange(profile, e.target.value)}
+                            disabled={profile.email.toLowerCase() === currentUserEmail.toLowerCase()}
+                            className={cx(
+                              "px-2 py-1 border rounded-lg text-xs font-medium focus:ring-2 focus:ring-ocean-500 outline-none",
+                              roleColors[profile.role] || roleColors.member,
+                              profile.email.toLowerCase() === currentUserEmail.toLowerCase() && "opacity-60 cursor-not-allowed"
+                            )}
+                          >
+                            <option value="member">member</option>
+                            <option value="manager">manager</option>
+                            <option value="admin">admin</option>
+                          </select>
                           {isPendingInvite(profile) ? (
                             <>
                               <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs flex items-center gap-1">
@@ -690,7 +651,8 @@ const AdminConsole = ({
                         <label className="block text-sm font-medium text-graystone-700 mb-1">Team</label>
                         <select value={newProfile.team} onChange={(e) => setNewProfile({ ...newProfile, team: e.target.value })}
                           className="w-full px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition">
-                          {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+                          <option value="">No team</option>
+                          {teamNames.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
                       <div>
@@ -751,6 +713,65 @@ const AdminConsole = ({
                   <p className="text-sm text-green-600">All pre-seeded profiles have been claimed. Use the Invites tab to add new users.</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'teams' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-bold text-ocean-900 mb-2 flex items-center gap-2">
+                  <Icon name="briefcase" className="w-5 h-5" />
+                  Manage Teams
+                </h2>
+                <p className="text-sm text-graystone-600 mb-4">Add or remove teams. Users can be assigned to teams from the User Profiles tab.</p>
+
+                <form onSubmit={handleAddTeam} className="flex gap-3 mb-6">
+                  <input
+                    type="text"
+                    value={newTeamName}
+                    onChange={(e) => setNewTeamName(e.target.value)}
+                    placeholder="New team name"
+                    className="flex-1 px-4 py-3 border border-graystone-300 rounded-xl focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition"
+                    required
+                  />
+                  <button type="submit" disabled={!newTeamName.trim()}
+                    className="px-6 py-3 bg-ocean-500 text-white rounded-xl font-semibold hover:bg-ocean-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
+                    <Icon name="plus" className="w-4 h-4" />
+                    Add Team
+                  </button>
+                </form>
+
+                <div className="space-y-2">
+                  {teams.map((team) => {
+                    const memberCount = claimedProfiles.filter(p => p.team === team.name).length;
+                    return (
+                      <div key={team.id} className="flex items-center justify-between p-4 bg-white rounded-xl border border-graystone-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-ocean-100 text-ocean-700 flex items-center justify-center font-bold">
+                            <Icon name="briefcase" className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-ocean-900">{team.name}</div>
+                            <div className="text-xs text-graystone-500">{memberCount} member{memberCount !== 1 ? 's' : ''}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteTeam(team)}
+                          className="px-3 py-1 text-red-600 hover:bg-red-50 rounded-lg transition text-sm flex items-center gap-1"
+                        >
+                          <Icon name="trash-2" className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {teams.length === 0 && (
+                    <div className="text-center py-8 text-graystone-500 bg-graystone-50 rounded-xl border border-graystone-200">
+                      No teams yet. Add one above.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

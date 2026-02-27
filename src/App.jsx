@@ -242,6 +242,35 @@ export default function App() {
         if (error) { Logger.error(error, 'Failed to fetch activity log'); return []; }
         return data || [];
       },
+      // Teams CRUD
+      fetchTeams: async () => {
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from('teams')
+          .select('*')
+          .order('name');
+        if (error) { Logger.error(error, 'Failed to fetch teams'); return []; }
+        return data || [];
+      },
+      createTeam: async (name) => {
+        if (!supabase) return null;
+        const { data, error } = await supabase
+          .from('teams')
+          .insert([{ name }])
+          .select()
+          .single();
+        if (error) { Logger.error(error, 'Failed to create team'); return null; }
+        return data;
+      },
+      deleteTeam: async (id) => {
+        if (!supabase) return false;
+        const { error } = await supabase
+          .from('teams')
+          .delete()
+          .eq('id', id);
+        if (error) { Logger.error(error, 'Failed to delete team'); return false; }
+        return true;
+      },
     };
   }, [wb.whiteboardApi]);
 
