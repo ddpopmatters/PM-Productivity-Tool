@@ -1,3 +1,14 @@
+## 2026-03-28 — Request dashboard route + full-page view
+Tool: Codex
+Branch: main
+Changes:
+- Added `/pages/requests/:id` routing in `useNavigation.js` and wired both the main app shell and pages-only shell to render a lazy-loaded `RequestDashboard`
+- Updated `PagesView.jsx` so request clicks navigate to the full-page dashboard while keeping the new-request modal flow intact
+- Added `src/components/features/pages/dashboard/` with the routed dashboard, hero, milestone progress, health cards, brief/activity/files/timeline/contacts cards, sticky actions bar, and builder notes
+- Extended `landingPageRequests.js` with `updatePageUrl` and `appendStatusHistory`, and added migration `023_request_dashboard.sql` for `page_url` and `status_history`
+- Ran `npm run build` successfully after the changes
+Status: Complete
+
 ## 2026-03-28 — Pages Hub attachments + form accessibility
 Tool: Claude Sonnet 4.6
 Branch: main

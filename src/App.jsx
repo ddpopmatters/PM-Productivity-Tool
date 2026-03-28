@@ -76,6 +76,7 @@ const WhiteboardCanvas = lazy(() => import('./components/features/whiteboards/Wh
 const AdminConsole = lazy(() => import('./components/features/admin/AdminConsole'));
 const ManagerHub = lazy(() => import('./components/features/manager/ManagerHub'));
 const PagesView = lazy(() => import('./components/features/pages/PagesView'));
+const RequestDashboard = lazy(() => import('./components/features/pages/dashboard/RequestDashboard'));
 
 export default function App() {
   // Auth state from context
@@ -450,14 +451,26 @@ export default function App() {
             </button>
           </div>
         </header>
-        <main className="mx-auto max-w-4xl p-6">
+        <main className={clsx(nav.currentView === 'pages-request' ? 'min-h-0' : 'mx-auto max-w-4xl p-6')}>
           <Suspense fallback={<LoadingSpinner />}>
-            <PagesView
-              pagesRole="requester"
-              userId={authUser?.id}
-              userEmail={userEmail}
-              currentUser={currentUser}
-            />
+            {nav.currentView === 'pages-request' ? (
+              <RequestDashboard
+                requestId={nav.selectedRequestId}
+                pagesRole="requester"
+                userId={authUser?.id}
+                userEmail={userEmail}
+                currentUser={currentUser}
+                onBack={() => nav.navigate('pages')}
+              />
+            ) : (
+              <PagesView
+                pagesRole="requester"
+                userId={authUser?.id}
+                userEmail={userEmail}
+                currentUser={currentUser}
+                onOpenRequest={(id) => nav.openRequest(id)}
+              />
+            )}
           </Suspense>
         </main>
       </div>
@@ -981,10 +994,29 @@ export default function App() {
                 userId={authUser?.id}
                 userEmail={userEmail}
                 currentUser={currentUser}
+                onOpenRequest={(id) => nav.openRequest(id)}
               />
             </Suspense>
           </ErrorBoundary>
         );
+
+      case 'pages-request': {
+        const reqId = nav.selectedRequestId;
+        return (
+          <ErrorBoundary key="pages-request" message="The request dashboard encountered an error.">
+            <Suspense fallback={<LoadingSpinner />}>
+              <RequestDashboard
+                requestId={reqId}
+                pagesRole={getPagesRole(userEmail)}
+                userId={authUser?.id}
+                userEmail={userEmail}
+                currentUser={currentUser}
+                onBack={() => nav.navigate('pages')}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        );
+      }
 
       case 'workstream-task-detail': {
         const selectedWorkstream = ws.workstreams.find(w => w.id === nav.selectedWorkstreamId);
@@ -1038,8 +1070,11 @@ export default function App() {
       <Sidebar currentView={nav.currentView} onNavigate={nav.navigate} onSignOut={handleSignOut} currentUser={currentUser} userEmail={userEmail} isAdmin={isAdmin} isManager={isManager} isOpen={nav.sidebarOpen} onClose={() => nav.setSidebarOpen(false)} darkMode={darkMode} setDarkMode={toggleDarkMode} config={APP_CONFIG} onAddNewItem={() => modals.setShowAddItemTypeModal(true)} />
 
       {/* Main content */}
-      <main className="pt-16 lg:pt-0 p-6 lg:p-8 lg:ml-64 min-h-screen overflow-auto">
-        <div className="max-w-7xl mx-auto">
+      <main className={clsx(
+        'pt-16 lg:pt-0 lg:ml-64 min-h-screen overflow-auto',
+        nav.currentView === 'pages-request' ? 'p-0' : 'p-6 lg:p-8'
+      )}>
+        <div className={clsx(nav.currentView !== 'pages-request' && 'max-w-7xl mx-auto')}>
           <ErrorBoundary message="This view encountered an error. Please try again or navigate to a different section.">
             {renderView()}
           </ErrorBoundary>

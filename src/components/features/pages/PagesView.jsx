@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { LayoutTemplate, Plus, X } from 'lucide-react';
 import { LoadingSpinner } from '../../ui';
 import { useLandingPageRequests } from '../../../hooks/useLandingPageRequests';
 import { updateRequestStatus } from '../../../services/landingPageRequests';
 import KanbanBoard from './board/KanbanBoard';
 import NewRequestForm from './forms/NewRequestForm';
-import RequestDetail from './requests/RequestDetail';
 import RequestList from './requests/RequestList';
 
 const LOCKED_STATUSES = new Set(['approved', 'in_progress', 'revision_1', 'revision_2', 'live']);
@@ -40,20 +39,9 @@ function getRoleLabel(role) {
   }
 }
 
-export default function PagesView({ pagesRole, userId, userEmail, currentUser }) {
+export default function PagesView({ pagesRole, userId, userEmail, currentUser, onOpenRequest }) {
   const { requests, loading, error, refetch } = useLandingPageRequests(pagesRole, userId);
   const [panelState, setPanelState] = useState(null);
-
-  const selectedRequest = useMemo(() => {
-    if (panelState?.type !== 'detail') return null;
-    return requests.find((request) => request.id === panelState.requestId) || null;
-  }, [panelState, requests]);
-
-  useEffect(() => {
-    if (panelState?.type === 'detail' && !loading && !selectedRequest) {
-      setPanelState(null);
-    }
-  }, [loading, panelState, selectedRequest]);
 
   const handleStatusChange = async (requestId, newStatus) => {
     const targetRequest = requests.find((request) => request.id === requestId);
@@ -77,7 +65,7 @@ export default function PagesView({ pagesRole, userId, userEmail, currentUser })
   };
 
   const openNewRequest = () => setPanelState({ type: 'new' });
-  const openRequest = (request) => setPanelState({ type: 'detail', requestId: request.id });
+  const openRequest = (request) => onOpenRequest?.(request.id);
   const closePanel = () => setPanelState(null);
 
   if (!pagesRole) {
@@ -173,7 +161,7 @@ export default function PagesView({ pagesRole, userId, userEmail, currentUser })
         </>
       )}
 
-      {panelState && (
+      {panelState?.type === 'new' && (
         <div className="fixed inset-0 z-50">
           <button
             type="button"
@@ -182,19 +170,13 @@ export default function PagesView({ pagesRole, userId, userEmail, currentUser })
             className="absolute inset-0 bg-graystone-900/45 backdrop-blur-sm"
           />
 
-          <div className={panelState.type === 'new'
-            ? "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[560px] max-h-[90vh] flex flex-col rounded-2xl border border-graystone-200 bg-graystone-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950"
-            : "absolute right-0 top-0 h-full w-full max-w-[480px] overflow-hidden border-l border-graystone-200 bg-graystone-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950"}>
+          <div className="absolute left-1/2 top-1/2 flex max-h-[90vh] w-full max-w-[560px] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-graystone-200 bg-graystone-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950">
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex items-start justify-between gap-4 border-b border-graystone-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                 <div>
-                  <h2 className="text-xl font-semibold text-ocean-900 dark:text-slate-100">
-                    {panelState.type === 'new' ? 'New request' : 'Request detail'}
-                  </h2>
+                  <h2 className="text-xl font-semibold text-ocean-900 dark:text-slate-100">New request</h2>
                   <p className="mt-1 text-sm text-graystone-700 dark:text-slate-300">
-                    {panelState.type === 'new'
-                      ? 'Capture the full brief before it enters the Pages workflow.'
-                      : 'Review the brief, workflow state, amendments, and revision history.'}
+                    Capture the full brief before it enters the Pages workflow.
                   </p>
                 </div>
                 <button
@@ -207,29 +189,15 @@ export default function PagesView({ pagesRole, userId, userEmail, currentUser })
               </div>
 
               <div className="flex-1 overflow-y-auto p-5">
-                {panelState.type === 'new' ? (
-                  <NewRequestForm
-                    userId={userId}
-                    userEmail={userEmail}
-                    onSubmitted={async () => {
-                      await refetch();
-                      closePanel();
-                    }}
-                    onCancel={closePanel}
-                  />
-                ) : (
-                  selectedRequest && (
-                    <RequestDetail
-                      request={selectedRequest}
-                      pagesRole={pagesRole}
-                      userId={userId}
-                      onClose={closePanel}
-                      onUpdated={async () => {
-                        await refetch();
-                      }}
-                    />
-                  )
-                )}
+                <NewRequestForm
+                  userId={userId}
+                  userEmail={userEmail}
+                  onSubmitted={async () => {
+                    await refetch();
+                    closePanel();
+                  }}
+                  onCancel={closePanel}
+                />
               </div>
             </div>
           </div>

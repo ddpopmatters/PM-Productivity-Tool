@@ -377,3 +377,53 @@ export async function deleteRequestFile(fileId, filePath) {
 
   return true;
 }
+
+export async function updatePageUrl(id, pageUrl) {
+  const supabase = getSupabase();
+  if (!supabase || !id) return null;
+
+  const { data, error } = await supabase
+    .from('landing_page_requests')
+    .update({ page_url: pageUrl, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Supabase update error');
+    return null;
+  }
+
+  return data;
+}
+
+export async function appendStatusHistory(id, status, changedBy) {
+  const supabase = getSupabase();
+  if (!supabase || !id) return null;
+
+  const { data: current } = await supabase
+    .from('landing_page_requests')
+    .select('status_history')
+    .eq('id', id)
+    .single();
+
+  const history = current?.status_history || [];
+  const updated = [
+    ...history,
+    { status, changed_at: new Date().toISOString(), changed_by: changedBy },
+  ];
+
+  const { data, error } = await supabase
+    .from('landing_page_requests')
+    .update({ status_history: updated, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Supabase update error');
+    return null;
+  }
+
+  return data;
+}

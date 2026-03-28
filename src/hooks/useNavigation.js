@@ -40,6 +40,9 @@ function parseLocation(pathname) {
   if (parts[0] === 'whiteboards' && parts[1]) {
     return { view: 'whiteboard-canvas', params: { whiteboardId: parts[1] } };
   }
+  if (parts[0] === 'pages' && parts[1] === 'requests' && parts[2]) {
+    return { view: 'pages-request', params: { requestId: parts[2] } };
+  }
 
   return { view: 'dashboard', params: {} };
 }
@@ -54,6 +57,8 @@ function buildPath(view, params = {}) {
       return `/workstreams/${params.workstreamId || params.wsId}/tasks/${params.taskId}`;
     case 'whiteboard-canvas':
       return `/whiteboards/${params.whiteboardId || params.id}`;
+    case 'pages-request':
+      return `/pages/requests/${params.requestId || params.id}`;
     default:
       return SIMPLE_ROUTES[view] || '/';
   }
@@ -76,6 +81,7 @@ export function useNavigation() {
   const selectedWorkstreamId = (currentView === 'workstream-detail' || currentView === 'workstream-task-detail') ? params.workstreamId : null;
   const selectedWorkstreamTaskId = currentView === 'workstream-task-detail' ? params.taskId : null;
   const selectedWhiteboardId = currentView === 'whiteboard-canvas' ? params.whiteboardId : null;
+  const selectedRequestId = currentView === 'pages-request' ? params.requestId : null;
 
   const navigate = useCallback((view) => {
     routerNavigate(buildPath(view));
@@ -103,6 +109,10 @@ export function useNavigation() {
     routerNavigate(buildPath('whiteboard-canvas', { whiteboardId }));
   }, [routerNavigate]);
 
+  const openRequest = useCallback((id) => {
+    routerNavigate(buildPath('pages-request', { requestId: id }));
+  }, [routerNavigate]);
+
   return {
     currentView,
     viewMode, setViewMode,
@@ -111,11 +121,13 @@ export function useNavigation() {
     selectedWorkstreamId,
     selectedWorkstreamTaskId,
     selectedWhiteboardId,
+    selectedRequestId,
     navigate,
     goBack,
     openEntry,
     openWorkstreamTask,
     openWorkstreamDetail,
     openWhiteboard,
+    openRequest,
   };
 }
