@@ -592,14 +592,28 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
           Choose files
         </label>
         {pendingFiles.length > 0 && (
-          <ul className="mt-3 space-y-1">
+          <ul className="mt-3 space-y-2">
             {pendingFiles.map((file, idx) => (
-              <li key={idx} className="flex items-center justify-between text-xs text-graystone-700 dark:text-slate-300">
-                <span className="truncate">{file.name} <span className="text-graystone-400">({(file.size / 1024).toFixed(0)} KB)</span></span>
+              <li key={idx} className="flex items-center gap-3 rounded-lg border border-graystone-200 p-2 dark:border-slate-700">
+                {file.type.startsWith('image/') ? (
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="h-12 w-12 shrink-0 rounded object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-graystone-100 text-xs font-medium uppercase text-graystone-500 dark:bg-slate-800 dark:text-slate-400">
+                    {file.name.split('.').pop()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-graystone-800 dark:text-slate-200">{file.name}</p>
+                  <p className="text-xs text-graystone-400 dark:text-slate-500">{(file.size / 1024).toFixed(0)} KB</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setPendingFiles(prev => prev.filter((_, i) => i !== idx))}
-                  className="ml-2 text-graystone-400 hover:text-rose-500"
+                  className="shrink-0 text-graystone-400 hover:text-rose-500"
                 >
                   ✕
                 </button>
