@@ -16,6 +16,7 @@ import DashboardHero from './DashboardHero';
 import FilesCard from './FilesCard';
 import HealthCards from './HealthCards';
 import TimelineCard from './TimelineCard';
+import TurnBanner from './TurnBanner';
 
 function EmptyState({ message, onBack }) {
   return (
@@ -137,6 +138,10 @@ export default function RequestDashboard({
 
         <HealthCards request={request} />
 
+        <div className="mt-6">
+          <TurnBanner request={request} pagesRole={pagesRole} feedbackItems={feedbackItems} />
+        </div>
+
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
           <div className="space-y-6">
             <BriefPanel request={request} />
@@ -169,6 +174,7 @@ export default function RequestDashboard({
         request={request}
         pagesRole={pagesRole}
         userId={userId}
+        feedbackItems={feedbackItems}
         onUpdated={handleUpdated}
         onStatusChange={handleStatusChange}
       />

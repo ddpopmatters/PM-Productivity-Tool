@@ -202,8 +202,7 @@ export function getNextStatusAction(request) {
     case 'approved':
       return { status: 'in_progress', label: 'In progress' };
     case 'in_progress':
-    case 'first_draft':
-      return { status: 'revision_1', label: 'Revision 1' };
+      return { status: 'first_draft', label: 'First draft' };
     case 'revision_1':
       return Number(request?.revision_rounds_agreed) === 3
         ? { status: 'revision_2', label: 'Revision 2' }
@@ -215,6 +214,95 @@ export function getNextStatusAction(request) {
     default:
       return null;
   }
+}
+
+function hasFeedbackForRound(feedbackItems, roundNumber) {
+  return (feedbackItems || []).some((feedback) => Number(feedback?.round_number) === roundNumber);
+}
+
+export function getTurnInfo(request, pagesRole, feedbackItems) {
+  let party = 'builder';
+  let description = 'Review the brief and approve or request more information';
+  let actionLabel = 'Approve brief';
+
+  switch (request?.status) {
+    case 'submitted':
+    case 'pending_review':
+      party = 'builder';
+      description = 'Review the brief and approve or request more information';
+      actionLabel = 'Approve brief';
+      break;
+    case 'needs_more_info':
+      party = 'requester';
+      description = 'Update your brief then re-submit it to the builder';
+      actionLabel = 'Re-submit brief';
+      break;
+    case 'approved':
+      party = 'builder';
+      description = 'Brief approved — start the build when you\'re ready';
+      actionLabel = 'Start build';
+      break;
+    case 'in_progress':
+      party = 'builder';
+      description = 'Build the page, then submit the first draft for review';
+      actionLabel = 'Submit first draft';
+      break;
+    case 'first_draft':
+      party = 'approver';
+      description = 'The first draft is ready — review and approve or request revisions';
+      actionLabel = 'Approve — go live';
+      break;
+    case 'revision_1':
+      if (hasFeedbackForRound(feedbackItems, 1)) {
+        party = 'builder';
+        description = 'Revision 1 feedback is in — implement changes and submit';
+        actionLabel = 'Submit revision';
+      } else {
+        party = 'requester';
+        description = 'Submit your revision 1 feedback for the builder';
+        actionLabel = 'Submit feedback';
+      }
+      break;
+    case 'revision_2':
+      if (hasFeedbackForRound(feedbackItems, 2)) {
+        party = 'builder';
+        description = 'Revision 2 feedback is in — implement changes and submit';
+        actionLabel = 'Submit revision';
+      } else {
+        party = 'requester';
+        description = 'Submit your revision 2 feedback for the builder';
+        actionLabel = 'Submit feedback';
+      }
+      break;
+    case 'live':
+      party = 'done';
+      description = 'This page is live';
+      actionLabel = null;
+      break;
+    case 'archived':
+      party = 'done';
+      description = 'This request is archived';
+      actionLabel = null;
+      break;
+    default:
+      break;
+  }
+
+  const isYourTurn = party !== 'done' && pagesRole === party;
+  const heading =
+    party === 'done'
+      ? 'Complete'
+      : isYourTurn
+        ? 'Your turn'
+        : `Waiting for ${party.charAt(0).toUpperCase() + party.slice(1)}`;
+
+  return {
+    party,
+    isYourTurn,
+    heading,
+    description,
+    actionLabel,
+  };
 }
 
 export function getCurrentRound(status) {

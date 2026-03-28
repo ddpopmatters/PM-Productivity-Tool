@@ -1,3 +1,14 @@
+## 2026-03-28 — Request dashboard turn-based workflow
+Tool: Codex
+Branch: main
+Changes:
+- Updated `dashboardUtils.js` so `in_progress` now hands off to `first_draft` and added `getTurnInfo(request, pagesRole, feedbackItems)` for feedback-aware turn ownership and CTA metadata
+- Added `src/components/features/pages/dashboard/TurnBanner.jsx` and wired it into `RequestDashboard.jsx` below the health cards with builder/requester/approver/done states
+- Refactored `ActionsBar.jsx` to use turn-aware labels and actions, including requester re-submit on `needs_more_info`, approver review controls on `first_draft`, and feedback-gated revision submit actions
+- Passed `feedbackItems` through the dashboard shell so both the banner and sticky actions respond to revision round feedback state
+- Ran `npm run build` successfully after the changes
+Status: Complete
+
 ## 2026-03-28 — Request dashboard route + full-page view
 Tool: Codex
 Branch: main

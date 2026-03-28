@@ -9,9 +9,17 @@ import {
   getCurrentRound,
   getNextStatusAction,
   getStatusUpdateFields,
+  getTurnInfo,
 } from './dashboardUtils';
 
-export default function ActionsBar({ request, pagesRole, userId, onUpdated, onStatusChange }) {
+export default function ActionsBar({
+  request,
+  pagesRole,
+  userId,
+  feedbackItems,
+  onUpdated,
+  onStatusChange,
+}) {
   const [pendingStatus, setPendingStatus] = useState('');
   const [actionError, setActionError] = useState('');
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -20,10 +28,18 @@ export default function ActionsBar({ request, pagesRole, userId, onUpdated, onSt
   const [amendmentState, setAmendmentState] = useState('idle');
 
   const nextAction = getNextStatusAction(request);
+  const turnInfo = getTurnInfo(request, pagesRole, feedbackItems);
   const currentRound = getCurrentRound(request?.status);
-  const canApprove = ['submitted', 'pending_review'].includes(request?.status);
-  const canSubmitFeedback = pagesRole === 'requester' && Boolean(currentRound);
+  const canApprove = ['submitted', 'pending_review', 'first_draft'].includes(request?.status);
+  const canSubmitFeedback =
+    pagesRole === 'requester' && turnInfo.isYourTurn && turnInfo.actionLabel === 'Submit feedback' && Boolean(currentRound);
   const canRequestAmendment = pagesRole === 'requester' && Boolean(request?.brief_locked_at);
+  const canBuilderAdvance = pagesRole === 'builder' && turnInfo.isYourTurn && Boolean(nextAction);
+  const canRequesterResubmit = pagesRole === 'requester' && request?.status === 'needs_more_info';
+  const showApproverInitialReviewActions =
+    pagesRole === 'approver' && canApprove && ['submitted', 'pending_review'].includes(request?.status);
+  const showApproverFirstDraftActions =
+    pagesRole === 'approver' && canApprove && request?.status === 'first_draft';
 
   const handleStatusChange = async (newStatus) => {
     setPendingStatus(newStatus);
@@ -150,25 +166,31 @@ export default function ActionsBar({ request, pagesRole, userId, onUpdated, onSt
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-medium text-ocean-900 dark:text-slate-100">Next actions</p>
-            <p className="text-sm text-graystone-700 dark:text-slate-300">
-              Actions are scoped to your Pages role and the current request stage.
+            <p
+              className={
+                turnInfo.isYourTurn
+                  ? 'text-sm font-semibold text-ocean-900 dark:text-slate-100'
+                  : 'text-sm font-medium text-graystone-600 dark:text-slate-300'
+              }
+            >
+              {turnInfo.heading}
             </p>
+            <p className="text-sm text-graystone-700 dark:text-slate-300">{turnInfo.description}</p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {pagesRole === 'builder' && nextAction && (
+            {canBuilderAdvance && (
               <button
                 type="button"
                 disabled={pendingStatus === nextAction.status}
                 onClick={() => handleStatusChange(nextAction.status)}
                 className="rounded-lg bg-ocean-600 px-4 py-2 text-white transition-colors hover:bg-ocean-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {pendingStatus === nextAction.status ? 'Updating…' : `Move to ${nextAction.label}`}
+                {pendingStatus === nextAction.status ? 'Updating…' : turnInfo.actionLabel || `Move to ${nextAction.label}`}
               </button>
             )}
 
-            {pagesRole === 'builder' && !request?.page_url && (
+            {pagesRole === 'builder' && turnInfo.isYourTurn && !request?.page_url && (
               <button
                 type="button"
                 onClick={handleScrollToPageUrl}
@@ -178,7 +200,7 @@ export default function ActionsBar({ request, pagesRole, userId, onUpdated, onSt
               </button>
             )}
 
-            {pagesRole === 'approver' && canApprove && (
+            {showApproverInitialReviewActions && (
               <>
                 <button
                   type="button"
@@ -197,6 +219,38 @@ export default function ActionsBar({ request, pagesRole, userId, onUpdated, onSt
                   {pendingStatus === 'needs_more_info' ? 'Updating…' : 'Request changes'}
                 </button>
               </>
+            )}
+
+            {showApproverFirstDraftActions && (
+              <>
+                <button
+                  type="button"
+                  disabled={pendingStatus === 'live'}
+                  onClick={() => handleStatusChange('live')}
+                  className="rounded-lg bg-ocean-600 px-4 py-2 text-white transition-colors hover:bg-ocean-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {pendingStatus === 'live' ? 'Updating…' : 'Approve — go live'}
+                </button>
+                <button
+                  type="button"
+                  disabled={pendingStatus === 'revision_1'}
+                  onClick={() => handleStatusChange('revision_1')}
+                  className="rounded-lg border border-graystone-300 px-4 py-2 text-graystone-700 transition-colors hover:bg-graystone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  {pendingStatus === 'revision_1' ? 'Updating…' : 'Request revisions'}
+                </button>
+              </>
+            )}
+
+            {canRequesterResubmit && (
+              <button
+                type="button"
+                disabled={pendingStatus === 'pending_review'}
+                onClick={() => handleStatusChange('pending_review')}
+                className="rounded-lg bg-ocean-600 px-4 py-2 text-white transition-colors hover:bg-ocean-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pendingStatus === 'pending_review' ? 'Updating…' : 'Re-submit brief'}
+              </button>
             )}
 
             {pagesRole === 'requester' && canSubmitFeedback && (
