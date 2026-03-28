@@ -116,6 +116,11 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
     pageType: 'appeal',
     pageGoal: 'donate',
     audience: '',
+    keyMessages: '',
+    pricePoints: [{ amount: '', description: '' }],
+    copyTone: '',
+    suggestedHeadline: '',
+    ctaCopy: '',
     copyStatus: 'attached',
     copyOwner: '',
     copyDueDate: '',
@@ -149,6 +154,22 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
       ...current,
       [field]: value,
     }));
+  };
+
+  const addPricePoint = () =>
+    updateField('pricePoints', [...formData.pricePoints, { amount: '', description: '' }]);
+
+  const removePricePoint = (index) =>
+    updateField(
+      'pricePoints',
+      formData.pricePoints.filter((_, i) => i !== index)
+    );
+
+  const updatePricePoint = (index, key, value) => {
+    const next = formData.pricePoints.map((pricePoint, i) =>
+      i === index ? { ...pricePoint, [key]: value } : pricePoint
+    );
+    updateField('pricePoints', next);
   };
 
   const validate = () => {
@@ -198,6 +219,19 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
           ...formData,
           title: formData.title.trim(),
           audience: formData.audience.trim(),
+          keyMessages: formData.keyMessages.trim() || null,
+          pricePoints:
+            formData.pageGoal === 'donate'
+              ? formData.pricePoints
+                  .filter((pricePoint) => pricePoint.amount.trim())
+                  .map((pricePoint) => ({
+                    amount: pricePoint.amount.trim(),
+                    description: pricePoint.description.trim(),
+                  }))
+              : [],
+          copyTone: formData.copyTone.trim() || null,
+          suggestedHeadline: formData.suggestedHeadline.trim() || null,
+          ctaCopy: formData.ctaCopy.trim() || null,
           copyOwner: formData.copyStatus === 'owner_pending' ? formData.copyOwner.trim() : '',
           copyDueDate: formData.copyStatus === 'owner_pending' ? formData.copyDueDate : '',
           assetOwner: formData.assetStatus === 'owner_pending' ? formData.assetOwner.trim() : '',
@@ -282,6 +316,96 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
             rows={4}
             className="mt-2 w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
             placeholder="Who is this page for and what should resonate with them?"
+          />
+        </label>
+      </div>
+
+      <div className="rounded-xl border border-graystone-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold text-ocean-900 dark:text-slate-100">Copy brief</h3>
+
+        <label className="mt-4 block">
+          <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">Key messages</span>
+          <textarea
+            value={formData.keyMessages}
+            onChange={(event) => updateField('keyMessages', event.target.value)}
+            rows={4}
+            className="mt-2 w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
+            placeholder="What are the 2–3 core things this page must communicate? List each message on a new line."
+          />
+        </label>
+
+        {formData.pageGoal === 'donate' && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">Price points</span>
+              <button
+                type="button"
+                onClick={addPricePoint}
+                className="text-xs font-medium text-ocean-600 hover:text-ocean-800 dark:text-ocean-300"
+              >
+                Add price point
+              </button>
+            </div>
+            <div className="mt-3 space-y-3">
+              {formData.pricePoints.map((pricePoint, index) => (
+                <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                  <input
+                    type="text"
+                    value={pricePoint.amount}
+                    onChange={(event) => updatePricePoint(index, 'amount', event.target.value)}
+                    placeholder="e.g. £10"
+                    className="w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 sm:w-40 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
+                  />
+                  <input
+                    type="text"
+                    value={pricePoint.description}
+                    onChange={(event) => updatePricePoint(index, 'description', event.target.value)}
+                    placeholder="e.g. Plants 10 trees"
+                    className="flex-1 rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePricePoint(index)}
+                    className="rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-600 transition hover:border-rose-300 hover:text-rose-600 dark:border-slate-600 dark:text-slate-300"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <label className="mt-4 block">
+          <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">Tone / voice</span>
+          <textarea
+            value={formData.copyTone}
+            onChange={(event) => updateField('copyTone', event.target.value)}
+            rows={2}
+            className="mt-2 w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
+            placeholder="e.g. Warm and urgent. Avoid clinical language. Use 'you' throughout."
+          />
+        </label>
+
+        <label className="mt-4 block">
+          <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">Suggested headline</span>
+          <input
+            type="text"
+            value={formData.suggestedHeadline}
+            onChange={(event) => updateField('suggestedHeadline', event.target.value)}
+            className="mt-2 w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
+            placeholder="Any headline ideas or requirements? (optional)"
+          />
+        </label>
+
+        <label className="mt-4 block">
+          <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">CTA copy</span>
+          <input
+            type="text"
+            value={formData.ctaCopy}
+            onChange={(event) => updateField('ctaCopy', event.target.value)}
+            className="mt-2 w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
+            placeholder="e.g. 'Donate now', 'Sign the petition', 'Join us' (optional)"
           />
         </label>
       </div>

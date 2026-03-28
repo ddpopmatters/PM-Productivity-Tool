@@ -64,3 +64,14 @@ Changes:
 - Wired `CommentThread` into `RequestDashboard.jsx` below the activity feed in the left column
 - Ran `npm run build` successfully after the changes
 Status: Complete
+
+## 2026-03-28 — Landing page copy brief fields
+Tool: Codex
+Branch: main
+Changes:
+- Added `supabase/migrations/025_copy_brief_fields.sql` for the new copy brief columns on `landing_page_requests`
+- Extended `NewRequestForm.jsx` with a new Copy brief section, including conditional donate-only price point rows and submit-time serialization for all five fields
+- Updated `landingPageRequests.js` so `createRequest()` persists the new copy brief payload to Supabase
+- Extended dashboard brief rendering in `dashboardUtils.js` and `BriefPanel.jsx` so populated copy fields appear under a dedicated "Copy brief" subheading
+- Ran `npm run build` successfully after the changes
+Status: Complete

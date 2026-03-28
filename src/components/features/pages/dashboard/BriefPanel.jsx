@@ -2,6 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Lock } from 'lucide-react';
 import { formatDate, getRequestSummaryItems } from './dashboardUtils';
 
+const COPY_BRIEF_LABELS = new Set([
+  'Key messages',
+  'Price points',
+  'Tone / voice',
+  'Suggested headline',
+  'CTA copy',
+]);
+
 function DetailItem({ label, value, fullWidth = false }) {
   return (
     <div className={fullWidth ? 'sm:col-span-2' : ''}>
@@ -14,6 +22,21 @@ function DetailItem({ label, value, fullWidth = false }) {
 export default function BriefPanel({ request }) {
   const [isOpen, setIsOpen] = useState(!request?.brief_locked_at);
   const summaryItems = useMemo(() => getRequestSummaryItems(request), [request]);
+  const baseSummaryItems = useMemo(
+    () => summaryItems.filter((item) => !COPY_BRIEF_LABELS.has(item.label)),
+    [summaryItems]
+  );
+  const copyBriefItems = useMemo(
+    () => summaryItems.filter((item) => COPY_BRIEF_LABELS.has(item.label)),
+    [summaryItems]
+  );
+  const hasCopyBrief = !!(
+    request?.key_messages ||
+    request?.price_points?.length ||
+    request?.copy_tone ||
+    request?.suggested_headline ||
+    request?.cta_copy
+  );
 
   useEffect(() => {
     setIsOpen(!request?.brief_locked_at);
@@ -44,7 +67,7 @@ export default function BriefPanel({ request }) {
       {isOpen && (
         <div className="border-t border-graystone-200 p-4 dark:border-slate-700">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {summaryItems.map((item) => (
+            {baseSummaryItems.map((item) => (
               <DetailItem
                 key={item.label}
                 label={item.label}
@@ -53,6 +76,24 @@ export default function BriefPanel({ request }) {
               />
             ))}
           </div>
+
+          {hasCopyBrief && copyBriefItems.length > 0 && (
+            <>
+              <div className="pt-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-graystone-500 dark:text-slate-500">Copy brief</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
+                {copyBriefItems.map((item) => (
+                  <DetailItem
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    fullWidth={item.fullWidth}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

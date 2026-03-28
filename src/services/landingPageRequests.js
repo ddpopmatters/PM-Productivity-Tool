@@ -146,6 +146,11 @@ export async function createRequest(data, userId, userEmail) {
       revision_rounds_agreed: data.revisionRoundsAgreed ?? 2,
       extended_rounds_reason: toNullable(data.extendedRoundsReason),
       document_links: data.documentLinks ?? [],
+      key_messages: data.keyMessages ?? null,
+      price_points: data.pricePoints ?? [],
+      copy_tone: data.copyTone ?? null,
+      suggested_headline: data.suggestedHeadline ?? null,
+      cta_copy: data.ctaCopy ?? null,
     }])
     .select()
     .single();

@@ -133,6 +133,23 @@ export function getRequestSummaryItems(request) {
       value: request?.extended_rounds_reason || 'Not needed',
       fullWidth: true,
     },
+    ...(request?.key_messages
+      ? [{ label: 'Key messages', value: request.key_messages, fullWidth: true }]
+      : []),
+    ...(request?.price_points?.length > 0
+      ? [{
+        label: 'Price points',
+        value: request.price_points.map((pricePoint) => `${pricePoint.amount} — ${pricePoint.description}`).join('\n'),
+        fullWidth: true,
+      }]
+      : []),
+    ...(request?.copy_tone
+      ? [{ label: 'Tone / voice', value: request.copy_tone, fullWidth: true }]
+      : []),
+    ...(request?.suggested_headline
+      ? [{ label: 'Suggested headline', value: request.suggested_headline, fullWidth: true }]
+      : []),
+    ...(request?.cta_copy ? [{ label: 'CTA copy', value: request.cta_copy }] : []),
   ];
 }
 
