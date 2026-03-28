@@ -16,4 +16,11 @@ module.exports = {
     'react-hooks/exhaustive-deps': 'warn',
   },
   ignorePatterns: ['dist/', 'node_modules/', '*.config.*'],
+  overrides: [
+    {
+      files: ['**/*.test.{js,jsx,ts,tsx}', '**/*.spec.{js,jsx,ts,tsx}'],
+      env: { 'vitest-globals/env': true },
+      plugins: ['vitest-globals'],
+    },
+  ],
 };

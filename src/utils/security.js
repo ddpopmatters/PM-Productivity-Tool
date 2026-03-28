@@ -1,12 +1,12 @@
 /**
- * Security utilities for input sanitization and validation
+ * Security utilities for input sanitisation and validation
  */
 
 /**
- * Sanitize email for use in Supabase query filters
+ * Sanitise email for use in Supabase query filters
  * Prevents injection by escaping special characters and validating format
- * @param {string} email - Email address to sanitize
- * @returns {string|null} - Sanitized email or null if invalid
+ * @param {string} email - Email address to sanitise
+ * @returns {string|null} - Sanitised email or null if invalid
  */
 export function sanitizeEmailForQuery(email) {
   if (!email || typeof email !== 'string') {
@@ -50,9 +50,9 @@ export function isSafeIdentifier(value) {
 }
 
 /**
- * Sanitize a string for safe display (prevent XSS)
- * @param {string} str - String to sanitize
- * @returns {string} - Sanitized string
+ * Sanitise a string for safe display (prevent XSS)
+ * @param {string} str - String to sanitise
+ * @returns {string} - Sanitised string
  */
 export function sanitizeForDisplay(str) {
   if (!str || typeof str !== 'string') {
@@ -242,9 +242,9 @@ export function validatePassword(password) {
   }
 
   // Check for special character
-  if (PASSWORD_REQUIREMENTS.requireSpecial && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+  if (PASSWORD_REQUIREMENTS.requireSpecial && !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
     errors.push('At least one special character (!@#$%^&*...)');
-  } else if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+  } else if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
     score += 1;
   }
 
