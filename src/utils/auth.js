@@ -1,4 +1,4 @@
-import { MANAGERS, SEED_USERS } from './config';
+import { MANAGERS, PAGES_ONLY_EMAILS, SEED_USERS } from './config';
 
 export const isAdmin = (email) => {
   const adminEmails = ['daniel.davis@populationmatters.org'];
@@ -19,4 +19,14 @@ export const canEditItem = (entry, userEmail, currentUser) => {
 
 export const getPreseededProfile = (email) => {
   return SEED_USERS.find(u => u.email.toLowerCase() === email?.toLowerCase());
+};
+
+export const isPagesOnly = (email) => {
+  return PAGES_ONLY_EMAILS.some(e => e.toLowerCase() === email?.toLowerCase());
+};
+
+export const getPagesRole = (email) => {
+  if (isAdmin(email)) return 'builder';
+  if (isManager(email)) return 'approver';
+  return 'requester';
 };

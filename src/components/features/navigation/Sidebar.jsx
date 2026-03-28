@@ -60,6 +60,12 @@ const Sidebar = ({
       ]
     },
     {
+      title: 'CAMPAIGNS',
+      items: [
+        { id: 'pages', label: 'Pages', icon: 'layout' },
+      ]
+    },
+    {
       title: 'TOOLS',
       items: [
         { id: 'events-calendar', label: 'Calendar', icon: 'calendar' },

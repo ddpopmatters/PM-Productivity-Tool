@@ -44,6 +44,12 @@ export const SEED_USERS = [
   { email: "shweta.shirodkar@populationmatters.org", name: "Shweta Shirodkar", team: "Advocacy & Influence", role: "member" }
 ];
 
+// Pages-only users — can only access the Pages request form and their own requests
+// Add emails here for external/limited users who shouldn't see the wider hub
+export const PAGES_ONLY_EMAILS = [
+  'ddpmatters@gmail.com',
+];
+
 // Manager hierarchy
 export const MANAGERS = [
   {
@@ -131,7 +137,7 @@ export const JOB_STATUSES = [
   { id: 'done', label: 'Done', color: 'green' }
 ];
 
-// Whiteboard sticky note colors
+// Whiteboard sticky note colours
 export const STICKY_COLORS = [
   { name: 'Yellow', bg: '#fef3c7', border: '#fbbf24' },
   { name: 'Blue', bg: '#dbeafe', border: '#3b82f6' },

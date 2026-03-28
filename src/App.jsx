@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
 import { Logger } from './utils/logger';
-import { isAdmin, isManager, canEditItem } from './utils/auth';
+import { isAdmin, isManager, canEditItem, getPagesRole, isPagesOnly } from './utils/auth';
 import { exportCSV, exportJSON } from './utils/export';
 import {
   useWorkflowItems,
@@ -75,6 +75,7 @@ const CalendarScreen = lazy(() => import('./components/features/calendar/Calenda
 const WhiteboardCanvas = lazy(() => import('./components/features/whiteboards/WhiteboardCanvas'));
 const AdminConsole = lazy(() => import('./components/features/admin/AdminConsole'));
 const ManagerHub = lazy(() => import('./components/features/manager/ManagerHub'));
+const PagesView = lazy(() => import('./components/features/pages/PagesView'));
 
 export default function App() {
   // Auth state from context
@@ -425,6 +426,41 @@ export default function App() {
         initSupabase={initSupabase}
         Logger={Logger}
       />
+    );
+  }
+
+  // Pages-only users — minimal shell, no hub data
+  if (isPagesOnly(userEmail)) {
+    return (
+      <div className="min-h-screen bg-graystone-50 dark:bg-slate-950">
+        <header className="flex items-center justify-between border-b border-graystone-200 bg-white px-6 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-ocean-100 p-1.5 text-ocean-700 dark:bg-ocean-500/15 dark:text-ocean-200">
+              <Icon name="layout-template" className="h-4 w-4" />
+            </div>
+            <span className="text-sm font-semibold text-ocean-900 dark:text-slate-100">Pages Hub</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-graystone-500 dark:text-slate-400">{currentUser || userEmail}</span>
+            <button
+              onClick={handleSignOut}
+              className="text-xs text-graystone-500 hover:text-ocean-700 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Sign out
+            </button>
+          </div>
+        </header>
+        <main className="mx-auto max-w-4xl p-6">
+          <Suspense fallback={<LoadingSpinner />}>
+            <PagesView
+              pagesRole="requester"
+              userId={authUser?.id}
+              userEmail={userEmail}
+              currentUser={currentUser}
+            />
+          </Suspense>
+        </main>
+      </div>
     );
   }
 
@@ -933,6 +969,20 @@ export default function App() {
         return (
           <ErrorBoundary key="productivity-tools" message="The productivity tools encountered an error.">
           <ProductivityToolsView userEmail={userEmail} habits={habits} setHabits={setHabits} matrixTasks={matrixTasks} setMatrixTasks={setMatrixTasks} Logger={Logger} PRODUCTIVITY_API={SUPABASE_API} />
+          </ErrorBoundary>
+        );
+
+      case 'pages':
+        return (
+          <ErrorBoundary key="pages" message="The Pages feature encountered an error.">
+            <Suspense fallback={<LoadingSpinner />}>
+              <PagesView
+                pagesRole={getPagesRole(userEmail)}
+                userId={authUser?.id}
+                userEmail={userEmail}
+                currentUser={currentUser}
+              />
+            </Suspense>
           </ErrorBoundary>
         );
 

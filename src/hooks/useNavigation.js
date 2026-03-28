@@ -14,6 +14,7 @@ const SIMPLE_ROUTES = {
   'whiteboards': '/whiteboards',
   'workstreams': '/workstreams',
   'productivity-tools': '/productivity',
+  'pages': '/pages',
 };
 
 const PATH_TO_VIEW = Object.fromEntries(
