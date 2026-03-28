@@ -118,9 +118,7 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
     audience: '',
     keyMessages: '',
     pricePoints: [{ amount: '', description: '' }],
-    copyTone: '',
     suggestedHeadline: '',
-    ctaCopy: '',
     copyStatus: 'attached',
     copyOwner: '',
     copyDueDate: '',
@@ -229,9 +227,7 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
                     description: pricePoint.description.trim(),
                   }))
               : [],
-          copyTone: formData.copyTone.trim() || null,
           suggestedHeadline: formData.suggestedHeadline.trim() || null,
-          ctaCopy: formData.ctaCopy.trim() || null,
           copyOwner: formData.copyStatus === 'owner_pending' ? formData.copyOwner.trim() : '',
           copyDueDate: formData.copyStatus === 'owner_pending' ? formData.copyDueDate : '',
           assetOwner: formData.assetStatus === 'owner_pending' ? formData.assetOwner.trim() : '',
@@ -377,17 +373,6 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
         )}
 
         <label className="mt-4 block">
-          <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">Tone / voice</span>
-          <textarea
-            value={formData.copyTone}
-            onChange={(event) => updateField('copyTone', event.target.value)}
-            rows={2}
-            className="mt-2 w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
-            placeholder="e.g. Warm and urgent. Avoid clinical language. Use 'you' throughout."
-          />
-        </label>
-
-        <label className="mt-4 block">
           <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">Suggested headline</span>
           <input
             type="text"
@@ -398,16 +383,6 @@ export default function NewRequestForm({ userId, userEmail, onSubmitted, onCance
           />
         </label>
 
-        <label className="mt-4 block">
-          <span className="text-sm font-medium text-graystone-800 dark:text-slate-200">CTA copy</span>
-          <input
-            type="text"
-            value={formData.ctaCopy}
-            onChange={(event) => updateField('ctaCopy', event.target.value)}
-            className="mt-2 w-full rounded-lg border border-graystone-300 px-3 py-2 text-sm text-graystone-800 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-ocean-500/20"
-            placeholder="e.g. 'Donate now', 'Sign the petition', 'Join us' (optional)"
-          />
-        </label>
       </div>
 
       <div className="rounded-xl border border-graystone-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">

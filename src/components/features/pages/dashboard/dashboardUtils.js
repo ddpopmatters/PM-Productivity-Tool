@@ -143,13 +143,9 @@ export function getRequestSummaryItems(request) {
         fullWidth: true,
       }]
       : []),
-    ...(request?.copy_tone
-      ? [{ label: 'Tone / voice', value: request.copy_tone, fullWidth: true }]
-      : []),
     ...(request?.suggested_headline
       ? [{ label: 'Suggested headline', value: request.suggested_headline, fullWidth: true }]
       : []),
-    ...(request?.cta_copy ? [{ label: 'CTA copy', value: request.cta_copy }] : []),
   ];
 }
 
