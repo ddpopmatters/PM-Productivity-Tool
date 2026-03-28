@@ -427,3 +427,46 @@ export async function appendStatusHistory(id, status, changedBy) {
 
   return data;
 }
+
+export async function fetchComments(requestId) {
+  const supabase = getSupabase();
+  if (!supabase || !requestId) return [];
+
+  const { data, error } = await supabase
+    .from('request_comments')
+    .select('*')
+    .eq('request_id', requestId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    Logger.error(error, 'Supabase fetch error');
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function addComment(requestId, body, authorId, authorEmail, authorName, mentions) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('request_comments')
+    .insert([{
+      request_id: requestId,
+      body,
+      author_id: authorId,
+      author_email: authorEmail,
+      author_name: authorName,
+      mentions: mentions || [],
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Supabase save error');
+    return null;
+  }
+
+  return data;
+}

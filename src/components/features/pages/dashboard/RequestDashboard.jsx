@@ -10,6 +10,7 @@ import ActionsBar from './ActionsBar';
 import ActivityFeed from './ActivityFeed';
 import BriefPanel from './BriefPanel';
 import BuilderNotesCard from './BuilderNotesCard';
+import CommentThread from './CommentThread';
 import ContactsCard from './ContactsCard';
 import DashboardHero from './DashboardHero';
 import FilesCard from './FilesCard';
@@ -140,6 +141,12 @@ export default function RequestDashboard({
           <div className="space-y-6">
             <BriefPanel request={request} />
             <ActivityFeed request={request} feedbackItems={feedbackItems} />
+            <CommentThread
+              requestId={request.id}
+              userId={userId}
+              userEmail={userEmail}
+              currentUser={currentUser}
+            />
           </div>
 
           <div className="space-y-6">

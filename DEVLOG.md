@@ -42,3 +42,14 @@ Changes:
 - Fixed `src/hooks/useNavigation.js` — added `'pages': '/pages'` to `SIMPLE_ROUTES` (missing entry caused navigate('pages') to fall through to '/' and stay on Dashboard)
 - Fixed `src/App.jsx` — wrapped lazy `<PagesView>` in `<Suspense fallback={<LoadingSpinner />}>` (all other lazy views had this; pages case was missing it)
 Status: Complete — Pages Hub renders end-to-end: login → CAMPAIGNS → Pages → Kanban board (empty state, "Nothing here")
+
+## 2026-03-28 — Request dashboard comments + mentions
+Tool: Codex
+Branch: main
+Changes:
+- Added `supabase/migrations/024_request_comments.sql` for the `request_comments` table, request index, RLS enablement, and authenticated access policy
+- Extended `src/services/landingPageRequests.js` with `fetchComments` and `addComment` using the existing `getSupabase()` and `Logger.error()` patterns
+- Added `src/components/features/pages/dashboard/CommentThread.jsx` with comment loading/posting, `@`-mention autocomplete from `SEED_USERS`, stored mention emails, and highlighted mentions in rendered comments
+- Wired `CommentThread` into `RequestDashboard.jsx` below the activity feed in the left column
+- Ran `npm run build` successfully after the changes
+Status: Complete
