@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import * as service from '../services/workflowItems';
-import { getPhaseFromDate } from '../utils/config';
 
 export function useWorkflowItems() {
   const [entries, setEntries] = useState([]);
