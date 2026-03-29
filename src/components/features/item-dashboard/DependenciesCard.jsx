@@ -5,7 +5,7 @@ export default function DependenciesCard({ entry, allEntries, canEdit, onUpdateE
   const deps = entry.dependencies || [];
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+    <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-bold text-ocean-900">Dependencies</h3>
         {canEdit && (

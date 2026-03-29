@@ -210,7 +210,7 @@ const WhiteboardThumbnail = ({ whiteboardId, WHITEBOARD_API }) => {
 
   return (
     <div
-      className="aspect-video bg-white rounded-lg relative overflow-hidden border border-ocean-100"
+      className="aspect-video bg-white rounded-lg relative overflow-hidden border border-graystone-200"
       style={{ width: '100%' }}
     >
       {sortedElements.map(renderElement)}

@@ -456,8 +456,8 @@ const AdminConsole = ({
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="bg-white rounded-2xl shadow-sm border border-ocean-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 p-6 text-white">
+      <div className="bg-white rounded-2xl shadow-sm border border-graystone-200 overflow-hidden">
+        <div className="bg-ocean-800 p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold mb-1">Admin Console</h1>
@@ -530,7 +530,7 @@ const AdminConsole = ({
                 )}
               </div>
 
-              <div className="bg-ocean-50 rounded-xl p-4 border border-ocean-100">
+              <div className="bg-ocean-50 rounded-xl p-4 border border-graystone-200">
                 <p className="text-sm text-ocean-700">
                   <Icon name="info" className="w-4 h-4 inline mr-2" />
                   Users can sign up with their email address. Their profile will be linked automatically.

@@ -70,7 +70,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
   return (
     <div className="p-6 animate-in fade-in duration-500 space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Workstreams</h2>
@@ -92,7 +92,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
           onClick={() => setFilter('all')}
           className={clsx(
             "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
-            filter === 'all' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+            filter === 'all' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-graystone-200"
           )}
         >
           <div className="flex items-center justify-between">
@@ -110,7 +110,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
           onClick={() => setFilter('personal')}
           className={clsx(
             "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
-            filter === 'personal' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+            filter === 'personal' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-graystone-200"
           )}
         >
           <div className="flex items-center justify-between">
@@ -128,7 +128,7 @@ const WorkstreamList = ({ workstreams, workstreamTasks = [], currentUser, userEm
           onClick={() => setFilter('shared')}
           className={clsx(
             "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
-            filter === 'shared' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+            filter === 'shared' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-graystone-200"
           )}
         >
           <div className="flex items-center justify-between">

@@ -75,7 +75,7 @@ export default function CommentsSection({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+    <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
       <h3 className="text-lg font-bold text-ocean-900 mb-4">Activity & Comments</h3>
 
       {entry.comments && entry.comments.length > 0 ? (
@@ -123,7 +123,7 @@ export default function CommentsSection({
             />
             {mentionOptions.length > 0 && (
               <div className="absolute left-0 right-0 mt-1 rounded-xl border border-ocean-200 bg-white shadow-xl z-10 overflow-hidden">
-                <div className="px-3 py-2 bg-ocean-50 border-b border-ocean-100">
+                <div className="px-3 py-2 bg-ocean-50 border-b border-graystone-200">
                   <span className="text-xs font-medium text-ocean-700">Mention someone</span>
                 </div>
                 {mentionOptions.map((name, idx) => (

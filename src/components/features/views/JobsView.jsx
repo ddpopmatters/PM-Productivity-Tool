@@ -256,7 +256,7 @@ const JobsView = ({
     <div className={cx("h-full flex flex-col", darkMode && "dark")}>
       {/* Header */}
       <div className="p-6 space-y-6">
-        <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+        <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Tasks</h1>
@@ -278,7 +278,7 @@ const JobsView = ({
             onClick={() => setFilter('all')}
             className={cx(
               "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
-              filter === 'all' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+              filter === 'all' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-graystone-200"
             )}
           >
             <div className="flex items-center justify-between">
@@ -296,7 +296,7 @@ const JobsView = ({
             onClick={() => setFilter('mine')}
             className={cx(
               "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
-              filter === 'mine' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+              filter === 'mine' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-graystone-200"
             )}
           >
             <div className="flex items-center justify-between">
@@ -314,7 +314,7 @@ const JobsView = ({
             onClick={() => setFilter('assigned')}
             className={cx(
               "bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all",
-              filter === 'assigned' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-ocean-100"
+              filter === 'assigned' ? "border-ocean-500 ring-2 ring-ocean-200" : "border-graystone-200"
             )}
           >
             <div className="flex items-center justify-between">

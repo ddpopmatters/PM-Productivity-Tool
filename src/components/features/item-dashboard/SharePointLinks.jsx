@@ -2,7 +2,7 @@ import { Icon } from '../../ui';
 
 export default function SharePointLinks({ entry, canEdit, onOpenModal, getDocTitle, getDocUrl, getDocNotes }) {
   return (
-    <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+    <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-ocean-900">SharePoint Links</h3>
         {canEdit && (
