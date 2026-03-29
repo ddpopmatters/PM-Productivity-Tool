@@ -456,7 +456,7 @@ export default function App() {
             {nav.currentView === 'pages-request' ? (
               <RequestDashboard
                 requestId={nav.selectedRequestId}
-                pagesRole="requester"
+                pagesRole={getPagesRole(userEmail)}
                 userId={authUser?.id}
                 userEmail={userEmail}
                 currentUser={currentUser}
@@ -464,7 +464,7 @@ export default function App() {
               />
             ) : (
               <PagesView
-                pagesRole="requester"
+                pagesRole={getPagesRole(userEmail)}
                 userId={authUser?.id}
                 userEmail={userEmail}
                 currentUser={currentUser}
