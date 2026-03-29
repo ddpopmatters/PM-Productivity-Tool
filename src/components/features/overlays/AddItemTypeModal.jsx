@@ -257,7 +257,7 @@ function AddItemTypeModal({
       <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
         {/* Project Details */}
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+          <h3 className="text-sm font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
             <Icon name="file-text" className="w-4 h-4 text-ocean-500" />
             Project Details
           </h3>
@@ -289,7 +289,7 @@ function AddItemTypeModal({
 
         {/* Collaboration */}
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+          <h3 className="text-sm font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
             <Icon name="users" className="w-4 h-4 text-ocean-500" />
             Collaboration
           </h3>
@@ -331,7 +331,7 @@ function AddItemTypeModal({
 
         {/* Timeline */}
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+          <h3 className="text-sm font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
             <Icon name="calendar" className="w-4 h-4 text-ocean-500" />
             Timeline
           </h3>
@@ -357,7 +357,7 @@ function AddItemTypeModal({
 
           {/* Conditional Date Inputs */}
           {dateOption === 'range' && (
-            <div className="grid grid-cols-2 gap-4 p-4 bg-ocean-50 rounded-xl border border-ocean-100">
+            <div className="grid grid-cols-2 gap-4 p-4 bg-ocean-50 rounded-xl border border-graystone-200">
               <div>
                 <label className="text-sm font-medium text-ocean-900 mb-1 block">Start Date</label>
                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClasses} />
@@ -370,14 +370,14 @@ function AddItemTypeModal({
           )}
 
           {dateOption === 'month' && (
-            <div className="p-4 bg-ocean-50 rounded-xl border border-ocean-100">
+            <div className="p-4 bg-ocean-50 rounded-xl border border-graystone-200">
               <label className="text-sm font-medium text-ocean-900 mb-1 block">Target Month</label>
               <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className={inputClasses} />
             </div>
           )}
 
           {dateOption === 'quarter' && (
-            <div className="p-4 bg-ocean-50 rounded-xl border border-ocean-100">
+            <div className="p-4 bg-ocean-50 rounded-xl border border-graystone-200">
               <label className="text-sm font-medium text-ocean-900 mb-2 block">Target Quarter</label>
               <div className="flex gap-2">
                 <div className="flex-1">
@@ -393,7 +393,7 @@ function AddItemTypeModal({
           )}
 
           {dateOption === 'year' && (
-            <div className="p-4 bg-ocean-50 rounded-xl border border-ocean-100">
+            <div className="p-4 bg-ocean-50 rounded-xl border border-graystone-200">
               <label className="text-sm font-medium text-ocean-900 mb-1 block">Target Year</label>
               <input type="number" value={yearValue} onChange={(e) => setYearValue(e.target.value)} placeholder="Year" className={inputClasses} />
             </div>

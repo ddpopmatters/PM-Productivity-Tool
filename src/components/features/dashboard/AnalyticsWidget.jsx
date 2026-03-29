@@ -78,7 +78,7 @@ export default function AnalyticsWidget({ todos = [], entries = [] }) {
   const hasData = stats.some(day => day.completed > 0);
 
   return (
-    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+    <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-heading text-lg text-ocean-900">Task Completion</h3>
         <span className="text-sm text-graystone-500">Last 7 days</span>
@@ -115,7 +115,7 @@ export default function AnalyticsWidget({ todos = [], entries = [] }) {
       )}
 
       {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-ocean-100">
+      <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-graystone-200">
         <div className="text-center">
           <p className="text-2xl font-bold text-ocean-900">{totalStats.completedTodos}</p>
           <p className="text-xs text-graystone-500">Completed</p>

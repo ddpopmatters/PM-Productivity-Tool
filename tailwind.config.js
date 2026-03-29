@@ -8,31 +8,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Ocean blues (primary)
+        // Ocean blues (primary) — Content Hub palette
         ocean: {
-          50: '#e6f3f8',
-          100: '#cce7f1',
-          200: '#99cfe3',
-          300: '#66b7d5',
-          400: '#339fc7',
-          500: '#0087b9',
-          600: '#006c94',
-          700: '#00516f',
-          800: '#00364a',
-          900: '#11607d',
+          50: '#e6f7fb',
+          100: '#bfecf6',
+          200: '#80d9ed',
+          300: '#40c5e3',
+          400: '#1fb1c7',
+          500: '#11607d',
+          600: '#0e4d63',
+          700: '#0c3d4e',
+          800: '#072833',
+          900: '#03161d',
         },
-        // Aqua/Teal accents
+        // Aqua/Teal accents — Content Hub palette
         aqua: {
-          50: '#e6faf9',
-          100: '#ccf5f3',
-          200: '#99ebe7',
-          300: '#66e1db',
-          400: '#33d7cf',
-          500: '#00cdc3',
-          600: '#00a49c',
-          700: '#007b75',
-          800: '#00524e',
-          900: '#002927',
+          50: '#e6ffff',
+          100: '#ccffff',
+          200: '#99ffff',
+          300: '#66ffff',
+          400: '#33ffff',
+          500: '#00ffff',
+          600: '#00cccc',
+          700: '#009999',
+          800: '#006666',
+          900: '#003333',
         },
         // Graystone (neutrals)
         graystone: {
@@ -49,8 +49,7 @@ export default {
         },
       },
       fontFamily: {
-        'heading': ['Impact', 'Arial Black', 'Arial', 'sans-serif'],
-        'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        'sans': ['Neue Haas Grotesk Display', 'Neue Haas Grotesk', 'Helvetica Neue', 'Arial', 'sans-serif'],
       },
     },
   },

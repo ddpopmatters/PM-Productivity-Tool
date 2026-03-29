@@ -61,7 +61,7 @@ export default function DescriptionModal({
           />
           {descMentionOptions.length > 0 && (
             <div className="absolute left-0 right-0 mt-1 rounded-xl border border-ocean-200 bg-white shadow-xl z-10 overflow-hidden">
-              <div className="px-3 py-2 bg-ocean-50 border-b border-ocean-100">
+              <div className="px-3 py-2 bg-ocean-50 border-b border-graystone-200">
                 <span className="text-xs font-medium text-ocean-700">Mention someone</span>
               </div>
               {descMentionOptions.map((name, idx) => (

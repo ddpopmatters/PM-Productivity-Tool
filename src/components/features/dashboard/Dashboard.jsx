@@ -200,7 +200,7 @@ export default function Dashboard({
   return (
     <div className="p-6 space-y-6" id="dashboard-export-content">
       {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold">Welcome back, {(currentUser || 'User').split(' ')[0]}!</h1>
@@ -220,7 +220,7 @@ export default function Dashboard({
         {statCards.map((card) => (
           <div
             key={card.type}
-            className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+            className="bg-white rounded-xl p-6 border border-graystone-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
             onClick={() => openTaskList(card.type)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTaskList(card.type); } }}
             role="button"
@@ -282,7 +282,7 @@ export default function Dashboard({
         };
 
         return (
-          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+          <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-heading text-lg text-ocean-900 flex items-center gap-2 tracking-wide">
                 <Icon name="calendar" className="w-5 h-5" /> Upcoming Events
@@ -299,7 +299,7 @@ export default function Dashboard({
                   <button
                     key={event.id}
                     onClick={() => onNavigate('events-calendar')}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-ocean-100 hover:border-ocean-300 hover:bg-ocean-50/30 transition text-left"
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-graystone-200 hover:border-ocean-300 hover:bg-ocean-50/30 transition text-left"
                   >
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${colorCls}`}>{dateLabel}</span>
                     <span className="text-sm text-ocean-900 truncate flex-1">{event.title}</span>
@@ -313,7 +313,7 @@ export default function Dashboard({
       })()}
 
       {/* Mentions & Activity */}
-      <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+      <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
         <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2 tracking-wide">
           <Icon name="at-sign" className="w-5 h-5" /> Mentions & Activity
         </h3>
@@ -326,7 +326,7 @@ export default function Dashboard({
                   if (item.isWorkstreamTask) onOpenWorkstreamTask?.(item.workstreamId, item.entryId);
                   else onOpenEntry?.(item.entryId);
                 }}
-                className="p-4 rounded-xl border border-ocean-100 hover:border-ocean-300 cursor-pointer transition bg-gradient-to-r from-white to-ocean-50"
+                className="p-4 rounded-xl border border-graystone-200 hover:border-ocean-300 cursor-pointer transition bg-gradient-to-r from-white to-ocean-50"
               >
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-full bg-ocean-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">

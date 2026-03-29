@@ -204,7 +204,7 @@ export default function ItemDashboard({
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Description */}
-            <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+            <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-ocean-900">Description</h3>
                 {canEdit ? (
@@ -235,7 +235,7 @@ export default function ItemDashboard({
             />
 
             {/* Subtasks */}
-            <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+            <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-bold text-ocean-900">Subtasks</h3>
@@ -353,7 +353,7 @@ export default function ItemDashboard({
 
             {/* Whiteboard */}
             {entry.itemType !== 'job' && WhiteboardPreviewCard && (
-              <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+              <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
                 <h3 className="text-lg font-bold text-ocean-900 mb-4 flex items-center gap-2">
                   <Icon name="layout" className="w-5 h-5 text-ocean-500" />
                   Whiteboard
@@ -407,7 +407,7 @@ export default function ItemDashboard({
 
             {/* Custom Tags */}
             {entry.tags && entry.tags.length > 0 && (
-              <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+              <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
                 <h3 className="text-lg font-bold text-ocean-900 mb-3">Custom Tags</h3>
                 <div className="flex flex-wrap gap-2">
                   {entry.tags.map((tag, i) => (

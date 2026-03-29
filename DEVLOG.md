@@ -86,3 +86,15 @@ Changes:
 - Extended dashboard brief rendering in `dashboardUtils.js` and `BriefPanel.jsx` so populated copy fields appear under a dedicated "Copy brief" subheading
 - Ran `npm run build` successfully after the changes
 Status: Complete
+
+## 2026-03-29 — Brain Dump Inbox view added to Momentum Hub
+
+Tool: Claude Code (claude-sonnet-4-6)
+Branch: feature/content-hub-style-migration
+
+Changes:
+- Added `BrainDumpInbox.jsx` component — loads pending brain_dumps from Supabase, shows source/age tags, routes to workstream tasks, park, or archive
+- Wired into navigation: `/braindump` route, "Brain Dump Inbox" sidebar item (below Workstreams)
+- Exports added to features index
+
+Status: Complete (runtime tested — routing to workstream confirmed working)

@@ -4,6 +4,15 @@ import {
   fetchRequesterRequests,
 } from '../services/landingPageRequests';
 
+const FETCH_TIMEOUT_MS = 15_000;
+
+function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Request timed out — the database may be waking up. Please retry.')), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
 export function useLandingPageRequests(pagesRole, userId) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,10 +37,11 @@ export function useLandingPageRequests(pagesRole, userId) {
     setError(null);
 
     try {
-      const data = pagesRole === 'builder' || pagesRole === 'approver'
-        ? await fetchDashboardRequests()
-        : await fetchRequesterRequests(userId);
+      const fetchFn = pagesRole === 'builder' || pagesRole === 'approver'
+        ? fetchDashboardRequests()
+        : fetchRequesterRequests(userId);
 
+      const data = await withTimeout(fetchFn, FETCH_TIMEOUT_MS);
       setRequests(data);
       return data;
     } catch (err) {

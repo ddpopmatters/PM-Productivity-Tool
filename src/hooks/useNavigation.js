@@ -14,6 +14,7 @@ const SIMPLE_ROUTES = {
   'whiteboards': '/whiteboards',
   'workstreams': '/workstreams',
   'productivity-tools': '/productivity',
+  'braindump-inbox': '/braindump',
   'pages': '/pages',
 };
 

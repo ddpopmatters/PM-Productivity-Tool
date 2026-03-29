@@ -297,7 +297,7 @@ const WorkstreamView = ({
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}

@@ -101,7 +101,7 @@ const AddItemForm = ({
 
           {/* Project Details Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
               <Icon name="file-text" className="w-5 h-5 text-ocean-500" />
               Project Details
             </h3>
@@ -166,7 +166,7 @@ const AddItemForm = ({
 
           {/* Collaboration Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
               <Icon name="users" className="w-5 h-5 text-ocean-500" />
               Collaboration
             </h3>
@@ -291,7 +291,7 @@ const AddItemForm = ({
 
           {/* Timeline Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
               <Icon name="calendar" className="w-5 h-5 text-ocean-500" />
               Timeline
             </h3>
@@ -322,7 +322,7 @@ const AddItemForm = ({
               </div>
             </div>
 
-            <div className="p-4 bg-ocean-50 rounded-xl space-y-4 border border-ocean-100">
+            <div className="p-4 bg-ocean-50 rounded-xl space-y-4 border border-graystone-200">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-ocean-900">Timeline Precision</label>
                 <div className="flex gap-2">
@@ -422,7 +422,7 @@ const AddItemForm = ({
 
           {/* Attachments Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
               <Icon name="paperclip" className="w-5 h-5 text-ocean-500" />
               Attachments
             </h3>
@@ -460,7 +460,7 @@ const AddItemForm = ({
 
           {/* Description Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-ocean-100 pb-2">
+            <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2 border-b border-graystone-200 pb-2">
               <Icon name="align-left" className="w-5 h-5 text-ocean-500" />
               Description
             </h3>

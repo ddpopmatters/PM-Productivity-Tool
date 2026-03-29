@@ -1,6 +1,6 @@
 export default function TagsCard({ entry }) {
   return (
-    <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+    <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
       <h3 className="text-lg font-bold text-ocean-900 mb-3">Tags</h3>
       <div className="flex flex-wrap gap-2">
         {entry.campaign && (

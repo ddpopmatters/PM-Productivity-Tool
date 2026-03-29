@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Force Lucide icons to inherit text color */
+/* Force Lucide icons to inherit text colour */
 svg[class*="lucide"],
 svg.lucide,
 [data-lucide] svg,
@@ -12,7 +12,7 @@ svg.lucide,
 
 /* Base body styles */
 body {
-  background: #cfebf8;
+  background: #ffffff;
   color: #1a1a1a;
   min-height: 100vh;
   font-family: "Neue Haas Grotesk Display Pro", "Helvetica Neue", Arial, sans-serif;
@@ -98,7 +98,7 @@ html.dark body {
 .dark input:focus,
 .dark textarea:focus,
 .dark select:focus {
-  border-color: #0077b6;
+  border-color: #1fb1c7;
   box-shadow: 0 0 0 2px rgba(0, 119, 182, 0.2);
 }
 
@@ -115,7 +115,7 @@ html.dark body {
 
 .dark .btn-secondary {
   background-color: #1e3a5f;
-  border-color: #0077b6;
+  border-color: #1fb1c7;
   color: #87dde9;
 }
 
@@ -166,10 +166,9 @@ html.dark body {
 /* Heading font styles */
 h1, h2, h3, h4, h5, h6,
 .heading, .card-title, .font-heading, .heading-font {
-  font-family: "Impact", "Anton", "Arial Black", "Neue Plak Condensed", "Neue Plak", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Neue Haas Grotesk Display", "Neue Haas Grotesk", "Helvetica Neue", Arial, sans-serif;
   letter-spacing: -0.02em;
-  text-transform: uppercase;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .dropdown-font {
@@ -212,7 +211,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid #0077b6;
+  outline: 2px solid #1fb1c7;
   outline-offset: 2px;
 }
 
@@ -221,7 +220,7 @@ select:focus-visible,
   position: absolute;
   top: -40px;
   left: 0;
-  background: #0077b6;
+  background: #1fb1c7;
   color: white;
   padding: 8px 16px;
   z-index: 100;
@@ -294,7 +293,7 @@ select:focus-visible,
   border: 0;
 }
 
-/* Standardized button styles */
+/* Standardised button styles */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -306,14 +305,14 @@ select:focus-visible,
 }
 
 .btn-primary {
-  background-color: #0077b6;
+  background-color: #0e4d63;
   color: white;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
 }
 
 .btn-primary:hover {
-  background-color: #005a8c;
+  background-color: #0c3d4e;
 }
 
 .btn-primary:disabled {
@@ -323,7 +322,7 @@ select:focus-visible,
 
 .btn-secondary {
   background-color: #e6f7fb;
-  color: #0077b6;
+  color: #1fb1c7;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   border: 1px solid #bfecf6;
@@ -361,7 +360,6 @@ select:focus-visible,
   background: white;
   border-radius: 1rem;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Animation utilities */
@@ -432,7 +430,7 @@ select:focus-visible,
     box-shadow: none !important;
   }
 
-  /* Preserve colored elements for charts */
+  /* Preserve coloured elements for charts */
   .bg-ocean-400,
   .bg-amber-400,
   .bg-red-400,

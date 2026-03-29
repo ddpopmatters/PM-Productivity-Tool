@@ -363,7 +363,7 @@ const CalendarScreen = ({
     <div className="h-full flex flex-col">
       {/* Header - hidden when embedded */}
       {!isEmbedded && (
-        <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-8 text-white shadow-xl flex items-center justify-between mb-6">
+        <div className="bg-ocean-800 rounded-2xl p-8 text-white shadow-xl flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold mb-2">Project Calendar</h1>
             <p className="text-ocean-100">Visualize workflows across time</p>
@@ -400,7 +400,7 @@ const CalendarScreen = ({
         </div>
       )}
 
-      <div className={clsx(!isEmbedded && "bg-white rounded-xl border border-ocean-100 shadow-sm p-6", "flex-1 flex flex-col")}>
+      <div className={clsx(!isEmbedded && "bg-white rounded-xl border border-graystone-200 shadow-sm p-6", "flex-1 flex flex-col")}>
 
         {/* Timeline Type Selector and View Toggle */}
         <div className="flex items-center justify-between gap-4 mb-6">
@@ -447,7 +447,7 @@ const CalendarScreen = ({
 
         {/* Month Navigation for Week View */}
         {timelineType === 'week' && (
-          <div className="flex items-center justify-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-ocean-100">
+          <div className="flex items-center justify-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-graystone-200">
             <label className="text-sm font-medium text-graystone-700">Select Month:</label>
             <select
               value={`${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`}

@@ -42,7 +42,7 @@ export default function TodaysTasks({
     (task.taskType === 'workstream' && task.status === 'done');
 
   return (
-    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+    <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
       <h3 className="font-heading text-lg text-ocean-900 mb-4 flex items-center gap-2 tracking-wide">
         <Icon name="check-square" className="w-5 h-5" />
         Today's Tasks
@@ -199,7 +199,7 @@ export default function TodaysTasks({
         )}
       </div>
       {todaysTasks.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-ocean-100 text-sm text-graystone-500">
+        <div className="mt-4 pt-3 border-t border-graystone-200 text-sm text-graystone-500">
           {todaysTasks.length} task{todaysTasks.length !== 1 ? 's' : ''} &bull;{' '}
           {todaysTasks.filter((t) => t.completed || t.workflowStatus === 'done' || t.status === 'done').length} completed
         </div>

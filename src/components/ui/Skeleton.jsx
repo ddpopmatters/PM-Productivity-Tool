@@ -22,7 +22,7 @@ export function Skeleton({ className = '' }) {
  */
 export function CardSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-ocean-100 dark:border-slate-700">
+    <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-graystone-200 dark:border-slate-700">
       <Skeleton className="h-4 w-24 mb-2" />
       <Skeleton className="h-8 w-16 mb-4" />
       <Skeleton className="h-3 w-20" />
@@ -99,7 +99,7 @@ export function DashboardSkeleton() {
   return (
     <div className="space-y-6 animate-in fade-in duration-300" role="status" aria-label="Loading dashboard">
       {/* Header skeleton */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6">
+      <div className="bg-ocean-800 rounded-2xl p-6">
         <Skeleton className="h-8 w-64 mb-2 bg-white/20" />
         <Skeleton className="h-4 w-48 bg-white/20" />
       </div>
@@ -113,11 +113,11 @@ export function DashboardSkeleton() {
 
       {/* Content skeleton */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-ocean-100 dark:border-slate-700 p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-graystone-200 dark:border-slate-700 p-6">
           <Skeleton className="h-6 w-32 mb-4" />
           <Skeleton className="h-48 w-full" />
         </div>
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-ocean-100 dark:border-slate-700 p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-graystone-200 dark:border-slate-700 p-6">
           <Skeleton className="h-6 w-32 mb-4" />
           <ListSkeleton rows={4} />
         </div>
