@@ -9,10 +9,12 @@ import AmendmentQueue from '../requests/AmendmentQueue';
 import ActionsBar from './ActionsBar';
 import ActivityFeed from './ActivityFeed';
 import BriefPanel from './BriefPanel';
+import { BuilderDraftCard } from './BuilderDraftCard';
 import BuilderNotesCard from './BuilderNotesCard';
 import CommentThread from './CommentThread';
 import ContactsCard from './ContactsCard';
 import DashboardHero from './DashboardHero';
+import { DraftPreviewPanel } from './DraftPreviewPanel';
 import FilesCard from './FilesCard';
 import HealthCards from './HealthCards';
 import TimelineCard from './TimelineCard';
@@ -144,6 +146,7 @@ export default function RequestDashboard({
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
           <div className="space-y-6">
+            <DraftPreviewPanel requestId={request.id} request={request} />
             <BriefPanel request={request} />
             <ActivityFeed request={request} feedbackItems={feedbackItems} />
             <CommentThread
@@ -158,6 +161,13 @@ export default function RequestDashboard({
             <ContactsCard request={request} />
             <TimelineCard request={request} />
             <FilesCard requestId={request.id} request={request} />
+            <BuilderDraftCard
+              requestId={request.id}
+              userId={userId}
+              pagesRole={pagesRole}
+              request={request}
+              onUploaded={handleUpdated}
+            />
             {pagesRole === 'builder' && <BuilderNotesCard request={request} onUpdated={handleUpdated} />}
             {pagesRole === 'builder' && (
               <AmendmentQueue

@@ -1,3 +1,14 @@
+## 2026-03-28 — Request dashboard HTML draft upload + preview
+Tool: Codex
+Branch: main
+Changes:
+- Added `BuilderDraftCard.jsx` so builders can upload `.html` drafts, see the latest uploaded file, and replace it with a newer version from the dashboard sidebar
+- Added `DraftPreviewPanel.jsx` at the top of the left column to surface the latest uploaded HTML draft and render it inline in a sandboxed 600px iframe on demand
+- Updated `RequestDashboard.jsx` to place the draft preview ahead of the brief and the builder upload card ahead of builder notes
+- Updated `FilesCard.jsx` to refresh when the parent dashboard request state refreshes, so newly uploaded draft files appear in the existing files list without a full reload
+- Ran `npm run build` successfully after the changes
+Status: Complete
+
 ## 2026-03-28 — Request dashboard turn-based workflow
 Tool: Codex
 Branch: main

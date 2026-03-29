@@ -75,7 +75,7 @@ export default function FilesCard({ requestId, request }) {
     return () => {
       isCancelled = true;
     };
-  }, [requestId]);
+  }, [requestId, request]);
 
   const hasContent = files.length > 0 || documentLinks.length > 0;
 
