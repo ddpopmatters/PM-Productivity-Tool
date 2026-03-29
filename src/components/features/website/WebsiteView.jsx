@@ -23,6 +23,10 @@ export default function WebsiteView({ websiteHook }) {
     phases,
     tasks,
     pages,
+    templates,
+    dependencies,
+    decisions,
+    launchReadiness,
     changeRequests,
     loading,
     error,
@@ -157,6 +161,9 @@ export default function WebsiteView({ websiteHook }) {
           phases={phases}
           tasks={tasks}
           pages={pages}
+          templates={templates}
+          dependencies={dependencies}
+          decisions={decisions}
           isAdminUser={isAdminUser}
           handlers={sharedHandlers}
           userEmail={userEmail}
@@ -167,6 +174,9 @@ export default function WebsiteView({ websiteHook }) {
         <OngoingView
           project={project}
           pages={pages}
+          templates={templates}
+          decisions={decisions}
+          launchReadiness={launchReadiness}
           changeRequests={changeRequests}
           isAdminUser={isAdminUser}
           handlers={sharedHandlers}

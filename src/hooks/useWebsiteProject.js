@@ -15,16 +15,110 @@ function replaceItemInTaskGroups(taskGroups, taskId, updater) {
   return nextGroups;
 }
 
+function sortTemplatesList(templateRows) {
+  return [...templateRows].sort((left, right) => {
+    if (left.flagged_for_early_signoff !== right.flagged_for_early_signoff) {
+      return left.flagged_for_early_signoff ? -1 : 1;
+    }
+    return (left.name || '').localeCompare(right.name || '');
+  });
+}
+
+function sortDecisionsList(decisionRows) {
+  const statusOrder = {
+    open: 0,
+    deferred: 1,
+    decided: 2,
+  };
+
+  return [...decisionRows].sort((left, right) => {
+    const leftRank = statusOrder[left.status] ?? 99;
+    const rightRank = statusOrder[right.status] ?? 99;
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+
+    if (!left.due_date && !right.due_date) return 0;
+    if (!left.due_date) return 1;
+    if (!right.due_date) return -1;
+    return left.due_date.localeCompare(right.due_date);
+  });
+}
+
 export function useWebsiteProject() {
   const { userEmail, currentUser } = useApp();
   const [project, setProject] = useState(null);
   const [phases, setPhases] = useState([]);
   const [tasks, setTasks] = useState({});
   const [pages, setPages] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [dependencies, setDependencies] = useState([]);
+  const [decisions, setDecisions] = useState([]);
+  const [launchReadiness, setLaunchReadiness] = useState([]);
   const [changeRequests, setChangeRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeChangeRequestFilter, setActiveChangeRequestFilter] = useState('all');
+
+  const loadTemplates = useCallback(
+    async (projectIdOverride) => {
+      const targetProjectId = projectIdOverride || project?.id;
+      if (!targetProjectId) {
+        setTemplates([]);
+        return [];
+      }
+
+      const nextTemplates = await service.fetchWebsiteTemplates(targetProjectId);
+      setTemplates(sortTemplatesList(nextTemplates));
+      return nextTemplates;
+    },
+    [project]
+  );
+
+  const loadDependencies = useCallback(
+    async (projectIdOverride) => {
+      const targetProjectId = projectIdOverride || project?.id;
+      if (!targetProjectId) {
+        setDependencies([]);
+        return [];
+      }
+
+      const nextDependencies = await service.fetchPageDependencies(targetProjectId);
+      setDependencies(nextDependencies);
+      return nextDependencies;
+    },
+    [project]
+  );
+
+  const loadDecisions = useCallback(
+    async (projectIdOverride) => {
+      const targetProjectId = projectIdOverride || project?.id;
+      if (!targetProjectId) {
+        setDecisions([]);
+        return [];
+      }
+
+      const nextDecisions = await service.fetchDecisions(targetProjectId);
+      setDecisions(sortDecisionsList(nextDecisions));
+      return nextDecisions;
+    },
+    [project]
+  );
+
+  const loadLaunchReadiness = useCallback(
+    async (projectIdOverride) => {
+      const targetProjectId = projectIdOverride || project?.id;
+      if (!targetProjectId) {
+        setLaunchReadiness([]);
+        return [];
+      }
+
+      const readiness = await service.fetchLaunchReadiness(targetProjectId);
+      setLaunchReadiness(readiness);
+      return readiness;
+    },
+    [project]
+  );
 
   const loadProject = useCallback(async () => {
     setLoading(true);
@@ -36,19 +130,38 @@ export function useWebsiteProject() {
       setPhases([]);
       setTasks({});
       setPages([]);
+      setTemplates([]);
+      setDependencies([]);
+      setDecisions([]);
+      setLaunchReadiness([]);
       setChangeRequests([]);
       setLoading(false);
       return null;
     }
 
-    const [nextPhases, nextPages] = await Promise.all([
+    const [
+      nextPhases,
+      nextPages,
+      nextTemplates,
+      nextDependencies,
+      nextDecisions,
+      nextLaunchReadiness,
+    ] = await Promise.all([
       service.fetchWebsitePhases(nextProject.id),
       service.fetchWebsitePages(nextProject.id),
+      service.fetchWebsiteTemplates(nextProject.id),
+      service.fetchPageDependencies(nextProject.id),
+      service.fetchDecisions(nextProject.id),
+      service.fetchLaunchReadiness(nextProject.id),
     ]);
 
     setProject(nextProject);
     setPhases(nextPhases);
     setPages(nextPages);
+    setTemplates(sortTemplatesList(nextTemplates));
+    setDependencies(nextDependencies);
+    setDecisions(sortDecisionsList(nextDecisions));
+    setLaunchReadiness(nextLaunchReadiness);
     setTasks({});
     setLoading(false);
 
@@ -213,12 +326,15 @@ export function useWebsiteProject() {
         created_by_email: data.created_by_email || userEmail,
       });
       if (created && project) {
-        const nextPages = await service.fetchWebsitePages(project.id);
+        const [nextPages] = await Promise.all([
+          service.fetchWebsitePages(project.id),
+          loadLaunchReadiness(project.id),
+        ]);
         setPages(nextPages);
       }
       return created;
     },
-    [project, userEmail]
+    [loadLaunchReadiness, project, userEmail]
   );
 
   const handleUpdatePage = useCallback(
@@ -229,13 +345,19 @@ export function useWebsiteProject() {
       const updated = await service.updatePage(id, updates);
       if (updated) {
         setPages((prev) => prev.map((page) => (page.id === id ? updated : page)));
+        if (project) {
+          await Promise.all([
+            loadDependencies(project.id),
+            loadLaunchReadiness(project.id),
+          ]);
+        }
         return updated;
       }
 
       setPages(previousPages);
       return null;
     },
-    [pages]
+    [loadDependencies, loadLaunchReadiness, pages, project]
   );
 
   const handleDeletePage = useCallback(
@@ -247,12 +369,16 @@ export function useWebsiteProject() {
         return result;
       }
       if (result && project) {
-        const nextPages = await service.fetchWebsitePages(project.id);
+        const [nextPages] = await Promise.all([
+          service.fetchWebsitePages(project.id),
+          loadDependencies(project.id),
+          loadLaunchReadiness(project.id),
+        ]);
         setPages(nextPages);
       }
       return result;
     },
-    [project]
+    [loadDependencies, loadLaunchReadiness, project]
   );
 
   const handleMarkPageReviewed = useCallback(async (id, note) => {
@@ -292,6 +418,124 @@ export function useWebsiteProject() {
     [activeChangeRequestFilter, loadChangeRequests, userEmail]
   );
 
+  const handleCreateTemplate = useCallback(
+    async (data) => {
+      const created = await service.createTemplate({
+        ...data,
+        created_by_email: data.created_by_email || userEmail,
+      });
+      if (created) {
+        await loadTemplates(project?.id || data.project_id);
+      }
+      return created;
+    },
+    [loadTemplates, project, userEmail]
+  );
+
+  const handleUpdateTemplate = useCallback(
+    async (id, updates) => {
+      const previousTemplates = templates;
+      setTemplates((prev) =>
+        sortTemplatesList(prev.map((template) => (template.id === id ? { ...template, ...updates } : template)))
+      );
+
+      const updated = await service.updateTemplate(id, updates);
+      if (updated) {
+        setTemplates((prev) =>
+          sortTemplatesList(prev.map((template) => (template.id === id ? updated : template)))
+        );
+        return updated;
+      }
+
+      setTemplates(previousTemplates);
+      return null;
+    },
+    [templates]
+  );
+
+  const handleDeleteTemplate = useCallback(
+    async (id) => {
+      const deleted = await service.deleteTemplate(id);
+      if (deleted && project) {
+        const [nextPages] = await Promise.all([
+          service.fetchWebsitePages(project.id),
+          loadTemplates(project.id),
+        ]);
+        setPages(nextPages);
+      }
+      return deleted;
+    },
+    [loadTemplates, project]
+  );
+
+  const handleAddDependency = useCallback(
+    async (pageId, dependsOnPageId, type, notes) => {
+      const created = await service.addPageDependency(pageId, dependsOnPageId, type, notes);
+      if (created && !created.error && project) {
+        await loadDependencies(project.id);
+      }
+      return created;
+    },
+    [loadDependencies, project]
+  );
+
+  const handleRemoveDependency = useCallback(
+    async (id) => {
+      const removed = await service.removePageDependency(id);
+      if (removed && project) {
+        await loadDependencies(project.id);
+      }
+      return removed;
+    },
+    [loadDependencies, project]
+  );
+
+  const handleCreateDecision = useCallback(
+    async (data) => {
+      const created = await service.createDecision({
+        ...data,
+        created_by_email: data.created_by_email || userEmail,
+      });
+      if (created) {
+        await loadDecisions(project?.id || data.project_id);
+      }
+      return created;
+    },
+    [loadDecisions, project, userEmail]
+  );
+
+  const handleUpdateDecision = useCallback(
+    async (id, updates) => {
+      const previousDecisions = decisions;
+      setDecisions((prev) =>
+        sortDecisionsList(prev.map((decision) => (decision.id === id ? { ...decision, ...updates } : decision)))
+      );
+
+      const updated = await service.updateDecision(id, updates);
+      if (updated) {
+        setDecisions((prev) =>
+          sortDecisionsList(prev.map((decision) => (decision.id === id ? updated : decision)))
+        );
+        return updated;
+      }
+
+      setDecisions(previousDecisions);
+      return null;
+    },
+    [decisions]
+  );
+
+  const handleDeleteDecision = useCallback(
+    async (id) => {
+      const deleted = await service.deleteDecision(id);
+      if (deleted && project) {
+        await loadDecisions(project.id);
+      }
+      return deleted;
+    },
+    [loadDecisions, project]
+  );
+
   const handleUpdateChangeRequest = useCallback(
     async (id, updates) => {
       const previousRequests = changeRequests;
@@ -322,6 +566,10 @@ export function useWebsiteProject() {
     phases,
     tasks,
     pages,
+    templates,
+    dependencies,
+    decisions,
+    launchReadiness,
     changeRequests,
     loading,
     error,
@@ -344,6 +592,18 @@ export function useWebsiteProject() {
     handleUpdatePage,
     handleDeletePage,
     handleMarkPageReviewed,
+    loadTemplates,
+    loadDependencies,
+    loadDecisions,
+    loadLaunchReadiness,
+    handleCreateTemplate,
+    handleUpdateTemplate,
+    handleDeleteTemplate,
+    handleAddDependency,
+    handleRemoveDependency,
+    handleCreateDecision,
+    handleUpdateDecision,
+    handleDeleteDecision,
     loadChangeRequests,
     handleCreateChangeRequest,
     handleUpdateChangeRequest,

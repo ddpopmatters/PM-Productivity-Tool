@@ -1,3 +1,14 @@
+## 2026-03-29 — Website project management v2 expansion
+Tool: Codex
+Branch: main
+Changes:
+- Added `supabase/migrations/031_website_project_v2.sql` for website page inventory fields, bespoke templates, page dependencies, decisions, indexes, triggers, and authenticated RLS policies
+- Extended `src/services/websiteProject.js` and `src/hooks/useWebsiteProject.js` with template, dependency, decision, and launch-readiness loading/mutation flows, plus the new website page fields
+- Added `PageInventory.jsx`, `TemplateTracker.jsx`, `DecisionsLog.jsx`, and `LaunchReadiness.jsx` to cover grouped page inventory management, template reuse tracking, decisions logging, and per-section launch progress
+- Updated `WebsiteView.jsx`, `BuildView.jsx`, and `OngoingView.jsx` to surface the new data through build/live tab bars while keeping the existing phase, registry, and change request flows intact
+- Ran `npm run build` successfully after implementation
+Status: Complete
+
 ## 2026-03-29 — Website project management feature
 Tool: Codex
 Branch: main

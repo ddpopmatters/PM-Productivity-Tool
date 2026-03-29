@@ -371,7 +371,35 @@ export async function fetchWebsitePages(projectId) {
 
   const { data, error } = await supabase
     .from('website_pages')
-    .select('*')
+    .select(
+      `
+        id,
+        project_id,
+        name,
+        slug,
+        description,
+        owner_email,
+        editor_email,
+        reviewer_email,
+        status,
+        review_interval_days,
+        next_review_due,
+        last_reviewed_at,
+        last_review_note,
+        created_by_email,
+        created_at,
+        updated_at,
+        section,
+        sub_section,
+        sort_order,
+        cms_status,
+        content_status,
+        design_status,
+        content_approval_status,
+        template_id,
+        page_notes
+      `
+    )
     .eq('project_id', projectId)
     .order('name', { ascending: true });
 
@@ -401,6 +429,15 @@ export async function createPage(pageData) {
         status: pageData.status || 'draft',
         review_interval_days: Number(pageData.review_interval_days || 180),
         next_review_due: pageData.next_review_due || null,
+        section: pageData.section || null,
+        sub_section: pageData.sub_section || null,
+        sort_order: Number(pageData.sort_order || 0),
+        cms_status: pageData.cms_status || 'not_started',
+        content_status: pageData.content_status || 'not_started',
+        design_status: pageData.design_status || 'not_started',
+        content_approval_status: pageData.content_approval_status || 'not_started',
+        template_id: pageData.template_id || null,
+        page_notes: pageData.page_notes || '',
         created_by_email: pageData.created_by_email || null,
       },
     ])
@@ -576,4 +613,358 @@ export async function updateChangeRequest(id, updates) {
   }
 
   return data;
+}
+
+// Templates
+export async function fetchWebsiteTemplates(projectId) {
+  const supabase = getSupabase();
+  if (!supabase || !projectId) return [];
+
+  const { data, error } = await supabase
+    .from('website_templates')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('flagged_for_early_signoff', { ascending: false })
+    .order('name', { ascending: true });
+
+  if (error) {
+    Logger.error(error, 'Fetch website templates error');
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function createTemplate(data) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data: created, error } = await supabase
+    .from('website_templates')
+    .insert([
+      {
+        project_id: data.project_id,
+        name: data.name,
+        description: data.description || '',
+        developer_notes: data.developer_notes || '',
+        flagged_for_early_signoff:
+          data.flagged_for_early_signoff === undefined
+            ? true
+            : Boolean(data.flagged_for_early_signoff),
+        created_by_email: data.created_by_email || null,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Create website template error');
+    return null;
+  }
+
+  return created;
+}
+
+export async function updateTemplate(id, updates) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('website_templates')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Update website template error');
+    return null;
+  }
+
+  return data;
+}
+
+export async function deleteTemplate(id) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { error } = await supabase
+    .from('website_templates')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    Logger.error(error, 'Delete website template error');
+    return null;
+  }
+
+  return true;
+}
+
+// Page dependencies
+export async function fetchPageDependencies(projectId) {
+  const supabase = getSupabase();
+  if (!supabase || !projectId) return [];
+
+  const { data: pages, error: pagesError } = await supabase
+    .from('website_pages')
+    .select('id, name')
+    .eq('project_id', projectId);
+
+  if (pagesError) {
+    Logger.error(pagesError, 'Fetch website pages for dependencies error');
+    return [];
+  }
+
+  if (!pages?.length) {
+    return [];
+  }
+
+  const pageMap = new Map(pages.map((page) => [page.id, page.name]));
+  const pageIds = pages.map((page) => page.id);
+
+  const { data, error } = await supabase
+    .from('website_page_dependencies')
+    .select('*')
+    .in('page_id', pageIds)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    Logger.error(error, 'Fetch website page dependencies error');
+    return [];
+  }
+
+  return (data || []).map((dependency) => ({
+    ...dependency,
+    page_name: pageMap.get(dependency.page_id) || null,
+    depends_on_name: pageMap.get(dependency.depends_on_page_id) || null,
+  }));
+}
+
+export async function addPageDependency(pageId, dependsOnPageId, relationshipType, notes) {
+  const supabase = getSupabase();
+  if (!supabase || !pageId || !dependsOnPageId) return null;
+
+  const { data, error } = await supabase
+    .from('website_page_dependencies')
+    .insert([
+      {
+        page_id: pageId,
+        depends_on_page_id: dependsOnPageId,
+        relationship_type: relationshipType || 'references',
+        notes: notes || '',
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      return { error: 'already_exists' };
+    }
+
+    Logger.error(error, 'Add website page dependency error');
+    return null;
+  }
+
+  return data;
+}
+
+export async function removePageDependency(id) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { error } = await supabase
+    .from('website_page_dependencies')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    Logger.error(error, 'Remove website page dependency error');
+    return null;
+  }
+
+  return true;
+}
+
+// Decisions
+export async function fetchDecisions(projectId) {
+  const supabase = getSupabase();
+  if (!supabase || !projectId) return [];
+
+  const { data, error } = await supabase
+    .from('website_decisions')
+    .select('*')
+    .eq('project_id', projectId);
+
+  if (error) {
+    Logger.error(error, 'Fetch website decisions error');
+    return [];
+  }
+
+  const statusOrder = {
+    open: 0,
+    deferred: 1,
+    decided: 2,
+  };
+
+  return [...(data || [])].sort((left, right) => {
+    const leftRank = statusOrder[left.status] ?? 99;
+    const rightRank = statusOrder[right.status] ?? 99;
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+
+    if (!left.due_date && !right.due_date) return 0;
+    if (!left.due_date) return 1;
+    if (!right.due_date) return -1;
+    return left.due_date.localeCompare(right.due_date);
+  });
+}
+
+export async function createDecision(data) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data: created, error } = await supabase
+    .from('website_decisions')
+    .insert([
+      {
+        project_id: data.project_id,
+        title: data.title,
+        description: data.description || '',
+        owner_email: data.owner_email || null,
+        due_date: data.due_date || null,
+        related_page_ids: data.related_page_ids || [],
+        status: data.status || 'open',
+        outcome: data.outcome || null,
+        created_by_email: data.created_by_email || null,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Create website decision error');
+    return null;
+  }
+
+  return created;
+}
+
+export async function updateDecision(id, updates) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('website_decisions')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Update website decision error');
+    return null;
+  }
+
+  return data;
+}
+
+export async function deleteDecision(id) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { error } = await supabase
+    .from('website_decisions')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    Logger.error(error, 'Delete website decision error');
+    return null;
+  }
+
+  return true;
+}
+
+// Launch readiness (computed, not stored)
+export async function fetchLaunchReadiness(projectId) {
+  const supabase = getSupabase();
+  if (!supabase || !projectId) return [];
+
+  const { data: pageRows, error: pagesError } = await supabase
+    .from('website_pages')
+    .select(
+      `
+        id,
+        section,
+        cms_status,
+        content_status,
+        design_status,
+        content_approval_status
+      `
+    )
+    .eq('project_id', projectId)
+    .not('section', 'is', null);
+
+  if (pagesError) {
+    Logger.error(pagesError, 'Fetch website launch readiness pages error');
+    return [];
+  }
+
+  if (!pageRows?.length) {
+    return [];
+  }
+
+  const sectionRows = pageRows.reduce((accumulator, page) => {
+    const key = page.section;
+    if (!key) return accumulator;
+
+    if (!accumulator[key]) {
+      accumulator[key] = {
+        section: key,
+        total: 0,
+        total_pages: 0,
+        cms_done: 0,
+        content_done: 0,
+        design_done: 0,
+        approval_done: 0,
+        dependency_count: 0,
+      };
+    }
+
+    accumulator[key].total += 1;
+    accumulator[key].total_pages += 1;
+    if (page.cms_status === 'published') accumulator[key].cms_done += 1;
+    if (page.content_status === 'approved') accumulator[key].content_done += 1;
+    if (page.design_status === 'signed_off') accumulator[key].design_done += 1;
+    if (page.content_approval_status === 'approved') accumulator[key].approval_done += 1;
+
+    return accumulator;
+  }, {});
+
+  const pageSectionMap = new Map(
+    pageRows.map((page) => [page.id, page.section]).filter(([, section]) => Boolean(section))
+  );
+
+  const { data: dependencyRows, error: dependencyError } = await supabase
+    .from('website_page_dependencies')
+    .select('id, page_id')
+    .in('page_id', pageRows.map((page) => page.id));
+
+  if (dependencyError) {
+    Logger.error(dependencyError, 'Fetch website launch readiness dependencies error');
+  } else {
+    (dependencyRows || []).forEach((dependency) => {
+      const section = pageSectionMap.get(dependency.page_id);
+      if (section && sectionRows[section]) {
+        sectionRows[section].dependency_count += 1;
+      }
+    });
+  }
+
+  return Object.values(sectionRows).sort((left, right) =>
+    left.section.localeCompare(right.section)
+  );
 }

@@ -1,18 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Archive } from 'lucide-react';
 import Badge from '../../ui/Badge';
 import Button from '../../ui/Button';
 import PageRegistry from './PageRegistry';
 import ChangeRequestList from './ChangeRequestList';
+import LaunchReadiness from './LaunchReadiness';
+import TemplateTracker from './TemplateTracker';
+import DecisionsLog from './DecisionsLog';
 
 export default function OngoingView({
   project,
   pages = [],
+  templates = [],
+  decisions = [],
+  launchReadiness = [],
   changeRequests = [],
   isAdminUser,
   handlers,
   userEmail,
 }) {
+  const [activeTab, setActiveTab] = useState('page_registry');
+
+  const tabs = [
+    { id: 'page_registry', label: 'Page Registry' },
+    { id: 'launch_readiness', label: 'Launch Readiness' },
+    { id: 'templates', label: 'Templates' },
+    { id: 'decisions', label: 'Decisions' },
+    { id: 'change_requests', label: 'Change Requests' },
+  ];
+
   const handleArchive = async () => {
     if (window.confirm('Archive this website project?')) {
       await handlers.handleArchiveProject(project.id);
@@ -43,23 +59,75 @@ export default function OngoingView({
         </div>
       </div>
 
-      <PageRegistry
-        pages={pages}
-        isAdminUser={isAdminUser}
-        handlers={handlers}
-        projectId={project.id}
-      />
+      <div className="border-b border-graystone-200">
+        <div className="flex flex-wrap gap-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={[
+                'border-b-2 px-1 py-3 text-sm font-medium transition-colors',
+                activeTab === tab.id
+                  ? 'border-ocean-600 text-ocean-900'
+                  : 'border-transparent text-graystone-600 hover:text-graystone-800',
+              ].join(' ')}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <ChangeRequestList
-        changeRequests={changeRequests}
-        pages={pages}
-        isAdminUser={isAdminUser}
-        userEmail={userEmail}
-        projectId={project.id}
-        onLoad={handlers.loadChangeRequests}
-        onCreateChangeRequest={handlers.handleCreateChangeRequest}
-        onUpdateChangeRequest={handlers.handleUpdateChangeRequest}
-      />
+      {activeTab === 'page_registry' ? (
+        <PageRegistry
+          pages={pages}
+          isAdminUser={isAdminUser}
+          handlers={handlers}
+          projectId={project.id}
+        />
+      ) : null}
+
+      {activeTab === 'launch_readiness' ? (
+        <LaunchReadiness
+          launchReadiness={launchReadiness}
+          pages={pages}
+          decisions={decisions}
+          onRefresh={handlers.loadLaunchReadiness}
+        />
+      ) : null}
+
+      {activeTab === 'templates' ? (
+        <TemplateTracker
+          templates={templates}
+          pages={pages}
+          isAdminUser={isAdminUser}
+          handlers={handlers}
+        />
+      ) : null}
+
+      {activeTab === 'decisions' ? (
+        <DecisionsLog
+          decisions={decisions}
+          pages={pages}
+          isAdminUser={isAdminUser}
+          userEmail={userEmail}
+          handlers={handlers}
+        />
+      ) : null}
+
+      {activeTab === 'change_requests' ? (
+        <ChangeRequestList
+          changeRequests={changeRequests}
+          pages={pages}
+          isAdminUser={isAdminUser}
+          userEmail={userEmail}
+          projectId={project.id}
+          onLoad={handlers.loadChangeRequests}
+          onCreateChangeRequest={handlers.handleCreateChangeRequest}
+          onUpdateChangeRequest={handlers.handleUpdateChangeRequest}
+        />
+      ) : null}
     </div>
   );
 }

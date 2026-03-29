@@ -1,8 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CheckCircle2, Mail, Rocket, FolderKanban } from 'lucide-react';
 import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
 import PhaseAccordion from './PhaseAccordion';
+import PageInventory from './PageInventory';
+import TemplateTracker from './TemplateTracker';
+import DecisionsLog from './DecisionsLog';
 
 const PROJECT_STATUS_META = {
   planning: { label: 'Planning', badge: 'neutral' },
@@ -16,16 +19,27 @@ export default function BuildView({
   phases = [],
   tasks = {},
   pages = [],
+  templates = [],
+  dependencies = [],
+  decisions = [],
   isAdminUser,
   handlers,
   userEmail,
 }) {
+  const [activeTab, setActiveTab] = useState('phases');
   const allTasks = useMemo(() => Object.values(tasks).flat(), [tasks]);
   const doneTasks = allTasks.filter((task) => task.status === 'done').length;
   const completion = allTasks.length ? Math.round((doneTasks / allTasks.length) * 100) : 0;
   const launchPhase = phases.find((phase) => phase.name === 'Launch');
   const canLaunch = launchPhase?.status === 'complete';
   const projectStatus = PROJECT_STATUS_META[project.status] || PROJECT_STATUS_META.planning;
+
+  const tabs = [
+    { id: 'phases', label: 'Phases' },
+    { id: 'pages', label: 'Pages' },
+    { id: 'templates', label: 'Templates' },
+    { id: 'decisions', label: 'Decisions' },
+  ];
 
   const handleLaunch = async () => {
     if (!canLaunch) return;
@@ -92,21 +106,73 @@ export default function BuildView({
         </div>
       ) : null}
 
-      <div className="space-y-4">
-        {phases.map((phase) => (
-          <PhaseAccordion
-            key={phase.id}
-            phase={phase}
-            tasks={tasks[phase.id] || []}
-            pages={pages}
-            isAdminUser={isAdminUser}
-            onLoadTasks={handlers.loadPhaseTasks}
-            handlers={handlers}
-            projectId={project.id}
-            userEmail={userEmail}
-          />
-        ))}
+      <div className="border-b border-graystone-200">
+        <div className="flex flex-wrap gap-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={[
+                'border-b-2 px-1 py-3 text-sm font-medium transition-colors',
+                activeTab === tab.id
+                  ? 'border-ocean-600 text-ocean-900'
+                  : 'border-transparent text-graystone-600 hover:text-graystone-800',
+              ].join(' ')}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {activeTab === 'phases' ? (
+        <div className="space-y-4">
+          {phases.map((phase) => (
+            <PhaseAccordion
+              key={phase.id}
+              phase={phase}
+              tasks={tasks[phase.id] || []}
+              pages={pages}
+              isAdminUser={isAdminUser}
+              onLoadTasks={handlers.loadPhaseTasks}
+              handlers={handlers}
+              projectId={project.id}
+              userEmail={userEmail}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {activeTab === 'pages' ? (
+        <PageInventory
+          pages={pages}
+          templates={templates}
+          dependencies={dependencies}
+          isAdminUser={isAdminUser}
+          handlers={handlers}
+          projectId={project.id}
+        />
+      ) : null}
+
+      {activeTab === 'templates' ? (
+        <TemplateTracker
+          templates={templates}
+          pages={pages}
+          isAdminUser={isAdminUser}
+          handlers={handlers}
+        />
+      ) : null}
+
+      {activeTab === 'decisions' ? (
+        <DecisionsLog
+          decisions={decisions}
+          pages={pages}
+          isAdminUser={isAdminUser}
+          userEmail={userEmail}
+          handlers={handlers}
+        />
+      ) : null}
     </div>
   );
 }
