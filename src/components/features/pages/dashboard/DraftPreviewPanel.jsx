@@ -4,6 +4,7 @@ import {
   fetchRequestFiles,
   getRequestFileUrl,
 } from '../../../../services/landingPageRequests';
+import { CommentThread } from './CommentThread';
 
 function isHtmlFile(file) {
   return file?.file_name?.toLowerCase().endsWith('.html') || file?.mime_type === 'text/html';
@@ -20,7 +21,7 @@ function getLatestHtmlFile(files) {
     .sort((left, right) => getFileTimestamp(right) - getFileTimestamp(left))[0] || null;
 }
 
-export function DraftPreviewPanel({ requestId, request }) {
+export function DraftPreviewPanel({ requestId, request, pagesRole, userId, userEmail, currentUser }) {
   const [draftFile, setDraftFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -145,8 +146,19 @@ export function DraftPreviewPanel({ requestId, request }) {
               title="Draft preview"
               srcDoc={htmlContent || ''}
               sandbox="allow-scripts allow-forms"
-              className="h-[600px] w-full rounded-b-xl border-0"
+              className="h-[600px] w-full border-0"
             />
+          )}
+
+          {pagesRole !== 'builder' && (
+            <div className="border-t border-graystone-200 p-4 dark:border-slate-700">
+              <CommentThread
+                requestId={requestId}
+                userId={userId}
+                userEmail={userEmail}
+                currentUser={currentUser}
+              />
+            </div>
           )}
         </div>
       )}

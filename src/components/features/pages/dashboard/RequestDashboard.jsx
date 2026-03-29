@@ -146,7 +146,14 @@ export default function RequestDashboard({
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
           <div className="space-y-6">
-            <DraftPreviewPanel requestId={request.id} request={request} />
+            <DraftPreviewPanel
+              requestId={request.id}
+              request={request}
+              pagesRole={pagesRole}
+              userId={userId}
+              userEmail={userEmail}
+              currentUser={currentUser}
+            />
             <BriefPanel request={request} />
             <ActivityFeed request={request} feedbackItems={feedbackItems} />
             <CommentThread
