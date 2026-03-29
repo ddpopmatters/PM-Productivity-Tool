@@ -1,18 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { getSupabase } from '../../../api/supabase';
+import { saveItem } from '../../../services/workflowItems';
+import { createWhiteboard } from '../../../services/whiteboards';
+import { savePersonalTodo } from '../../../services/todos';
+import { createWorkstream, createWorkstreamTask } from '../../../services/workstreams';
 import Icon from '../../ui/Icon';
 
 const SOURCES = { telegram: 'Telegram', telegram_photo: 'Photo', manual: 'Manual' };
 
-export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTask, onOpenWorkstream }) {
+const DESTINATIONS = [
+  { id: 'project',        label: 'Project',        icon: 'folder',         color: 'ocean' },
+  { id: 'task',           label: 'Task',            icon: 'clipboard-list', color: 'ocean' },
+  { id: 'workstream',     label: 'Workstream',      icon: 'layers',         color: 'ocean' },
+  { id: 'workstream_task',label: 'WS Task',         icon: 'check-square',   color: 'ocean' },
+  { id: 'todo',           label: 'Todo',            icon: 'calendar',       color: 'ocean' },
+  { id: 'whiteboard',     label: 'Whiteboard',      icon: 'presentation',   color: 'ocean' },
+  { id: 'parking_lot',    label: 'Park',            icon: 'archive',        color: 'gray' },
+  { id: 'archive',        label: 'Archive',         icon: 'trash-2',        color: 'gray' },
+];
+
+export default function BrainDumpInbox({ workstreams = [], currentUser = '', userEmail = '' }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pickerIndex, setPickerIndex] = useState(null);
+  const [activeItem, setActiveItem] = useState(null); // item currently being actioned
+  const [step, setStep] = useState(null); // null | 'pick-type' | 'pick-workstream'
   const [routing, setRouting] = useState(new Set());
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   async function load() {
     const supabase = getSupabase();
@@ -26,39 +41,102 @@ export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTas
     setLoading(false);
   }
 
+  function openPicker(item) {
+    setActiveItem(item);
+    setStep('pick-type');
+    setError(null);
+  }
+
+  function closePicker() {
+    setActiveItem(null);
+    setStep(null);
+    setError(null);
+  }
+
+  async function handleDestination(destination) {
+    if (destination === 'workstream_task') {
+      setStep('pick-workstream');
+      return;
+    }
+    await route(activeItem, destination, null);
+  }
+
+  async function handleWorkstreamPick(workstreamId) {
+    await route(activeItem, 'workstream_task', workstreamId);
+  }
+
   async function route(item, destination, workstreamId) {
-    const supabase = getSupabase();
     setRouting(prev => new Set(prev).add(item.id));
-    setPickerIndex(null);
+    closePicker();
+    setError(null);
 
     let routedToId = null;
 
-    if (destination === 'workstream_task' && workstreamId) {
-      const { data: task } = await supabase
-        .from('workstream_tasks')
-        .insert({
+    try {
+      if (destination === 'project') {
+        const created = await saveItem(
+          { title: item.content, itemType: 'project', owner: [currentUser], ownerEmail: [userEmail], tags: item.tags || [] },
+          userEmail
+        );
+        routedToId = created?.id || null;
+
+      } else if (destination === 'task') {
+        const created = await saveItem(
+          { title: item.content, itemType: 'job', owner: [currentUser], ownerEmail: [userEmail], tags: item.tags || [] },
+          userEmail
+        );
+        routedToId = created?.id || null;
+
+      } else if (destination === 'workstream') {
+        const created = await createWorkstream(
+          { title: item.content, description: '', owner: currentUser, visibility: 'team', color: 'ocean' },
+          userEmail
+        );
+        routedToId = created?.id || null;
+
+      } else if (destination === 'workstream_task' && workstreamId) {
+        const created = await createWorkstreamTask({
           workstream_id: workstreamId,
           title: item.content,
           priority: 'medium',
           status: 'open',
           tags: item.tags || [],
+        });
+        routedToId = created?.id || null;
+
+      } else if (destination === 'todo') {
+        await savePersonalTodo(
+          { text: item.content, completed: false, date: new Date().toISOString().slice(0, 10) },
+          userEmail
+        );
+
+      } else if (destination === 'whiteboard') {
+        const created = await createWhiteboard({
+          title: item.content,
+          owner_email: userEmail,
+          owner_name: currentUser,
+        });
+        routedToId = created?.id || null;
+      }
+
+      const supabase = getSupabase();
+      await supabase
+        .from('brain_dumps')
+        .update({
+          status: destination === 'parking_lot' ? 'parked' : destination === 'archive' ? 'archived' : 'routed',
+          routed_to_type: destination,
+          routed_to_id: routedToId,
+          routed_at: new Date().toISOString(),
         })
-        .select('id')
-        .single();
-      if (task) routedToId = task.id;
+        .eq('id', item.id);
+
+      setItems(prev => prev.filter(i => i.id !== item.id));
+
+    } catch (err) {
+      console.error('BrainDumpInbox route error:', err);
+      setError(`Couldn't route item: ${err.message || 'unknown error'}`);
     }
 
-    await supabase
-      .from('brain_dumps')
-      .update({
-        status: 'routed',
-        routed_to_type: destination,
-        routed_to_id: routedToId,
-        routed_at: new Date().toISOString(),
-      })
-      .eq('id', item.id);
-
-    setItems(prev => prev.filter(i => i.id !== item.id));
     setRouting(prev => { const s = new Set(prev); s.delete(item.id); return s; });
   }
 
@@ -84,6 +162,12 @@ export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTas
         )}
       </div>
 
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="text-center py-16 bg-graystone-50 rounded-xl border border-graystone-200">
           <Icon name="inbox" className="w-12 h-12 text-graystone-300 mx-auto mb-3" />
@@ -92,9 +176,9 @@ export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTas
         </div>
       ) : (
         <ul className="space-y-3">
-          {items.map((item, i) => {
+          {items.map((item) => {
             const isRouting = routing.has(item.id);
-            const showPicker = pickerIndex === i;
+            const isActive = activeItem?.id === item.id;
             const sourceLabel = SOURCES[item.source] || item.source;
             const age = formatAge(item.created_at);
 
@@ -103,7 +187,7 @@ export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTas
                 <div className="flex items-start gap-3 mb-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-graystone-800 leading-relaxed">{item.content}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className="text-xs text-graystone-500 bg-graystone-100 px-2 py-0.5 rounded-full">
                         {sourceLabel}
                       </span>
@@ -117,9 +201,37 @@ export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTas
                   </div>
                 </div>
 
-                {showPicker ? (
+                {isActive && step === 'pick-type' && (
                   <div className="border-t border-graystone-100 pt-3">
-                    <p className="text-xs font-medium text-graystone-600 mb-2">Route to workstream:</p>
+                    <p className="text-xs font-medium text-graystone-600 mb-2">Route to:</p>
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      {DESTINATIONS.map(dest => (
+                        <button
+                          key={dest.id}
+                          onClick={() => handleDestination(dest.id)}
+                          className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg text-xs font-medium transition-colors ${
+                            dest.color === 'gray'
+                              ? 'bg-graystone-100 text-graystone-600 hover:bg-graystone-200'
+                              : 'bg-ocean-50 text-ocean-700 hover:bg-ocean-100'
+                          }`}
+                        >
+                          <Icon name={dest.icon} className="w-4 h-4" />
+                          {dest.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      className="text-xs text-graystone-400 hover:text-graystone-600"
+                      onClick={closePicker}
+                    >
+                      cancel
+                    </button>
+                  </div>
+                )}
+
+                {isActive && step === 'pick-workstream' && (
+                  <div className="border-t border-graystone-100 pt-3">
+                    <p className="text-xs font-medium text-graystone-600 mb-2">Pick workstream:</p>
                     {workstreams.length === 0 ? (
                       <p className="text-sm text-graystone-500">No workstreams yet</p>
                     ) : (
@@ -128,7 +240,7 @@ export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTas
                           <button
                             key={ws.id}
                             className="text-sm bg-ocean-500 hover:bg-ocean-600 text-white px-3 py-1.5 rounded-lg transition-colors"
-                            onClick={() => route(item, 'workstream_task', ws.id)}
+                            onClick={() => handleWorkstreamPick(ws.id)}
                           >
                             {ws.title}
                           </button>
@@ -136,32 +248,34 @@ export default function BrainDumpInbox({ workstreams = [], onCreateWorkstreamTas
                       </div>
                     )}
                     <button
-                      className="text-xs text-graystone-500 hover:text-graystone-700"
-                      onClick={() => setPickerIndex(null)}
+                      className="text-xs text-graystone-400 hover:text-graystone-600"
+                      onClick={() => setStep('pick-type')}
                     >
-                      cancel
+                      ← back
                     </button>
                   </div>
-                ) : (
+                )}
+
+                {!isActive && (
                   <div className="flex items-center gap-2 border-t border-graystone-100 pt-3">
                     <button
                       disabled={isRouting}
                       className="text-sm bg-ocean-500 hover:bg-ocean-600 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors"
-                      onClick={() => setPickerIndex(i)}
+                      onClick={() => openPicker(item)}
                     >
-                      {isRouting ? '…' : '→ task'}
+                      {isRouting ? '…' : 'Route →'}
                     </button>
                     <button
                       disabled={isRouting}
                       className="text-sm border border-graystone-300 hover:bg-graystone-50 disabled:opacity-50 text-graystone-700 px-3 py-1.5 rounded-lg transition-colors"
-                      onClick={() => route(item, 'parking_lot')}
+                      onClick={() => route(item, 'parking_lot', null)}
                     >
                       park
                     </button>
                     <button
                       disabled={isRouting}
                       className="text-sm text-graystone-400 hover:text-graystone-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
-                      onClick={() => route(item, 'archive')}
+                      onClick={() => route(item, 'archive', null)}
                     >
                       archive
                     </button>

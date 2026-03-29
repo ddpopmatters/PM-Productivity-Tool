@@ -957,7 +957,7 @@ export default function App() {
       case 'braindump-inbox':
         return (
           <ErrorBoundary key="braindump-inbox" message="The Brain Dump Inbox encountered an error.">
-          <BrainDumpInbox workstreams={ws.workstreams} />
+          <BrainDumpInbox workstreams={ws.workstreams} currentUser={currentUser} userEmail={userEmail} />
           </ErrorBoundary>
         );
 
