@@ -138,7 +138,7 @@ export default function RequestDashboard({
           Signed in as <span className="font-medium text-ocean-900 dark:text-slate-100">{signedInUser || 'Unknown user'}</span>
         </div>
 
-        <HealthCards request={request} />
+        <HealthCards request={request} requestId={request.id} />
 
         <div className="mt-6">
           <TurnBanner request={request} pagesRole={pagesRole} feedbackItems={feedbackItems} />

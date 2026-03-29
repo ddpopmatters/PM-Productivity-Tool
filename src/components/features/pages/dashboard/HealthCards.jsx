@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import clsx from 'clsx';
+import { fetchRequestFiles } from '../../../../services/landingPageRequests';
 import { getDaysToGoLive } from './dashboardUtils';
 
 function getDaysState(daysToGoLive) {
@@ -73,9 +74,11 @@ function getStageLabel(status) {
   }
 }
 
-function getAssetReadiness(request) {
-  const copyReady = request?.copy_status === 'attached';
-  const assetReady = request?.asset_status === 'attached';
+function getAssetReadiness(request, hasUploadedFiles) {
+  // copy_status/asset_status reflect what the requester declared in the form.
+  // We only count them as truly ready if files have actually been uploaded.
+  const copyReady = request?.copy_status === 'attached' && hasUploadedFiles;
+  const assetReady = request?.asset_status === 'attached' && hasUploadedFiles;
 
   if (copyReady && assetReady) {
     return {
@@ -107,9 +110,26 @@ function MetricCard({ title, value, subtitle, accentClassName }) {
   );
 }
 
-export default function HealthCards({ request }) {
+export default function HealthCards({ request, requestId }) {
+  const [hasUploadedFiles, setHasUploadedFiles] = useState(false);
+
+  useEffect(() => {
+    if (!requestId) return undefined;
+    let cancelled = false;
+
+    fetchRequestFiles(requestId).then((files) => {
+      if (cancelled) return;
+      const nonHtml = (files || []).filter(
+        (f) => !f.file_name?.toLowerCase().endsWith('.html') && f.mime_type !== 'text/html'
+      );
+      setHasUploadedFiles(nonHtml.length > 0);
+    });
+
+    return () => { cancelled = true; };
+  }, [requestId]);
+
   const daysState = getDaysState(getDaysToGoLive(request?.go_live_date));
-  const assetReadiness = getAssetReadiness(request);
+  const assetReadiness = getAssetReadiness(request, hasUploadedFiles);
   const stageLabel = getStageLabel(request?.status);
 
   return (
