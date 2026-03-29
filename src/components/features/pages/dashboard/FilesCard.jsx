@@ -77,7 +77,11 @@ export default function FilesCard({ requestId, request }) {
     };
   }, [requestId, request]);
 
-  const hasContent = files.length > 0 || documentLinks.length > 0;
+  // HTML draft files are shown in DraftPreviewPanel — exclude them here to avoid confusion
+  const nonHtmlFiles = files.filter(
+    (f) => !f.file_name?.toLowerCase().endsWith('.html') && f.mime_type !== 'text/html'
+  );
+  const hasContent = nonHtmlFiles.length > 0 || documentLinks.length > 0;
 
   return (
     <div className="rounded-xl border border-graystone-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -91,7 +95,7 @@ export default function FilesCard({ requestId, request }) {
         <p className="mt-3 text-sm text-graystone-700 dark:text-slate-300">No files attached yet.</p>
       ) : (
         <div className="mt-4 space-y-3">
-          {files.map((file) => (
+          {nonHtmlFiles.map((file) => (
             <div
               key={file.id}
               className="flex items-center justify-between gap-3 rounded-lg border border-graystone-200 p-3 dark:border-slate-700"
