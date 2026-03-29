@@ -119,7 +119,7 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
       }
 
       const supabase = getSupabase();
-      await supabase
+      const { error: updateError } = await supabase
         .from('brain_dumps')
         .update({
           status: destination === 'archive' ? 'archived' : 'routed',
@@ -128,6 +128,8 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
           routed_at: new Date().toISOString(),
         })
         .eq('id', item.id);
+
+      if (updateError) throw updateError;
 
       setItems(prev => prev.filter(i => i.id !== item.id));
 
