@@ -11,20 +11,21 @@ const Button = React.memo(function Button({
   children,
 }) {
   const base =
-    "heading-font inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-[#0F9DDE]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#CFEBF8] disabled:cursor-not-allowed disabled:opacity-60";
+    "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-aqua-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
   const variants = {
     solid:
-      "border border-black bg-black text-white shadow-[0_0_30px_rgba(15,157,222,0.35)] hover:-translate-y-0.5 hover:bg-white hover:text-black",
+      "bg-ocean-600 text-white shadow-sm hover:bg-ocean-700",
     outline:
-      "border border-black bg-white text-black hover:-translate-y-0.5 hover:bg-black hover:text-white",
-    ghost: "text-black hover:bg-black/10",
+      "border border-graystone-300 bg-white text-graystone-700 hover:bg-graystone-100",
+    secondary:
+      "bg-graystone-100 text-graystone-900 hover:bg-graystone-200",
+    ghost: "text-graystone-700 hover:bg-graystone-100",
     destructive:
-      "border border-rose-500 bg-rose-600 text-white shadow-[0_0_25px_rgba(244,63,94,0.35)] hover:-translate-y-0.5 hover:bg-rose-700",
+      "bg-rose-600 text-white hover:bg-rose-700",
     cta:
-      "border border-[#0F9DDE]/40 bg-white text-black shadow-[0_0_35px_rgba(15,157,222,0.3)] hover:-translate-y-0.5 hover:shadow-[0_0_45px_rgba(15,157,222,0.45)]",
-    // Additional variants for backwards compatibility
-    danger: "border border-rose-500 bg-rose-600 text-white shadow-[0_0_25px_rgba(244,63,94,0.35)] hover:-translate-y-0.5 hover:bg-rose-700",
+      "bg-ocean-600 text-white shadow-sm hover:bg-ocean-700",
+    danger: "bg-rose-600 text-white hover:bg-rose-700",
   };
 
   const sizes = {

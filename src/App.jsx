@@ -413,7 +413,7 @@ export default function App() {
   // Auth check - show loading
   if (!authChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-ocean-50 to-aqua-50">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <LoadingSpinner size="lg" />
       </div>
     );
@@ -480,7 +480,7 @@ export default function App() {
   // Loading data
   if (items.loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-ocean-50 to-aqua-50">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <LoadingSpinner size="lg" />
           <p className="mt-4 text-graystone-600">Loading your workspace...</p>
@@ -566,7 +566,7 @@ export default function App() {
         return (
           <ErrorBoundary key="personal" message="Your projects view encountered an error.">
           <div className="p-6 space-y-6">
-            <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+            <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-bold mb-1">Your Projects</h1>
@@ -582,7 +582,7 @@ export default function App() {
                       Export
                     </button>
                     {modals.showExportMenu && (
-                      <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-ocean-100 p-1 z-50">
+                      <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-graystone-200 p-1 z-50">
                         <button onClick={() => { exportCSV(myPersonalProjects, 'my-projects'); modals.setShowExportMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-graystone-700 hover:bg-ocean-50 transition flex items-center gap-2">
                           <Icon name="file-spreadsheet" className="w-4 h-4 text-green-600" /> Export CSV
                         </button>
@@ -608,7 +608,7 @@ export default function App() {
                 { label: 'Collaborating', count: collaboratorProjects.length, icon: 'users', desc: 'Projects you collaborate on' },
                 { label: 'Due This Month', count: dueThisMonth.length, icon: 'calendar', desc: thisMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) },
               ].map(stat => (
-                <div key={stat.label} className="bg-white rounded-xl p-6 border border-ocean-100 shadow-sm">
+                <div key={stat.label} className="bg-white rounded-xl p-6 border border-graystone-200 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-heading text-sm text-graystone-600 mb-1 tracking-wide">{stat.label}</p>
@@ -622,8 +622,8 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div className="bg-white rounded-xl border border-ocean-100 shadow-sm">
-              <div className="p-4 border-b border-ocean-100">
+            <div className="bg-white rounded-xl border border-graystone-200 shadow-sm">
+              <div className="p-4 border-b border-graystone-200">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative group">
                     <Icon name="search" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-graystone-400" />
@@ -652,7 +652,7 @@ export default function App() {
                       )}
                     </button>
                     {modals.showFiltersDropdown && (
-                      <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 md:p-4 z-50">
+                      <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-graystone-200 p-3 md:p-4 z-50">
                         <div className="space-y-4">
                           <div>
                             <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Teams</h4>
@@ -711,7 +711,7 @@ export default function App() {
                       )}
                     </button>
                     {modals.showTagsDropdown && (
-                      <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-ocean-100 p-4 z-50">
+                      <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-graystone-200 p-4 z-50">
                         <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Filter by Tags</h4>
                         <div className="space-y-1 max-h-60 overflow-y-auto">
                           {personalTags.map(tag => (
@@ -735,7 +735,7 @@ export default function App() {
                       <Icon name="chevron-down" className="w-3 h-3 opacity-70" />
                     </button>
                     {modals.showViewDropdown && (
-                      <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-ocean-100 p-1 z-50">
+                      <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-graystone-200 p-1 z-50">
                         {[
                           { id: 'kanban', label: 'Board', icon: 'kanban' },
                           { id: 'table', label: 'Table', icon: 'table' },
@@ -792,7 +792,7 @@ export default function App() {
                   </div>
                 )}
                 {(activeFiltersCount > 0 || activeTagsCount > 0) && (
-                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-ocean-100">
+                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-graystone-200">
                     {filters.teamFilter.map(team => (
                       <button key={`team-${team}`} onClick={() => filters.toggleFilter(team, filters.teamFilter, filters.setTeamFilter)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-ocean-100 hover:bg-ocean-200 text-ocean-700 text-xs font-medium transition-colors">
                         <span>{team}</span><Icon name="x" className="w-3 h-3" />
@@ -1049,9 +1049,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-ocean-50 via-aqua-50 to-white">
+    <div className="min-h-screen bg-white">
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-ocean-100 px-4 py-3 flex items-center justify-between">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-graystone-200 px-4 py-3 flex items-center justify-between">
         <button onClick={() => nav.setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-ocean-50 text-ocean-700" aria-label="Open menu">
           <Icon name="menu" className="w-6 h-6" />
         </button>

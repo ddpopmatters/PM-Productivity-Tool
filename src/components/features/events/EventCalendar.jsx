@@ -149,7 +149,7 @@ const EventCalendar = ({
   return (
     <div className="p-6 space-y-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Events Calendar</h2>

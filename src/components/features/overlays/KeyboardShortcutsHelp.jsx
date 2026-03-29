@@ -51,7 +51,7 @@ function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts: customShortcuts }) 
         aria-hidden="true"
       />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 px-6 py-4 flex items-center justify-between">
+        <div className="bg-ocean-800 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3 text-white">
             <i data-lucide="keyboard" className="w-6 h-6" aria-hidden="true"></i>
             <h2 id="keyboard-shortcuts-title" className="text-xl font-bold">Keyboard Shortcuts</h2>

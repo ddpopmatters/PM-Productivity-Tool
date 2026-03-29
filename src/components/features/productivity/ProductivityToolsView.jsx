@@ -162,7 +162,7 @@ const ProductivityToolsView = ({
   return (
     <div className="p-6 space-y-6">
       {/* Header Card */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
         <h1 className="text-2xl font-bold mb-1">Productivity Tools</h1>
         <p className="text-ocean-100 text-sm">Choose a tool to boost your productivity. Click the info icon to learn more.</p>
       </div>

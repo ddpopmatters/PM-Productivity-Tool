@@ -65,7 +65,7 @@ export default function HandoffNotesSection({
   ).filter(Boolean);
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm">
+    <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-ocean-900 flex items-center gap-2">
           <Icon name="repeat" className="w-5 h-5 text-purple-500" />

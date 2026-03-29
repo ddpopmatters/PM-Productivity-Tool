@@ -221,7 +221,7 @@ const ManagerTimeline = ({
       {/* Timeline chart */}
       <div
         ref={containerRef}
-        className="relative bg-white rounded-xl border border-ocean-100 shadow-sm overflow-hidden"
+        className="relative bg-white rounded-xl border border-graystone-200 shadow-sm overflow-hidden"
       >
         {/* Month header */}
         <div className="flex border-b border-graystone-200 bg-graystone-50">

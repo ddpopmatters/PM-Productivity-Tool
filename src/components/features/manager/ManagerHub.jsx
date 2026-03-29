@@ -401,7 +401,7 @@ const ManagerHub = ({
   if (!myManagerRecord && !isAdminUser) {
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
-        <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+        <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
           <h2 className="text-2xl font-bold heading-font">{currentUser}'s Manager Hub</h2>
           <p className="text-ocean-100 text-sm">Manage your team's workloads and track progress.</p>
         </div>
@@ -466,7 +466,7 @@ const ManagerHub = ({
         <hr className="mt-4 border-gray-300" />
       </div>
 
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl print:hidden">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl print:hidden">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold heading-font">{managerName}'s Manager Hub</h2>
@@ -517,19 +517,19 @@ const ManagerHub = ({
           {/* Stat cards - hidden in print */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:hidden">
             <button type="button" onClick={() => openModal(`Items: ${selectedManager.name}`, items)}
-              className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
+              className="bg-white rounded-xl border border-graystone-200 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
               <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">Team items</div>
               <div className="text-3xl font-bold text-ocean-900">{items.length}</div>
             </button>
             <button type="button" onClick={() => openModal("Due This Month", dueThisMonth)}
-              className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
+              className="bg-white rounded-xl border border-graystone-200 shadow-sm p-5 text-left transition hover:shadow-md hover:-translate-y-0.5 group">
               <div className="text-xs font-semibold text-graystone-600 uppercase mb-1">Due This Month</div>
               <div className="text-3xl font-bold text-ocean-900">{dueThisMonth.length}</div>
             </button>
           </div>
 
           {/* Team Members Selection - hidden in print */}
-          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6 print:hidden">
+          <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6 print:hidden">
             <h3 className="text-lg font-semibold text-ocean-900 mb-4 flex items-center gap-2">
               <Icon name="users" className="w-5 h-5" />
               Team Members
@@ -727,7 +727,7 @@ const ManagerHub = ({
             return (
               <div className="space-y-6">
                 {/* Period breakdown */}
-                <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
                   <h4 className="font-semibold text-ocean-900 mb-4 flex items-center gap-2">
                     <Icon name="bar-chart-2" className="w-5 h-5" />
                     {timelineFilter === 'week' ? 'Busy Weeks' : timelineFilter === 'month' ? 'Monthly Breakdown' : 'Quarterly Breakdown'}
@@ -766,7 +766,7 @@ const ManagerHub = ({
                 </div>
 
                 {/* Team Members breakdown */}
-                <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+                <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
                   <h4 className="font-semibold text-ocean-900 mb-4 flex items-center gap-2">
                     <Icon name="users" className="w-5 h-5" />
                     Team Members

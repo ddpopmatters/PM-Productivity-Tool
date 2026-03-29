@@ -96,7 +96,7 @@ export default function DashboardCalendar({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+    <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-heading text-lg text-ocean-900 flex items-center gap-2 tracking-wide">
           <Icon name="calendar" className="w-5 h-5" />
@@ -214,7 +214,7 @@ export default function DashboardCalendar({
 
       {/* Selected Date Detail */}
       {selectedDate && calendarView !== 'day' && (
-        <div className="mt-4 pt-4 border-t border-ocean-100">
+        <div className="mt-4 pt-4 border-t border-graystone-200">
           <h4 className="font-medium text-sm text-ocean-900 mb-2">
             {new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
           </h4>

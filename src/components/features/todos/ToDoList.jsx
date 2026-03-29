@@ -242,7 +242,7 @@ const ToDoList = ({
                 setNewTodoDate(dateKey);
                 setShowScheduleModal(true);
               }}
-              className="text-[10px] px-2 py-1 rounded-full bg-ocean-50 text-ocean-700 border border-ocean-100 hover:bg-ocean-100"
+              className="text-[10px] px-2 py-1 rounded-full bg-ocean-50 text-ocean-700 border border-graystone-200 hover:bg-ocean-100"
             >
               +
             </button>
@@ -320,13 +320,13 @@ const ToDoList = ({
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl mb-6">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl mb-6">
         <h1 className="text-2xl font-bold">My Planner</h1>
         <p className="text-ocean-100 text-sm">Plan your day and track personal reminders.</p>
       </div>
 
       {/* Source Toggles */}
-      <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-4 mb-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-medium text-graystone-600">Show in calendar:</span>
           <div className="flex items-center gap-2 flex-wrap">
@@ -361,7 +361,7 @@ const ToDoList = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Left: Add Task + Calendar */}
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+          <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
             <h3 className="text-lg font-bold text-ocean-900 mb-4">Add Personal Reminder</h3>
             <div className="space-y-3">
               <input
@@ -395,7 +395,7 @@ const ToDoList = ({
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-5 space-y-3">
+          <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-5 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-heading text-base text-ocean-900">Calendar</h4>
@@ -408,7 +408,7 @@ const ToDoList = ({
                     prev.setMonth(prev.getMonth() - 1);
                     setCurrentMonth(prev);
                   }}
-                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-ocean-100 hover:bg-ocean-100 flex items-center justify-center"
+                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-graystone-200 hover:bg-ocean-100 flex items-center justify-center"
                 >
                   <Icon name="chevron-left" className="w-4 h-4" />
                 </button>
@@ -421,7 +421,7 @@ const ToDoList = ({
                     next.setMonth(next.getMonth() + 1);
                     setCurrentMonth(next);
                   }}
-                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-ocean-100 hover:bg-ocean-100 flex items-center justify-center"
+                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-graystone-200 hover:bg-ocean-100 flex items-center justify-center"
                 >
                   <Icon name="chevron-right" className="w-4 h-4" />
                 </button>
@@ -444,7 +444,7 @@ const ToDoList = ({
 
         {/* Right: Today's items + Selected day */}
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+          <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-heading text-lg text-ocean-900">Today</h3>
               <Badge variant="secondary">{todayItems.length}</Badge>
@@ -506,7 +506,7 @@ const ToDoList = ({
 
           {/* No-date personal todos */}
           {noDateTodos.length > 0 && (
-            <div className="bg-white rounded-xl border border-ocean-100 shadow-sm p-6">
+            <div className="bg-white rounded-xl border border-graystone-200 shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-heading text-lg text-ocean-900">Unscheduled</h3>
                 <Badge variant="neutral">{noDateTodos.length}</Badge>
@@ -559,7 +559,7 @@ const ToDoList = ({
                     prev.setMonth(prev.getMonth() - 1);
                     setCurrentMonth(prev);
                   }}
-                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-ocean-100 hover:bg-ocean-100 flex items-center justify-center"
+                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-graystone-200 hover:bg-ocean-100 flex items-center justify-center"
                 >
                   <Icon name="chevron-left" className="w-4 h-4" />
                 </button>
@@ -572,7 +572,7 @@ const ToDoList = ({
                     next.setMonth(next.getMonth() + 1);
                     setCurrentMonth(next);
                   }}
-                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-ocean-100 hover:bg-ocean-100 flex items-center justify-center"
+                  className="w-8 h-8 rounded-full bg-ocean-50 text-ocean-700 border border-graystone-200 hover:bg-ocean-100 flex items-center justify-center"
                 >
                   <Icon name="chevron-right" className="w-4 h-4" />
                 </button>

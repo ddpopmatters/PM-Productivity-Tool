@@ -82,7 +82,7 @@ export default function DetailsCard({ entry, canEdit, onUpdateEntry, USERS }) {
   };
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-ocean-100 shadow-sm space-y-4">
+    <div className="bg-white rounded-3xl p-6 border border-graystone-200 shadow-sm space-y-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-lg font-bold text-ocean-900">Details</h3>
         {canEdit && !editingDetails && (
@@ -318,7 +318,7 @@ export default function DetailsCard({ entry, canEdit, onUpdateEntry, USERS }) {
 
       {/* Save/Cancel */}
       {editingDetails && (
-        <div className="flex gap-2 pt-2 border-t border-ocean-100">
+        <div className="flex gap-2 pt-2 border-t border-graystone-200">
           <button
             onClick={saveDetails}
             className="flex-1 px-3 py-2 bg-ocean-500 hover:bg-ocean-600 text-white text-sm font-medium rounded-lg transition"

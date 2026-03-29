@@ -62,7 +62,7 @@ const WhiteboardsView = ({
   return (
     <div className="p-6 animate-in fade-in duration-500 space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold mb-1">Whiteboards</h1>
@@ -83,7 +83,7 @@ const WhiteboardsView = ({
         <div
           onClick={() => setFilter('all')}
           className={`bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
-            filter === 'all' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-ocean-100'
+            filter === 'all' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-graystone-200'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -100,7 +100,7 @@ const WhiteboardsView = ({
         <div
           onClick={() => setFilter('mine')}
           className={`bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
-            filter === 'mine' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-ocean-100'
+            filter === 'mine' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-graystone-200'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -117,7 +117,7 @@ const WhiteboardsView = ({
         <div
           onClick={() => setFilter('shared')}
           className={`bg-white rounded-xl p-6 border shadow-sm cursor-pointer hover:shadow-md transition-all ${
-            filter === 'shared' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-ocean-100'
+            filter === 'shared' ? 'border-ocean-500 ring-2 ring-ocean-200' : 'border-graystone-200'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -135,11 +135,11 @@ const WhiteboardsView = ({
 
       {/* Whiteboard Grid */}
       {loading ? (
-        <div className="bg-white rounded-xl border border-ocean-100 p-12 flex items-center justify-center">
+        <div className="bg-white rounded-xl border border-graystone-200 p-12 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ocean-600"></div>
         </div>
       ) : filteredWhiteboards.length === 0 ? (
-        <div className="bg-white rounded-xl border border-ocean-100 p-12 text-center">
+        <div className="bg-white rounded-xl border border-graystone-200 p-12 text-center">
           <Icon name="layout" className="w-12 h-12 text-graystone-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-graystone-600 mb-2">No whiteboards yet</h3>
           <p className="text-graystone-400 mb-4">Create your first whiteboard to get started</p>
@@ -156,7 +156,7 @@ const WhiteboardsView = ({
             <div
               key={whiteboard.id}
               onClick={() => onOpenWhiteboard(whiteboard.id)}
-              className="bg-white rounded-xl border border-ocean-100 p-4 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 hover:border-ocean-300 transition-all group"
+              className="bg-white rounded-xl border border-graystone-200 p-4 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 hover:border-ocean-300 transition-all group"
             >
               {/* Preview Area */}
               <div className="mb-3">

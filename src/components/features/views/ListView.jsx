@@ -99,7 +99,7 @@ function ListView({
                 Change Status
               </button>
               {showBulkStatusMenu && (
-                <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-ocean-100 py-1 min-w-[160px] z-20">
+                <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-graystone-200 py-1 min-w-[160px] z-20">
                   {statuses.map(status => (
                     <button
                       key={status}

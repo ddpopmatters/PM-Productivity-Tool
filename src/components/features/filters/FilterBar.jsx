@@ -44,7 +44,7 @@ const FilterBar = ({
   const activeTagsCount = filterTags.length;
 
   return (
-    <div className="bg-gradient-to-r from-ocean-500 to-ocean-600 rounded-2xl p-6 text-white shadow-xl mb-6">
+    <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl mb-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold mb-1">{title}</h1>
@@ -85,7 +85,7 @@ const FilterBar = ({
             </button>
 
             {showFilters && (
-              <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 md:p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
+              <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-graystone-200 p-3 md:p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Teams</h4>
@@ -168,7 +168,7 @@ const FilterBar = ({
             </button>
 
             {showTags && (
-              <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-ocean-100 p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
+              <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-graystone-200 p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
                 <h4 className="text-xs font-bold text-graystone-500 uppercase mb-2">Filter by Tags</h4>
                 <div className="space-y-1 max-h-60 overflow-y-auto">
                   {availableTags.map(tag => (
@@ -212,7 +212,7 @@ const FilterBar = ({
               </button>
 
               {showSavedFilters && (
-                <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-ocean-100 p-3 z-50 animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute top-full right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-graystone-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-200">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-xs font-bold text-graystone-500 uppercase">Saved Filters</h4>
                     {(searchQuery || filterTags.length > 0 || filterUsers.length > 0 || filterTeams.length > 0) && (
@@ -324,7 +324,7 @@ const FilterBar = ({
             </button>
 
             {showViewMenu && (
-              <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-ocean-100 p-1 z-50 animate-in fade-in zoom-in-95 duration-200">
+              <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-graystone-200 p-1 z-50 animate-in fade-in zoom-in-95 duration-200">
                 {[
                   { id: 'kanban', label: 'Board', icon: 'kanban' },
                   { id: 'table', label: 'Table', icon: 'table' },
