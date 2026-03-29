@@ -89,17 +89,16 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
 
       } else if (destination === 'workstream') {
         const created = await createWorkstream(
-          { title: item.content, description: '', owner: currentUser, visibility: 'team', color: 'ocean' },
+          { title: item.content, description: '', owner: currentUser, visibility: 'shared', color: 'ocean' },
           userEmail
         );
         routedToId = created?.id || null;
 
       } else if (destination === 'workstream_task' && workstreamId) {
         const created = await createWorkstreamTask({
-          workstream_id: workstreamId,
+          workstreamId,
           title: item.content,
           priority: 'medium',
-          status: 'open',
           tags: item.tags || [],
         });
         routedToId = created?.id || null;
