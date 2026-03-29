@@ -99,28 +99,42 @@ export default function WebsiteView({ websiteHook }) {
 
   if (!project) {
     return (
-      <div className="rounded-2xl border border-graystone-200 bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-aqua-100 text-ocean-700">
-          <Globe className="h-7 w-7" />
-        </div>
-        <h2 className="mt-4 text-2xl font-semibold text-ocean-900">No website project yet</h2>
-        <p className="mt-2 text-sm text-graystone-500">
-          Start the next build and manage pages, approvals, and post-launch changes here.
-        </p>
-
-        {isAdminUser ? (
-          <div className="mx-auto mt-5 max-w-2xl">
-            <Button onClick={() => setShowCreateForm((prev) => !prev)}>
-              <Plus className="h-4 w-4" />
-              {showCreateForm ? 'Close form' : 'Create project'}
-            </Button>
-            {showCreateForm ? renderCreateForm() : null}
+      <div className="animate-in fade-in space-y-6 duration-500">
+        <div className="rounded-2xl bg-ocean-800 p-6 text-white shadow-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <Globe className="h-6 w-6 text-ocean-300" />
+                <h2 className="text-2xl font-bold">Website Project</h2>
+              </div>
+              <p className="mt-1 text-sm text-ocean-100">
+                Plan and manage your website build — phases, pages, templates, and post-launch changes.
+              </p>
+            </div>
+            {isAdminUser ? (
+              <button
+                onClick={() => setShowCreateForm((prev) => !prev)}
+                className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2 transition hover:bg-white/30"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New project</span>
+              </button>
+            ) : null}
           </div>
-        ) : (
-          <p className="mt-4 text-sm text-graystone-500">
-            Ask an administrator to create the website project.
+          {showCreateForm ? renderCreateForm() : null}
+        </div>
+
+        <div className="rounded-2xl border border-graystone-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-aqua-100 text-ocean-700">
+            <Globe className="h-7 w-7" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-ocean-900">No website project yet</h3>
+          <p className="mt-2 text-sm text-graystone-500">
+            {isAdminUser
+              ? 'Use the "New project" button above to get started.'
+              : 'Ask an administrator to create the website project.'}
           </p>
-        )}
+        </div>
       </div>
     );
   }
@@ -134,21 +148,26 @@ export default function WebsiteView({ websiteHook }) {
       ) : null}
 
       {project.status === 'archived' ? (
-        <div className="rounded-2xl border border-graystone-200 bg-graystone-50 p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="rounded-2xl bg-ocean-800 p-6 text-white shadow-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-semibold text-ocean-900">{project.name}</h2>
-                <Badge variant="warning">Archived</Badge>
+              <div className="flex flex-wrap items-center gap-3">
+                <Globe className="h-6 w-6 text-ocean-300" />
+                <h2 className="text-2xl font-bold">{project.name}</h2>
+                <Badge variant="warning" className="bg-white/15 text-white">Archived</Badge>
               </div>
-              <p className="mt-1 text-sm text-graystone-500">
-                This website project is archived.
+              <p className="mt-1 text-sm text-ocean-100">
+                This website project is archived. Start a new one to continue.
               </p>
             </div>
             {isAdminUser ? (
-              <Button onClick={() => setShowCreateForm((prev) => !prev)}>
-                Start new project
-              </Button>
+              <button
+                onClick={() => setShowCreateForm((prev) => !prev)}
+                className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2 transition hover:bg-white/30"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New project</span>
+              </button>
             ) : null}
           </div>
           {showCreateForm ? renderCreateForm() : null}
