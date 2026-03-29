@@ -38,6 +38,7 @@ const Sidebar = ({
     { id: 'personal', label: 'Your Projects', icon: 'folder' },
     { id: 'jobs', label: 'Tasks', icon: 'clipboard-list' },
     { id: 'workstreams', label: 'Workstreams', icon: 'layers' },
+    { id: 'braindump-inbox', label: 'Brain Dump Inbox', icon: 'inbox' },
     ...(userIsManager || userIsAdmin ? [{ id: 'manager-hub', label: 'Manager Hub', icon: 'briefcase' }] : []),
     { id: 'todo', label: 'My Planner', icon: 'calendar' },
     { id: 'pages', label: 'Pages', icon: 'layout' },

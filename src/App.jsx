@@ -56,6 +56,7 @@ import {
   AddItemTypeModal,
   ConvertItemModal,
   AddSubtaskModal,
+  BrainDumpInbox,
   WorkstreamList,
   WorkstreamView,
   WorkstreamTaskDetail,
@@ -952,6 +953,13 @@ export default function App() {
           </ErrorBoundary>
         );
       }
+
+      case 'braindump-inbox':
+        return (
+          <ErrorBoundary key="braindump-inbox" message="The Brain Dump Inbox encountered an error.">
+          <BrainDumpInbox workstreams={ws.workstreams} />
+          </ErrorBoundary>
+        );
 
       case 'workstreams':
         return (

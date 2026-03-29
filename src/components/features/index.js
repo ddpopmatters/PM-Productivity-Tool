@@ -1,4 +1,4 @@
-// Feature components organized by domain
+// Feature components organised by domain
 export * from './views';
 export * from './overlays';
 export * from './cards';
@@ -16,3 +16,4 @@ export * from './admin';
 export * from './manager';
 export * from './dashboard';
 export * from './item-dashboard';
+export * from './braindump';
