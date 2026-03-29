@@ -82,7 +82,7 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
 
       } else if (destination === 'task') {
         const created = await saveItem(
-          { title: item.content, itemType: 'job', owner: [currentUser], ownerEmail: [userEmail], tags: item.tags || [] },
+          { title: item.content, itemType: 'job', workflowStatus: 'todo', owner: [currentUser], ownerEmail: [userEmail], tags: item.tags || [] },
           userEmail
         );
         routedToId = created?.id || null;

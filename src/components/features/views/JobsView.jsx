@@ -48,8 +48,9 @@ const JobsView = ({
     : [...myJobs, ...assignedToMe]; // 'all' = owned + assigned tasks
 
   // Group by status (no done - completing archives)
+  // Any status that isn't explicitly 'in_progress' lands in To Do
   const jobsByStatus = {
-    todo: filteredJobs.filter(j => j.workflowStatus === 'todo'),
+    todo: filteredJobs.filter(j => j.workflowStatus !== 'in_progress'),
     in_progress: filteredJobs.filter(j => j.workflowStatus === 'in_progress')
   };
 
