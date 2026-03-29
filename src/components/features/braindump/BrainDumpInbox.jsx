@@ -122,7 +122,7 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
       await supabase
         .from('brain_dumps')
         .update({
-          status: destination === 'parking_lot' ? 'parked' : destination === 'archive' ? 'archived' : 'routed',
+          status: destination === 'archive' ? 'archived' : 'routed',
           routed_to_type: destination,
           routed_to_id: routedToId,
           routed_at: new Date().toISOString(),
