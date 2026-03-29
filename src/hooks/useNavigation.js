@@ -13,6 +13,7 @@ const SIMPLE_ROUTES = {
   'manager-hub': '/manager',
   'whiteboards': '/whiteboards',
   'workstreams': '/workstreams',
+  'website': '/website',
   'productivity-tools': '/productivity',
   'braindump-inbox': '/braindump',
   'pages': '/pages',

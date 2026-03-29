@@ -9,6 +9,7 @@ import {
   useWorkflowItems,
   useTodos,
   useWorkstreams,
+  useWebsiteProject,
   useWhiteboards,
   useEvents,
   useFilters,
@@ -27,6 +28,7 @@ import {
   STICKY_COLORS,
   SEED_USERS,
 } from './utils/config';
+import WebsiteView from './components/features/website/WebsiteView';
 
 // Import UI components
 import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination, ErrorBoundary, ListSkeleton, TableSkeleton } from './components/ui';
@@ -97,6 +99,7 @@ export default function App() {
   const items = useWorkflowItems();
   const todosHook = useTodos();
   const ws = useWorkstreams();
+  const websiteHook = useWebsiteProject();
   const wb = useWhiteboards();
   const ev = useEvents();
   const nav = useNavigation();
@@ -169,6 +172,7 @@ export default function App() {
         todosHook.loadTodos(userEmail);
         ws.loadWorkstreams(userEmail);
         ws.loadWorkstreamTasks();
+        websiteHook.loadProject();
         ev.loadEvents();
       }
     }
@@ -965,6 +969,13 @@ export default function App() {
         return (
           <ErrorBoundary key="workstreams" message="The workstreams view encountered an error.">
           <WorkstreamList workstreams={ws.workstreams} workstreamTasks={ws.workstreamTasks} currentUser={currentUser} userEmail={userEmail} onOpenWorkstream={(id) => nav.openWorkstreamDetail(id)} onCreateWorkstream={handleCreateWorkstream} />
+          </ErrorBoundary>
+        );
+
+      case 'website':
+        return (
+          <ErrorBoundary key="website" message="The website project view encountered an error.">
+            <WebsiteView websiteHook={websiteHook} />
           </ErrorBoundary>
         );
 

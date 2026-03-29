@@ -1,3 +1,14 @@
+## 2026-03-29 — Website project management feature
+Tool: Codex
+Branch: main
+Changes:
+- Added `supabase/migrations/030_create_website_project.sql` for website projects, fixed phases, tasks, pages, change requests, indexes, updated_at triggers, and authenticated RLS policies
+- Added `src/services/websiteProject.js` and `src/hooks/useWebsiteProject.js` to load the active website project, seed phases on creation, manage tasks/pages/change requests, and handle launch/archive flows
+- Added `src/components/features/website/` with the build-phase workflow, phase accordions, inline task management, live page registry, and post-launch change request management UI
+- Updated `src/App.jsx`, `src/hooks/useNavigation.js`, `src/hooks/index.js`, and `src/components/features/navigation/Sidebar.jsx` to register the Website route/view and sidebar navigation
+- Ran `npm run build` successfully after implementation
+Status: Complete
+
 ## 2026-03-28 — Request dashboard HTML draft upload + preview
 Tool: Codex
 Branch: main
