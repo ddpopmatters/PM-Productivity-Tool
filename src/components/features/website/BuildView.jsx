@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
 import PhaseAccordion from './PhaseAccordion';
 import PageInventory from './PageInventory';
+import SitemapView from './SitemapView';
 import TemplateTracker from './TemplateTracker';
 import DecisionsLog from './DecisionsLog';
 
@@ -37,6 +38,7 @@ export default function BuildView({
   const tabs = [
     { id: 'phases', label: 'Phases' },
     { id: 'pages', label: 'Pages' },
+    { id: 'sitemap', label: 'Sitemap' },
     { id: 'templates', label: 'Templates' },
     { id: 'decisions', label: 'Decisions' },
   ];
@@ -152,6 +154,17 @@ export default function BuildView({
           isAdminUser={isAdminUser}
           handlers={handlers}
           projectId={project.id}
+        />
+      ) : null}
+
+      {activeTab === 'sitemap' ? (
+        <SitemapView
+          sitemapNodes={handlers.sitemapNodes || []}
+          pages={pages}
+          projectId={project.id}
+          isAdminUser={isAdminUser}
+          userEmail={userEmail}
+          handlers={handlers}
         />
       ) : null}
 

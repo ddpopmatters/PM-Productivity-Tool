@@ -9,6 +9,17 @@ Changes:
 - Ran `npm run build` successfully after implementation
 Status: Complete
 
+## 2026-03-29 — Website sitemap planner
+Tool: Codex
+Branch: main
+Changes:
+- Added `supabase/migrations/033_website_sitemap.sql` for `website_sitemap_nodes`, supporting indexes, the `updated_at` trigger, and authenticated RLS policies
+- Extended `src/services/websiteProject.js` and `src/hooks/useWebsiteProject.js` with sitemap node fetch/create/update/delete/import flows plus sitemap state and reload handlers
+- Added `src/components/features/website/SitemapView.jsx` with a 3-level sitemap tree, inline name and slug editing, linked-page resolution, node detail editing, and import-from-pages support
+- Updated `BuildView.jsx` and `OngoingView.jsx` to add the new Sitemap tab between the existing website planning tabs
+- Ran `npm run build` successfully after implementation
+Status: Complete
+
 ## 2026-03-29 — Website project management feature
 Tool: Codex
 Branch: main

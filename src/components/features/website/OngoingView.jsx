@@ -5,6 +5,7 @@ import Button from '../../ui/Button';
 import PageRegistry from './PageRegistry';
 import ChangeRequestList from './ChangeRequestList';
 import LaunchReadiness from './LaunchReadiness';
+import SitemapView from './SitemapView';
 import TemplateTracker from './TemplateTracker';
 import DecisionsLog from './DecisionsLog';
 
@@ -24,6 +25,7 @@ export default function OngoingView({
   const tabs = [
     { id: 'page_registry', label: 'Page Registry' },
     { id: 'launch_readiness', label: 'Launch Readiness' },
+    { id: 'sitemap', label: 'Sitemap' },
     { id: 'templates', label: 'Templates' },
     { id: 'decisions', label: 'Decisions' },
     { id: 'change_requests', label: 'Change Requests' },
@@ -94,6 +96,17 @@ export default function OngoingView({
           pages={pages}
           decisions={decisions}
           onRefresh={handlers.loadLaunchReadiness}
+        />
+      ) : null}
+
+      {activeTab === 'sitemap' ? (
+        <SitemapView
+          sitemapNodes={handlers.sitemapNodes || []}
+          pages={pages}
+          projectId={project.id}
+          isAdminUser={isAdminUser}
+          userEmail={userEmail}
+          handlers={handlers}
         />
       ) : null}
 

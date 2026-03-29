@@ -968,3 +968,147 @@ export async function fetchLaunchReadiness(projectId) {
     left.section.localeCompare(right.section)
   );
 }
+
+// Sitemap nodes
+export async function fetchSitemapNodes(projectId) {
+  const supabase = getSupabase();
+  if (!supabase || !projectId) return [];
+
+  const { data, error } = await supabase
+    .from('website_sitemap_nodes')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    Logger.error(error, 'Fetch website sitemap nodes error');
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function createSitemapNode(data) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data: created, error } = await supabase
+    .from('website_sitemap_nodes')
+    .insert([
+      {
+        project_id: data.project_id,
+        parent_id: data.parent_id || null,
+        name: data.name,
+        slug: data.slug || null,
+        page_type: data.page_type || 'content',
+        status: data.status || 'planned',
+        sort_order: Number(data.sort_order || 0),
+        linked_page_id: data.linked_page_id || null,
+        notes: data.notes || '',
+        created_by_email: data.created_by_email || null,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Create website sitemap node error');
+    return null;
+  }
+
+  return created;
+}
+
+export async function updateSitemapNode(id, updates) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const nextUpdates = { ...updates, updated_at: new Date().toISOString() };
+  if (Object.prototype.hasOwnProperty.call(nextUpdates, 'sort_order')) {
+    nextUpdates.sort_order = Number(nextUpdates.sort_order || 0);
+  }
+
+  const { data, error } = await supabase
+    .from('website_sitemap_nodes')
+    .update(nextUpdates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    Logger.error(error, 'Update website sitemap node error');
+    return null;
+  }
+
+  return data;
+}
+
+export async function deleteSitemapNode(id) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { error } = await supabase
+    .from('website_sitemap_nodes')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    Logger.error(error, 'Delete website sitemap node error');
+    return null;
+  }
+
+  return true;
+}
+
+export async function importPagesAsSitemapNodes(projectId, pages, createdByEmail) {
+  const supabase = getSupabase();
+  if (!supabase || !projectId) return null;
+  if (!Array.isArray(pages) || pages.length === 0) return [];
+
+  const { data: existingNodes, error: existingError } = await supabase
+    .from('website_sitemap_nodes')
+    .select('linked_page_id')
+    .eq('project_id', projectId)
+    .not('linked_page_id', 'is', null);
+
+  if (existingError) {
+    Logger.error(existingError, 'Fetch existing website sitemap links error');
+    return null;
+  }
+
+  const linkedPageIds = new Set(
+    (existingNodes || []).map((node) => node.linked_page_id).filter(Boolean)
+  );
+
+  const rows = pages
+    .filter((page) => page?.id && !linkedPageIds.has(page.id))
+    .map((page, index) => ({
+      project_id: projectId,
+      parent_id: null,
+      name: page.name,
+      slug: page.slug || null,
+      page_type: 'content',
+      status: 'planned',
+      sort_order: Number(page.sort_order ?? index),
+      linked_page_id: page.id,
+      notes: '',
+      created_by_email: createdByEmail || null,
+    }));
+
+  if (!rows.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('website_sitemap_nodes')
+    .insert(rows)
+    .select();
+
+  if (error) {
+    Logger.error(error, 'Import website pages as sitemap nodes error');
+    return null;
+  }
+
+  return data || [];
+}

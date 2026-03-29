@@ -51,6 +51,7 @@ export function useWebsiteProject() {
   const [phases, setPhases] = useState([]);
   const [tasks, setTasks] = useState({});
   const [pages, setPages] = useState([]);
+  const [sitemapNodes, setSitemapNodes] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [dependencies, setDependencies] = useState([]);
   const [decisions, setDecisions] = useState([]);
@@ -105,6 +106,21 @@ export function useWebsiteProject() {
     [project]
   );
 
+  const loadSitemapNodes = useCallback(
+    async (projectIdOverride) => {
+      const targetProjectId = projectIdOverride || project?.id;
+      if (!targetProjectId) {
+        setSitemapNodes([]);
+        return [];
+      }
+
+      const nextSitemapNodes = await service.fetchSitemapNodes(targetProjectId);
+      setSitemapNodes(nextSitemapNodes);
+      return nextSitemapNodes;
+    },
+    [project]
+  );
+
   const loadLaunchReadiness = useCallback(
     async (projectIdOverride) => {
       const targetProjectId = projectIdOverride || project?.id;
@@ -130,6 +146,7 @@ export function useWebsiteProject() {
       setPhases([]);
       setTasks({});
       setPages([]);
+      setSitemapNodes([]);
       setTemplates([]);
       setDependencies([]);
       setDecisions([]);
@@ -142,6 +159,7 @@ export function useWebsiteProject() {
     const [
       nextPhases,
       nextPages,
+      nextSitemapNodes,
       nextTemplates,
       nextDependencies,
       nextDecisions,
@@ -149,6 +167,7 @@ export function useWebsiteProject() {
     ] = await Promise.all([
       service.fetchWebsitePhases(nextProject.id),
       service.fetchWebsitePages(nextProject.id),
+      service.fetchSitemapNodes(nextProject.id),
       service.fetchWebsiteTemplates(nextProject.id),
       service.fetchPageDependencies(nextProject.id),
       service.fetchDecisions(nextProject.id),
@@ -164,6 +183,7 @@ export function useWebsiteProject() {
     setLaunchReadiness(nextLaunchReadiness);
     setTasks({});
     setLoading(false);
+    setSitemapNodes(nextSitemapNodes);
 
     return nextProject;
   }, []);
@@ -335,6 +355,71 @@ export function useWebsiteProject() {
       return created;
     },
     [loadLaunchReadiness, project, userEmail]
+  );
+
+  const handleCreateSitemapNode = useCallback(
+    async (data) => {
+      const created = await service.createSitemapNode({
+        ...data,
+        created_by_email: data.created_by_email || userEmail,
+      });
+      if (created) {
+        await loadSitemapNodes(project?.id || data.project_id);
+      }
+      return created;
+    },
+    [loadSitemapNodes, project, userEmail]
+  );
+
+  const handleUpdateSitemapNode = useCallback(
+    async (id, updates) => {
+      const previousNodes = sitemapNodes;
+      setSitemapNodes((prev) =>
+        prev.map((node) => (node.id === id ? { ...node, ...updates } : node))
+      );
+
+      const updated = await service.updateSitemapNode(id, updates);
+      if (updated) {
+        setSitemapNodes((prev) =>
+          prev.map((node) => (node.id === id ? updated : node))
+        );
+        return updated;
+      }
+
+      setSitemapNodes(previousNodes);
+      return null;
+    },
+    [sitemapNodes]
+  );
+
+  const handleDeleteSitemapNode = useCallback(
+    async (id) => {
+      const deleted = await service.deleteSitemapNode(id);
+      if (deleted && project) {
+        await loadSitemapNodes(project.id);
+      }
+      return deleted;
+    },
+    [loadSitemapNodes, project]
+  );
+
+  const handleImportPagesAsSitemapNodes = useCallback(
+    async (pageRows) => {
+      if (!project) return null;
+
+      const imported = await service.importPagesAsSitemapNodes(
+        project.id,
+        pageRows,
+        userEmail
+      );
+
+      if (imported) {
+        await loadSitemapNodes(project.id);
+      }
+
+      return imported;
+    },
+    [loadSitemapNodes, project, userEmail]
   );
 
   const handleUpdatePage = useCallback(
@@ -566,6 +651,7 @@ export function useWebsiteProject() {
     phases,
     tasks,
     pages,
+    sitemapNodes,
     templates,
     dependencies,
     decisions,
@@ -589,6 +675,11 @@ export function useWebsiteProject() {
     handleUpdateTask,
     handleDeleteTask,
     handleCreatePage,
+    loadSitemapNodes,
+    handleCreateSitemapNode,
+    handleUpdateSitemapNode,
+    handleDeleteSitemapNode,
+    handleImportPagesAsSitemapNodes,
     handleUpdatePage,
     handleDeletePage,
     handleMarkPageReviewed,
