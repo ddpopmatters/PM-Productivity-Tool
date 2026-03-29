@@ -96,8 +96,8 @@ export async function updateItem(id, updates) {
   if (updates.workflowStatus !== undefined) updateObj.workflow_status = updates.workflowStatus;
   if (updates.team !== undefined) updateObj.team = updates.team;
   if (updates.timelineValue !== undefined) updateObj.timeline_value = updates.timelineValue;
-  if (updates.owner !== undefined) updateObj.owner = toPgArray(updates.owner);
-  if (updates.ownerEmail !== undefined) updateObj.owner_email = toPgArray(updates.ownerEmail);
+  if (updates.owner !== undefined) updateObj.owner = Array.isArray(updates.owner) ? updates.owner : [updates.owner].filter(Boolean);
+  if (updates.ownerEmail !== undefined) updateObj.owner_email = Array.isArray(updates.ownerEmail) ? updates.ownerEmail : [updates.ownerEmail].filter(Boolean);
   if (updates.collaborators !== undefined) updateObj.collaborators = updates.collaborators;
   if (updates.tags !== undefined) updateObj.tags = updates.tags;
   if (updates.subtasks !== undefined) updateObj.subtasks = updates.subtasks;
