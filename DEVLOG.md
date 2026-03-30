@@ -1,3 +1,24 @@
+## 2026-03-30 — Telegram bot interactive routing
+
+Tool: Claude Code (claude-sonnet-4-6)
+Branch: main
+Changes:
+- Added `supabase/functions/telegram-bot/index.ts`: Deno edge function with 8-destination inline keyboard routing; two-step workstream task picker; editMessageText confirmation flow
+- Added `supabase/migrations/033_brain_dumps_telegram_context.sql`: telegram_chat_id + telegram_message_id columns on brain_dumps for callback lookup without embedding IDs in button data
+- Applied migration to remote database; deployed edge function with --use-api (Docker bypass); registered webhook at jzalaltexmotkusvqoew.supabase.co/functions/v1/telegram-bot
+- Set TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, OWNER_NAME, OWNER_EMAIL secrets in Supabase project
+Status: Complete
+
+## 2026-03-30 — Invite claim and resend profile fixes
+Tool: Codex
+Branch: main
+Changes:
+- Updated `supabase/functions/invite-user/index.ts` so invite profile writes now insert new rows, but on duplicate email only refresh `invited_at` and `invited_by`, preserving existing `name`, `team`, and `role`
+- Updated `src/components/features/auth/AuthCallback.jsx` so invite claims create a missing `user_profiles` row with `email` and `claimed_at`, and handle duplicate-row races before falling back to a null-only `claimed_at` update
+- Updated `src/utils/logger.js` so `Logger.warn()` always emits, making RLS-denied invite claim writes visible in production logs
+- Ran `npm run build` successfully after implementation
+Status: Complete
+
 ## 2026-03-29 — Website project management v2 expansion
 Tool: Codex
 Branch: main
@@ -114,7 +135,7 @@ Tool: Codex
 Branch: main
 Changes:
 - Added `supabase/migrations/025_copy_brief_fields.sql` for the new copy brief columns on `landing_page_requests`
-- Extended `NewRequestForm.jsx` with a new Copy brief section, including conditional donate-only price point rows and submit-time serialization for all five fields
+- Extended `NewRequestForm.jsx` with a new Copy brief section, including conditional donate-only price point rows and submit-time serialisation for all five fields
 - Updated `landingPageRequests.js` so `createRequest()` persists the new copy brief payload to Supabase
 - Extended dashboard brief rendering in `dashboardUtils.js` and `BriefPanel.jsx` so populated copy fields appear under a dedicated "Copy brief" subheading
 - Ran `npm run build` successfully after the changes
@@ -131,3 +152,14 @@ Changes:
 - Exports added to features index
 
 Status: Complete (runtime tested — routing to workstream confirmed working)
+
+## 2026-03-30 — Invite flow fixes
+Tool: Codex
+Branch: main
+Changes:
+- Updated `supabase/functions/invite-user/index.ts` and `supabase/functions/delete-invite/index.ts` to use `listUsers({ perPage: 1000 })` so invite lookups cover the full internal user base
+- Added invite role validation in `supabase/functions/invite-user/index.ts` so invalid role values return a 400 before touching `user_profiles`
+- Added `SUPABASE_API.logActivity()` in `src/App.jsx` to insert invite activity rows into `activity_log`, and passed it into `AdminConsole`
+- Updated `src/components/features/admin/AdminConsole.jsx` to accept `logActivity` and record invite-send actions from both invite entry points
+- Ran `npm run build` successfully after the changes
+Status: Complete
