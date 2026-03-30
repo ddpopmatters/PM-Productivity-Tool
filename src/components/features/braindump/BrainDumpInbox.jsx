@@ -150,17 +150,19 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-ocean-900">Brain Dump Inbox</h1>
-          <p className="text-sm text-graystone-600 mt-0.5">Ideas captured via Telegram, ready to route</p>
+    <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Brain Dump Inbox</h1>
+            <p className="text-sm text-ocean-100 mt-0.5">Ideas captured via Telegram, ready to route</p>
+          </div>
+          {items.length > 0 && (
+            <span className="bg-white/20 text-white text-sm font-medium px-3 py-1 rounded-full">
+              {items.length} pending
+            </span>
+          )}
         </div>
-        {items.length > 0 && (
-          <span className="bg-ocean-100 text-ocean-700 text-sm font-medium px-3 py-1 rounded-full">
-            {items.length} pending
-          </span>
-        )}
       </div>
 
       {error && (
