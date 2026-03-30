@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Columns, List, Pencil, Plus, Trash2 } from 'lucide-react';
 import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
 
@@ -81,6 +81,7 @@ export default function SitemapView({
   userEmail,
   handlers,
 }) {
+  const [viewMode, setViewMode] = useState('list');
   const [expandedNodeId, setExpandedNodeId] = useState(null);
   const [panelForm, setPanelForm] = useState({
     page_type: 'content',
@@ -660,6 +661,82 @@ export default function SitemapView({
     );
   };
 
+  const renderHierarchyView = () => {
+    if (rootNodes.length === 0) return null;
+    return (
+      <div className="flex gap-4 overflow-x-auto pb-2 pt-1">
+        {rootNodes.map((root) => {
+          const level1Children = childrenByParent.get(root.id) || [];
+          const rootLinkedPage = root.linked_page_id ? pageMap.get(root.linked_page_id) : null;
+          return (
+            <div key={root.id} className="flex w-44 flex-shrink-0 flex-col gap-2">
+              {/* Root node */}
+              <div className="rounded-xl bg-ocean-800 p-3 text-white shadow-sm">
+                <div className="flex items-center gap-1.5">
+                  <span className={clsx('h-2 w-2 flex-shrink-0 rounded-full', STATUS_META[root.status]?.dotClass)} />
+                  <span className="truncate text-sm font-semibold">{root.name}</span>
+                </div>
+                {root.slug ? <p className="mt-0.5 truncate text-xs text-ocean-200">/{root.slug}</p> : null}
+                {rootLinkedPage ? (
+                  <span className="mt-1 inline-block rounded-full bg-white/20 px-1.5 py-0.5 text-xs text-white">
+                    {rootLinkedPage.name}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Level-1 children */}
+              {level1Children.map((child) => {
+                const level2Children = childrenByParent.get(child.id) || [];
+                const childLinkedPage = child.linked_page_id ? pageMap.get(child.linked_page_id) : null;
+                const typeChildMeta = PAGE_TYPE_META[child.page_type] || PAGE_TYPE_META.content;
+                return (
+                  <div key={child.id} className="ml-3 border-l-2 border-graystone-200 pl-3">
+                    <div className="rounded-lg border border-graystone-200 bg-white p-2.5 shadow-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span className={clsx('h-2 w-2 flex-shrink-0 rounded-full', STATUS_META[child.status]?.dotClass)} />
+                        <span className="truncate text-sm font-medium text-ocean-900">{child.name}</span>
+                      </div>
+                      {child.slug ? <p className="mt-0.5 truncate text-xs text-graystone-500">/{child.slug}</p> : null}
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <span className={clsx('rounded-full px-1.5 py-0.5 text-xs', typeChildMeta.className)}>
+                          {typeChildMeta.label}
+                        </span>
+                        {childLinkedPage ? (
+                          <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
+                            {childLinkedPage.name}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {/* Level-2 grandchildren */}
+                      {level2Children.map((grandchild) => {
+                        const gcLinkedPage = grandchild.linked_page_id ? pageMap.get(grandchild.linked_page_id) : null;
+                        return (
+                          <div key={grandchild.id} className="mt-1.5 rounded-md border border-graystone-200 bg-graystone-50 p-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className={clsx('h-1.5 w-1.5 flex-shrink-0 rounded-full', STATUS_META[grandchild.status]?.dotClass)} />
+                              <span className="truncate text-xs text-ocean-900">{grandchild.name}</span>
+                            </div>
+                            {grandchild.slug ? <p className="truncate text-xs text-graystone-400">/{grandchild.slug}</p> : null}
+                            {gcLinkedPage ? (
+                              <span className="mt-0.5 inline-block rounded-full bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
+                                {gcLinkedPage.name}
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <section className="rounded-2xl border border-graystone-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -675,28 +752,58 @@ export default function SitemapView({
           </span>
         </div>
 
-        {isAdminUser ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!importablePages.length}
-              onClick={() => {
-                void requestImport();
-              }}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View toggle */}
+          <div className="flex rounded-lg border border-graystone-200 bg-graystone-50 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              title="List view"
+              className={clsx(
+                'rounded-md p-1.5 transition',
+                viewMode === 'list'
+                  ? 'bg-white text-ocean-700 shadow-sm'
+                  : 'text-graystone-500 hover:text-graystone-700'
+              )}
             >
-              Import from Pages
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => createDraft(null, 0)}
-              disabled={!projectId}
+              <List className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('hierarchy')}
+              title="Hierarchy view"
+              className={clsx(
+                'rounded-md p-1.5 transition',
+                viewMode === 'hierarchy'
+                  ? 'bg-white text-ocean-700 shadow-sm'
+                  : 'text-graystone-500 hover:text-graystone-700'
+              )}
             >
-              <Plus className="h-4 w-4" />
-              Add top-level page
-            </Button>
+              <Columns className="h-4 w-4" />
+            </button>
           </div>
-        ) : null}
+
+          {isAdminUser ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!importablePages.length}
+                onClick={() => { void requestImport(); }}
+              >
+                Import from Pages
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => createDraft(null, 0)}
+                disabled={!projectId}
+              >
+                <Plus className="h-4 w-4" />
+                Add top-level page
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       {showImportConfirm ? (
@@ -726,19 +833,18 @@ export default function SitemapView({
         </div>
       ) : null}
 
-      <div className="mt-5 space-y-3">
-        {rootNodes.length === 0 && !draftNode ? (
-          <div className="rounded-xl border border-dashed border-graystone-300 bg-graystone-50 px-4 py-8 text-center text-sm text-graystone-500">
-            No sitemap yet — add your first top-level page or import from the Page
-            Inventory.
-          </div>
-        ) : (
-          <>
-            {rootNodes.map((node) => renderNode(node, 0))}
-            {draftNode?.parent_id === null ? renderDraftRow(0) : null}
-          </>
-        )}
-      </div>
+      {rootNodes.length === 0 && !draftNode ? (
+        <div className="mt-5 rounded-xl border border-dashed border-graystone-300 bg-graystone-50 px-4 py-8 text-center text-sm text-graystone-500">
+          No sitemap yet — add your first top-level page or import from the Page Inventory.
+        </div>
+      ) : viewMode === 'hierarchy' ? (
+        <div className="mt-5">{renderHierarchyView()}</div>
+      ) : (
+        <div className="mt-5 space-y-3">
+          {rootNodes.map((node) => renderNode(node, 0))}
+          {draftNode?.parent_id === null ? renderDraftRow(0) : null}
+        </div>
+      )}
     </section>
   );
 }

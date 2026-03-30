@@ -53,60 +53,40 @@ export default function BuildView({
   return (
     <div className="space-y-6">
       <div className="bg-ocean-800 rounded-2xl p-6 text-white shadow-xl">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-3xl font-bold">{project.name}</h2>
+              <h2 className="text-2xl font-bold">{project.name}</h2>
               <Badge variant={projectStatus.badge} className="bg-white/15 text-white">
                 {projectStatus.label}
               </Badge>
             </div>
-            {project.description ? (
-              <p className="max-w-2xl text-sm text-ocean-100">{project.description}</p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-ocean-100">
-              <span className="inline-flex items-center gap-2">
-                <Mail className="h-4 w-4" />
+            <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-ocean-100">
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5" />
                 {project.lead_email}
               </span>
-              <span className="inline-flex items-center gap-2">
-                <FolderKanban className="h-4 w-4" />
-                {pages.length} pages in scope
+              <span className="inline-flex items-center gap-1.5">
+                <FolderKanban className="h-3.5 w-3.5" />
+                {pages.length} pages
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {completion}% complete
               </span>
             </div>
           </div>
-
-          <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-            <div className="flex items-center gap-2 text-sm text-ocean-100">
-              <CheckCircle2 className="h-4 w-4" />
-              Overall completion
-            </div>
-            <p className="mt-2 text-3xl font-bold">{completion}%</p>
-            <p className="text-sm text-ocean-100">
-              {doneTasks}/{allTasks.length} tasks done
-            </p>
-          </div>
+          {isAdminUser && canLaunch ? (
+            <button
+              onClick={handleLaunch}
+              className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2 transition hover:bg-white/30"
+            >
+              <Rocket className="h-4 w-4" />
+              <span>Mark as launched</span>
+            </button>
+          ) : null}
         </div>
       </div>
-
-      {isAdminUser ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-graystone-200 bg-white p-4 shadow-sm">
-          <div>
-            <h3 className="text-sm font-semibold text-ocean-900">Launch control</h3>
-            <p className="text-sm text-graystone-500">
-              The project can go live once the Launch phase is complete.
-            </p>
-          </div>
-          <Button
-            onClick={handleLaunch}
-            disabled={!canLaunch}
-            title={canLaunch ? 'Mark project as launched' : 'Complete the Launch phase first'}
-          >
-            <Rocket className="h-4 w-4" />
-            Mark as launched
-          </Button>
-        </div>
-      ) : null}
 
       <div className="border-b border-graystone-200">
         <div className="flex flex-wrap gap-6">
