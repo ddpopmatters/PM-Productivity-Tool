@@ -93,7 +93,10 @@ export async function updateItem(id, updates) {
   const updateObj = { updated_at: new Date().toISOString() };
   if (updates.title !== undefined) updateObj.title = updates.title;
   if (updates.caption !== undefined) updateObj.caption = updates.caption;
-  if (updates.workflowStatus !== undefined) updateObj.workflow_status = updates.workflowStatus;
+  if (updates.workflowStatus !== undefined) {
+    updateObj.workflow_status = updates.workflowStatus;
+    if (updates.workflowStatus === 'Done') updateObj.archived = true;
+  }
   if (updates.team !== undefined) updateObj.team = updates.team;
   if (updates.timelineValue !== undefined) updateObj.timeline_value = updates.timelineValue;
   if (updates.owner !== undefined) updateObj.owner = Array.isArray(updates.owner) ? updates.owner : [updates.owner].filter(Boolean);

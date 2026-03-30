@@ -136,3 +136,54 @@ describe('transformEntry', () => {
     expect(result.itemType).toBe('project');
   });
 });
+
+// -- updateItem (auto-archive on Done) ---------------------------------------
+
+vi.mock('../api/supabase', () => {
+  const updateMock = vi.fn().mockReturnValue({ error: null });
+  const eqMock = vi.fn(() => ({ error: null }));
+  const updateChain = { eq: eqMock };
+  updateMock.mockReturnValue(updateChain);
+  return {
+    getSupabase: () => ({
+      from: () => ({ update: updateMock }),
+    }),
+    __updateMock: updateMock,
+    __eqMock: eqMock,
+  };
+});
+
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { updateItem } from './workflowItems';
+
+describe('updateItem', () => {
+  it('sets archived=true when workflowStatus is Done', async () => {
+    const captured = [];
+    const eqSpy = vi.fn(() => ({ error: null }));
+    const updateSpy = vi.fn((obj) => { captured.push(obj); return { eq: eqSpy }; });
+
+    vi.doMock('../api/supabase', () => ({
+      getSupabase: () => ({ from: () => ({ update: updateSpy }) }),
+    }));
+
+    const { updateItem: updateItemFresh } = await import('./workflowItems?v=done');
+    await updateItemFresh('some-id', { workflowStatus: 'Done' });
+
+    expect(captured[0]).toMatchObject({ workflow_status: 'Done', archived: true });
+  });
+
+  it('does not set archived=true for other statuses', async () => {
+    const captured = [];
+    const eqSpy = vi.fn(() => ({ error: null }));
+    const updateSpy = vi.fn((obj) => { captured.push(obj); return { eq: eqSpy }; });
+
+    vi.doMock('../api/supabase', () => ({
+      getSupabase: () => ({ from: () => ({ update: updateSpy }) }),
+    }));
+
+    const { updateItem: updateItemFresh2 } = await import('./workflowItems?v=in-progress');
+    await updateItemFresh2('some-id', { workflowStatus: 'In Progress' });
+
+    expect(captured[0]).not.toHaveProperty('archived');
+  });
+});
