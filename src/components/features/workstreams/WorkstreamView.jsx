@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 
-const TaskCard = ({ task, showDeadline, onDragStart, onClick, onToggleStatus }) => (
+const TaskCard = ({ task, showDeadline, onDragStart, onClick, onToggleStatus, isDragging }) => (
   <div
     draggable
     onDragStart={() => onDragStart(task)}
     onClick={() => onClick(task.id)}
-    className="bg-white rounded-lg border border-graystone-200 p-3 cursor-pointer hover:shadow-md hover:border-ocean-300 transition group"
+    className={clsx(
+      "bg-white rounded-lg border border-graystone-200 p-3 cursor-pointer hover:shadow-md hover:border-ocean-300 transition group",
+      isDragging && "pointer-events-none"
+    )}
   >
     <div className="flex items-start gap-2">
       <button
@@ -278,6 +281,7 @@ const WorkstreamView = ({
       onDragStart={handleDragStart}
       onClick={onOpenTask}
       onToggleStatus={handleToggleStatus}
+      isDragging={!!draggedTask}
     />
   );
 
@@ -328,18 +332,26 @@ const WorkstreamView = ({
         <div
           onDragOver={handleDragOver}
           onDrop={handleDropOnTimeSensitive}
-          className="bg-white rounded-xl border border-graystone-200 p-4"
+          className={clsx(
+            "bg-white rounded-xl border p-4 transition",
+            draggedTask ? "border-dashed border-ocean-300" : "border-graystone-200"
+          )}
         >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-ocean-900">
               Time-Sensitive ({timeSensitiveTasks.length})
             </h3>
+            {draggedTask && (
+              <span className="text-xs text-ocean-500 font-medium">Drop to set deadline</span>
+            )}
           </div>
 
           <div className="space-y-2 mb-4">
             {timeSensitiveTasks.map(task => renderTask(task, true))}
             {timeSensitiveTasks.length === 0 && !showNewTaskForm && !pendingDeadlineTask && (
-              <p className="text-sm text-graystone-400 text-center py-4">No time-sensitive tasks</p>
+              <p className="text-sm text-graystone-400 text-center py-4">
+                {draggedTask ? 'Drop here to assign a deadline' : 'No time-sensitive tasks'}
+              </p>
             )}
           </div>
 
@@ -419,9 +431,15 @@ const WorkstreamView = ({
         </div>
 
         {/* Backlog column */}
-        <div className="bg-white rounded-xl border border-graystone-200 p-4">
+        <div
+          onDragOver={handleDragOver}
+          className="bg-white rounded-xl border border-graystone-200 p-4"
+        >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-ocean-900">Backlog</h3>
+            {draggedTask && (
+              <span className="text-xs text-ocean-500 font-medium">Drop into a priority bucket</span>
+            )}
           </div>
 
           <div className="space-y-4 mb-4">
