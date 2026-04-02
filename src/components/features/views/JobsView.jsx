@@ -13,6 +13,18 @@ const JOB_STATUSES = [
   { id: 'in_progress', label: 'In Progress', color: 'blue' }
 ];
 
+const PRIORITY_SECTIONS = [
+  { id: 'high', label: 'High', dotColor: 'bg-red-500' },
+  { id: 'medium', label: 'Medium', dotColor: 'bg-amber-500' },
+  { id: 'low', label: 'Low', dotColor: 'bg-green-500' },
+  { id: 'none', label: 'Uncategorized', dotColor: 'bg-graystone-400' },
+];
+
+const getJobPriority = (job) => {
+  const p = job.tags?.find(t => ['high', 'medium', 'low'].includes(t?.toLowerCase?.()))?.toLowerCase();
+  return p || 'none';
+};
+
 const JobsView = ({
   entries,
   setEntries,
@@ -32,6 +44,7 @@ const JobsView = ({
   const [filter, setFilter] = useState('mine'); // 'all', 'mine', 'assigned'
   const [draggedJob, setDraggedJob] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
+  const [dragOverPriority, setDragOverPriority] = useState(null);
 
   // Filter only jobs from entries
   const jobs = entries.filter(e => e.itemType === 'job' && !e.archived);
@@ -232,6 +245,24 @@ const JobsView = ({
   const handleDragEnd = () => {
     setDraggedJob(null);
     setDragOverColumn(null);
+    setDragOverPriority(null);
+  };
+
+  const handleDropOnPriority = async (e, targetPriority) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedJob) return;
+    const cleanTags = (draggedJob.tags || []).filter(t => !['high', 'medium', 'low'].includes(t?.toLowerCase?.()));
+    const newTags = targetPriority === 'none' ? cleanTags : [...cleanTags, targetPriority];
+    const updatedJob = {
+      ...draggedJob,
+      tags: newTags,
+      workflowStatus: draggedJob.workflowStatus === 'in_progress' ? 'todo' : draggedJob.workflowStatus,
+    };
+    await handleUpdateJob(updatedJob);
+    setDraggedJob(null);
+    setDragOverColumn(null);
+    setDragOverPriority(null);
   };
 
   const handleDragOver = (e, status) => {
@@ -337,54 +368,110 @@ const JobsView = ({
         <div className="flex flex-col h-full gap-4">
           {/* Main columns */}
           <div className="grid grid-cols-2 gap-4 flex-1">
-            {JOB_STATUSES.map(status => (
-              <div
-                key={status.id}
-                className={cx(
-                  "flex flex-col rounded-xl border transition-colors min-w-0",
-                  dragOverColumn === status.id ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
-                )}
-                onDragOver={(e) => handleDragOver(e, status.id)}
-                onDrop={(e) => handleDrop(e, status.id)}
-              >
-                {/* Column Header */}
-                <div className="p-4 border-b border-graystone-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={cx(
-                        "w-3 h-3 rounded-full",
-                        status.color === 'blue' ? "bg-blue-500" : "bg-graystone-400"
-                      )}></div>
-                      <span className="font-semibold text-graystone-800">{status.label}</span>
-                    </div>
-                    <span className="text-sm text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
-                      {jobsByStatus[status.id].length}
-                    </span>
+            {/* To Do column with priority sections */}
+            <div
+              className={cx(
+                "flex flex-col rounded-xl border transition-colors min-w-0",
+                dragOverColumn === 'todo' && !dragOverPriority ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
+              )}
+              onDragOver={(e) => { e.preventDefault(); if (!dragOverPriority) setDragOverColumn('todo'); }}
+              onDrop={(e) => handleDrop(e, 'todo')}
+            >
+              <div className="p-4 border-b border-graystone-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-graystone-400" />
+                    <span className="font-semibold text-graystone-800">To Do</span>
                   </div>
-                </div>
-
-                {/* Cards */}
-                <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
-                  {jobsByStatus[status.id].length === 0 ? (
-                    <div className="text-center py-8 text-graystone-400 text-sm">
-                      {dragOverColumn === status.id ? 'Drop here' : 'No tasks'}
-                    </div>
-                  ) : (
-                    jobsByStatus[status.id].map(job => (
-                      <JobCard
-                        key={job.id}
-                        job={job}
-                        onClick={setSelectedJob}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                        userProfiles={userProfiles}
-                        onComplete={() => handleCompleteJob(job.id)}
-                      />
-                    ))
-                  )}
+                  <span className="text-sm text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
+                    {jobsByStatus.todo.length}
+                  </span>
                 </div>
               </div>
-            ))}
+              <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
+                {PRIORITY_SECTIONS.map(section => {
+                  const sectionJobs = jobsByStatus.todo.filter(j => getJobPriority(j) === section.id);
+                  const isOver = dragOverPriority === section.id;
+                  return (
+                    <div
+                      key={section.id}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverPriority(section.id); setDragOverColumn('todo'); }}
+                      onDrop={(e) => handleDropOnPriority(e, section.id)}
+                      className={cx(
+                        "border rounded-lg p-2 transition",
+                        isOver ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200"
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className={cx("w-2 h-2 rounded-full", section.dotColor)} />
+                        <span className="text-xs font-semibold text-graystone-500 uppercase tracking-wide">
+                          {section.label} ({sectionJobs.length})
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {sectionJobs.map(job => (
+                          <JobCard
+                            key={job.id}
+                            job={job}
+                            onClick={setSelectedJob}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            userProfiles={userProfiles}
+                            onComplete={() => handleCompleteJob(job.id)}
+                            isDragging={!!draggedJob}
+                          />
+                        ))}
+                        {sectionJobs.length === 0 && !!draggedJob && (
+                          <p className="text-xs text-graystone-400 text-center py-2">Drop here</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* In Progress column */}
+            <div
+              className={cx(
+                "flex flex-col rounded-xl border transition-colors min-w-0",
+                dragOverColumn === 'in_progress' ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
+              )}
+              onDragOver={(e) => handleDragOver(e, 'in_progress')}
+              onDrop={(e) => handleDrop(e, 'in_progress')}
+            >
+              <div className="p-4 border-b border-graystone-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="font-semibold text-graystone-800">In Progress</span>
+                  </div>
+                  <span className="text-sm text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
+                    {jobsByStatus.in_progress.length}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
+                {jobsByStatus.in_progress.length === 0 ? (
+                  <div className="text-center py-8 text-graystone-400 text-sm">
+                    {dragOverColumn === 'in_progress' ? 'Drop here' : 'No tasks'}
+                  </div>
+                ) : (
+                  jobsByStatus.in_progress.map(job => (
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      onClick={setSelectedJob}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      userProfiles={userProfiles}
+                      onComplete={() => handleCompleteJob(job.id)}
+                      isDragging={!!draggedJob}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Complete drop zone - shown when dragging */}

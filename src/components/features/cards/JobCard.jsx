@@ -11,7 +11,7 @@ import clsx from 'clsx';
  * @param {Object} userProfiles - Map of user profiles for avatars
  * @param {function} onComplete - Called to mark job as complete/archived
  */
-function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles, onComplete }) {
+function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles, onComplete, isDragging }) {
   const priorityColors = {
     high: 'bg-red-100 text-red-700 border-red-200',
     medium: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -32,7 +32,8 @@ function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles, onComplet
       onClick={() => onClick(job)}
       className={clsx(
         "group p-3 bg-white rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 relative",
-        isOverdue ? "border-red-300" : isDueSoon ? "border-amber-300" : "border-graystone-200"
+        isOverdue ? "border-red-300" : isDueSoon ? "border-amber-300" : "border-graystone-200",
+        isDragging && "pointer-events-none"
       )}
     >
       {/* Complete button - shown on hover */}
