@@ -366,75 +366,60 @@ const JobsView = ({
       {/* Kanban Board */}
       <div className="flex-1 overflow-hidden p-6">
         <div className="flex flex-col h-full gap-4">
-          {/* Main columns */}
-          <div className="grid grid-cols-2 gap-4 flex-1">
-            {/* To Do column with priority sections */}
-            <div
-              className={cx(
-                "flex flex-col rounded-xl border transition-colors min-w-0",
-                dragOverColumn === 'todo' && !dragOverPriority ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
-              )}
-              onDragOver={(e) => { e.preventDefault(); if (!dragOverPriority) setDragOverColumn('todo'); }}
-              onDrop={(e) => handleDrop(e, 'todo')}
-            >
-              <div className="p-4 border-b border-graystone-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-graystone-400" />
-                    <span className="font-semibold text-graystone-800">To Do</span>
-                  </div>
-                  <span className="text-sm text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
-                    {jobsByStatus.todo.length}
-                  </span>
-                </div>
-              </div>
-              <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-[200px]">
-                {PRIORITY_SECTIONS.map(section => {
-                  const sectionJobs = jobsByStatus.todo.filter(j => getJobPriority(j) === section.id);
-                  const isOver = dragOverPriority === section.id;
-                  return (
-                    <div
-                      key={section.id}
-                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverPriority(section.id); setDragOverColumn('todo'); }}
-                      onDrop={(e) => handleDropOnPriority(e, section.id)}
-                      className={cx(
-                        "border rounded-lg p-2 transition",
-                        isOver ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200"
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className={cx("w-2 h-2 rounded-full", section.dotColor)} />
-                        <span className="text-xs font-semibold text-graystone-500 uppercase tracking-wide">
-                          {section.label} ({sectionJobs.length})
-                        </span>
+          {/* Main columns: High | Medium | Low | In Progress (top), Uncategorized | In Progress (bottom) */}
+          <div className="grid grid-cols-4 gap-4 flex-1" style={{ gridTemplateRows: 'auto 1fr' }}>
+            {/* Priority columns — High, Medium, Low */}
+            {PRIORITY_SECTIONS.filter(s => s.id !== 'none').map(section => {
+              const sectionJobs = jobsByStatus.todo.filter(j => getJobPriority(j) === section.id);
+              const isOver = dragOverPriority === section.id;
+              return (
+                <div
+                  key={section.id}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverPriority(section.id); setDragOverColumn('todo'); }}
+                  onDrop={(e) => handleDropOnPriority(e, section.id)}
+                  className={cx(
+                    "flex flex-col rounded-xl border transition-colors min-w-0",
+                    isOver ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
+                  )}
+                >
+                  <div className="p-3 border-b border-graystone-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={cx("w-3 h-3 rounded-full", section.dotColor)} />
+                        <span className="font-semibold text-graystone-800 text-sm">{section.label}</span>
                       </div>
-                      <div className="space-y-2">
-                        {sectionJobs.map(job => (
-                          <JobCard
-                            key={job.id}
-                            job={job}
-                            onClick={setSelectedJob}
-                            onDragStart={handleDragStart}
-                            onDragEnd={handleDragEnd}
-                            userProfiles={userProfiles}
-                            onComplete={() => handleCompleteJob(job.id)}
-                            isDragging={!!draggedJob}
-                          />
-                        ))}
-                        {sectionJobs.length === 0 && !!draggedJob && (
-                          <p className="text-xs text-graystone-400 text-center py-2">Drop here</p>
-                        )}
-                      </div>
+                      <span className="text-xs text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
+                        {sectionJobs.length}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+                  <div className="flex-1 p-2 space-y-2 overflow-y-auto min-h-[120px]">
+                    {sectionJobs.map(job => (
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        onClick={setSelectedJob}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        userProfiles={userProfiles}
+                        onComplete={() => handleCompleteJob(job.id)}
+                        isDragging={!!draggedJob}
+                      />
+                    ))}
+                    {sectionJobs.length === 0 && (
+                      <div className="text-center py-6 text-graystone-400 text-xs">
+                        {isOver ? 'Drop here' : 'None'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
-            {/* In Progress column */}
+            {/* In Progress — spans both rows */}
             <div
               className={cx(
-                "flex flex-col rounded-xl border transition-colors min-w-0",
+                "flex flex-col rounded-xl border transition-colors min-w-0 row-span-2",
                 dragOverColumn === 'in_progress' ? "border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
               )}
               onDragOver={(e) => handleDragOver(e, 'in_progress')}
@@ -470,6 +455,51 @@ const JobsView = ({
                     />
                   ))
                 )}
+              </div>
+            </div>
+
+            {/* Uncategorized To Do — spans 3 cols in the second row */}
+            <div
+              className={cx(
+                "flex flex-col rounded-xl border transition-colors min-w-0 col-span-3",
+                dragOverPriority === 'none' ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/50"
+              )}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverPriority('none'); setDragOverColumn('todo'); }}
+              onDrop={(e) => handleDropOnPriority(e, 'none')}
+            >
+              <div className="p-3 border-b border-graystone-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-graystone-400" />
+                    <span className="font-semibold text-graystone-800 text-sm">To Do</span>
+                    <span className="text-xs text-graystone-500">— no priority assigned</span>
+                  </div>
+                  <span className="text-xs text-graystone-500 bg-graystone-200 px-2 py-0.5 rounded-full">
+                    {jobsByStatus.todo.filter(j => getJobPriority(j) === 'none').length}
+                  </span>
+                </div>
+              </div>
+              <div className="p-3 overflow-y-auto min-h-[80px]">
+                <div className="flex flex-wrap gap-2">
+                  {jobsByStatus.todo.filter(j => getJobPriority(j) === 'none').map(job => (
+                    <div key={job.id} className="w-56">
+                      <JobCard
+                        job={job}
+                        onClick={setSelectedJob}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        userProfiles={userProfiles}
+                        onComplete={() => handleCompleteJob(job.id)}
+                        isDragging={!!draggedJob}
+                      />
+                    </div>
+                  ))}
+                  {jobsByStatus.todo.filter(j => getJobPriority(j) === 'none').length === 0 && (
+                    <p className="text-xs text-graystone-400 py-2">
+                      {dragOverPriority === 'none' ? 'Drop here to remove priority' : 'All tasks have been prioritised'}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
