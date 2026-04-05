@@ -33,7 +33,7 @@ function JobCard({ job, onClick, onDragStart, onDragEnd, userProfiles, onComplet
       className={clsx(
         "group p-3 bg-white rounded-lg border shadow-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 relative",
         isOverdue ? "border-red-300" : isDueSoon ? "border-amber-300" : "border-graystone-200",
-        isDragging && "pointer-events-none"
+        isDragging && "opacity-50"
       )}
     >
       {/* Complete button - shown on hover */}

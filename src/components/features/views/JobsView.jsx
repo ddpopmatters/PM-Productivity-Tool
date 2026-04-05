@@ -483,7 +483,7 @@ const JobsView = ({
               <div className="p-3 overflow-y-auto min-h-[80px]" onDragOver={(e) => e.preventDefault()}>
                 <div className="flex flex-wrap gap-2">
                   {jobsByStatus.todo.filter(j => getJobPriority(j) === 'none').map(job => (
-                    <div key={job.id} className={cx("w-56", !!draggedJob && "pointer-events-none")}>
+                    <div key={job.id} className="w-56">
                       <JobCard
                         job={job}
                         onClick={setSelectedJob}
