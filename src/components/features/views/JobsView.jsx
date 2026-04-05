@@ -240,6 +240,7 @@ const JobsView = ({
   const handleDragStart = (e, job) => {
     setDraggedJob(job);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', job.id || '');
   };
 
   const handleDragEnd = () => {
@@ -393,7 +394,7 @@ const JobsView = ({
                       </span>
                     </div>
                   </div>
-                  <div className="flex-1 p-2 space-y-2 overflow-y-auto min-h-[120px]">
+                  <div className="flex-1 p-2 space-y-2 overflow-y-auto min-h-[120px]" onDragOver={(e) => e.preventDefault()}>
                     {sectionJobs.map(job => (
                       <JobCard
                         key={job.id}
@@ -479,10 +480,10 @@ const JobsView = ({
                   </span>
                 </div>
               </div>
-              <div className="p-3 overflow-y-auto min-h-[80px]">
+              <div className="p-3 overflow-y-auto min-h-[80px]" onDragOver={(e) => e.preventDefault()}>
                 <div className="flex flex-wrap gap-2">
                   {jobsByStatus.todo.filter(j => getJobPriority(j) === 'none').map(job => (
-                    <div key={job.id} className="w-56">
+                    <div key={job.id} className={cx("w-56", !!draggedJob && "pointer-events-none")}>
                       <JobCard
                         job={job}
                         onClick={setSelectedJob}
