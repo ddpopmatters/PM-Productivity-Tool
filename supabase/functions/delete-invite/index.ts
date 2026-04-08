@@ -14,6 +14,41 @@ const ALLOWED_ORIGINS = [
   APP_URL
 ]
 
+function createAdminClient(supabaseUrl: string, serviceRoleKey: string) {
+  return createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
+async function findAuthUserByEmail(supabaseAdmin: AdminClient, normalizedEmail: string) {
+  const perPage = 200
+  let page = 1
+
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.error('List users error:', error)
+      return null
+    }
+
+    const users = data?.users ?? []
+    const match = users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail)
+    if (match) {
+      return match
+    }
+
+    if (users.length < perPage) {
+      return null
+    }
+
+    page += 1
+  }
+}
+
 function getCorsHeaders(origin: string | null): Record<string, string> {
   // Use exact origin matching for security (no prefix matching)
   const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin)
@@ -62,10 +97,9 @@ Deno.serve(async (req) => {
     const token = authHeader.replace('Bearer ', '')
 
     // Create admin client with service role key
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createAdminClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { auth: { autoRefreshToken: false, persistSession: false } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
     // Verify the calling user's token and check if they're admin
@@ -134,8 +168,7 @@ Deno.serve(async (req) => {
     const normalizedEmail = email.toLowerCase().trim()
 
     // Check if user exists in auth
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === normalizedEmail)
+    const existingUser = await findAuthUserByEmail(supabaseAdmin, normalizedEmail)
 
     if (existingUser) {
       // Check if user has actually signed in

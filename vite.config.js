@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const basePath = process.env.VITE_APP_BASE_PATH || '/PM-Productivity-Tool/'
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -16,8 +18,8 @@ export default defineConfig({
         theme_color: '#0077b6',
         background_color: '#cfebf8',
         display: 'standalone',
-        scope: '/PM-Productivity-Tool/',
-        start_url: '/PM-Productivity-Tool/',
+        scope: basePath,
+        start_url: basePath,
         icons: [
           {
             src: 'favicon.svg',
@@ -45,7 +47,7 @@ export default defineConfig({
       }
     })
   ],
-  base: '/PM-Productivity-Tool/',
+  base: basePath,
   build: {
     outDir: 'dist',
     sourcemap: true,

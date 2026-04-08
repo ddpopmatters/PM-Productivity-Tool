@@ -30,3 +30,60 @@ export const getPagesRole = (email) => {
   if (isManager(email)) return 'approver';
   return 'requester';
 };
+
+function getBrowserLocation(locationOverride) {
+  if (locationOverride) return locationOverride;
+  if (typeof window === 'undefined') {
+    return { hash: '', search: '', pathname: '/' };
+  }
+  return window.location;
+}
+
+function mergeAuthParams(locationOverride) {
+  const location = getBrowserLocation(locationOverride);
+  const merged = new URLSearchParams(location.search || '');
+  const hash = (location.hash || '').replace(/^#/, '');
+  const hashParams = new URLSearchParams(hash);
+
+  hashParams.forEach((value, key) => {
+    if (!merged.has(key)) {
+      merged.set(key, value);
+    }
+  });
+
+  return merged;
+}
+
+export const getAuthRedirectUrl = () => {
+  if (typeof window === 'undefined') return '/';
+
+  const basePath = import.meta.env.BASE_URL || '/';
+  return new URL(basePath, window.location.origin).toString();
+};
+
+export const getAuthCallbackContext = (locationOverride) => {
+  const params = mergeAuthParams(locationOverride);
+  const hasCallbackParams = [
+    'access_token',
+    'refresh_token',
+    'token_hash',
+    'code',
+    'type',
+    'error',
+    'error_description',
+  ].some((key) => params.has(key));
+
+  if (!hasCallbackParams) {
+    return null;
+  }
+
+  return {
+    type: params.get('type') || 'magiclink',
+    error: params.get('error_description') || params.get('error') || '',
+  };
+};
+
+export const clearAuthCallbackUrl = () => {
+  if (typeof window === 'undefined') return;
+  window.history.replaceState({}, document.title, window.location.pathname);
+};

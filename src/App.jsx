@@ -2,14 +2,22 @@ import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from
 import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
+import { fetchWorkflowItems as fetchWorkflowItemsService } from './services/workflowItems';
 import { Logger } from './utils/logger';
-import { isAdmin, isManager, canEditItem, getPagesRole, isPagesOnly } from './utils/auth';
+import {
+  isAdmin,
+  isManager,
+  canEditItem,
+  getPagesRole,
+  isPagesOnly,
+  getAuthCallbackContext,
+  clearAuthCallbackUrl,
+} from './utils/auth';
 import { exportCSV, exportJSON } from './utils/export';
 import {
   useWorkflowItems,
   useTodos,
   useWorkstreams,
-  useWebsiteProject,
   useWhiteboards,
   useEvents,
   useFilters,
@@ -28,7 +36,6 @@ import {
   STICKY_COLORS,
   SEED_USERS,
 } from './utils/config';
-import WebsiteView from './components/features/website/WebsiteView';
 
 // Import UI components
 import { Icon, Button, Badge, LoadingSpinner, ViewSwitcher, Pagination, ErrorBoundary, ListSkeleton, TableSkeleton } from './components/ui';
@@ -80,6 +87,11 @@ const AdminConsole = lazy(() => import('./components/features/admin/AdminConsole
 const ManagerHub = lazy(() => import('./components/features/manager/ManagerHub'));
 const PagesView = lazy(() => import('./components/features/pages/PagesView'));
 const RequestDashboard = lazy(() => import('./components/features/pages/dashboard/RequestDashboard'));
+const WebsiteRoute = lazy(() =>
+  import('./components/features/website/WebsiteRoute').then((module) => ({
+    default: module.WebsiteRoute,
+  }))
+);
 
 export default function App() {
   // Auth state from context
@@ -99,7 +111,6 @@ export default function App() {
   const items = useWorkflowItems();
   const todosHook = useTodos();
   const ws = useWorkstreams();
-  const websiteHook = useWebsiteProject();
   const wb = useWhiteboards();
   const ev = useEvents();
   const nav = useNavigation();
@@ -137,6 +148,7 @@ export default function App() {
 
   // User profiles cache
   const [userProfilesCache, setUserProfilesCache] = useState({});
+  const [authCallbackContext, setAuthCallbackContext] = useState(() => getAuthCallbackContext());
 
   const supabase = getSupabase();
 
@@ -172,7 +184,6 @@ export default function App() {
         todosHook.loadTodos(userEmail);
         ws.loadWorkstreams(userEmail);
         ws.loadWorkstreamTasks();
-        websiteHook.loadProject();
         ev.loadEvents();
       }
     }
@@ -225,10 +236,7 @@ export default function App() {
       ...whiteboardApi,
       ...productivityMethods,
       // Legacy methods still needed by some components
-      fetchWorkflowItems: async () => {
-        const { fetchWorkflowItems } = await import('./services/workflowItems');
-        return fetchWorkflowItems();
-      },
+      fetchWorkflowItems: fetchWorkflowItemsService,
       // Admin console methods — use getSupabase() at call time to avoid stale closure
       fetchUserProfiles: async () => {
         const sb = getSupabase();
@@ -250,6 +258,24 @@ export default function App() {
           .limit(limit);
         if (error) { Logger.error(error, 'Failed to fetch activity log'); return []; }
         return data || [];
+      },
+      logActivity: async (actionType, entityType, targetEmail, targetName, metadata = {}) => {
+        const sb = getSupabase();
+        if (!sb) return;
+        try {
+          await sb.from('activity_log').insert([{
+            action_type: actionType,
+            actor_email: userEmail || '',
+            actor_name: currentUser || null,
+            target_type: entityType,
+            target_id: targetEmail || null,
+            target_title: targetName || null,
+            details: metadata,
+            related_users: targetEmail ? [targetEmail] : [],
+          }]);
+        } catch (_) {
+          // Swallow logging errors so invite flows do not fail on audit issues.
+        }
       },
       // Teams CRUD
       fetchTeams: async () => {
@@ -284,7 +310,7 @@ export default function App() {
         return true;
       },
     };
-  }, [wb.whiteboardApi]);
+  }, [wb.whiteboardApi, currentUser, userEmail]);
 
   // Convert handlers (cross-hook coordination)
   const handleConvertToTask = useCallback(async (sourceItem, sourceType, formData) => {
@@ -414,6 +440,25 @@ export default function App() {
     if (success) nav.navigate('workstreams');
     return success;
   }, [ws, nav]);
+
+  const handleAuthCallbackContinue = useCallback(() => {
+    clearAuthCallbackUrl();
+    setAuthCallbackContext(null);
+  }, []);
+
+  if (authCallbackContext) {
+    return (
+      <AuthCallback
+        type={authCallbackContext.type}
+        initialError={authCallbackContext.error}
+        onContinue={handleAuthCallbackContinue}
+        supabase={supabase}
+        initSupabase={initSupabase}
+        Logger={Logger}
+        config={APP_CONFIG}
+      />
+    );
+  }
 
   // Auth check - show loading
   if (!authChecked) {
@@ -892,7 +937,7 @@ export default function App() {
         return (
           <ErrorBoundary key="admin" message="The admin console encountered an error.">
           <Suspense fallback={<LoadingSpinner />}>
-            <AdminConsole onBack={() => nav.navigate('dashboard')} currentUserEmail={userEmail} SUPABASE_API={SUPABASE_API} getSupabase={getSupabase} Logger={Logger} APP_CONFIG={APP_CONFIG} TEAMS={TEAMS} SEED_PROFILES={SEED_USERS} isAdmin={isAdmin} LoadingSpinner={LoadingSpinner} />
+            <AdminConsole onBack={() => nav.navigate('dashboard')} currentUserEmail={userEmail} SUPABASE_API={SUPABASE_API} logActivity={SUPABASE_API.logActivity} getSupabase={getSupabase} Logger={Logger} APP_CONFIG={APP_CONFIG} TEAMS={TEAMS} SEED_PROFILES={SEED_USERS} isAdmin={isAdmin} LoadingSpinner={LoadingSpinner} />
           </Suspense>
           </ErrorBoundary>
         );
@@ -975,7 +1020,9 @@ export default function App() {
       case 'website':
         return (
           <ErrorBoundary key="website" message="The website project view encountered an error.">
-            <WebsiteView websiteHook={websiteHook} />
+            <Suspense fallback={<LoadingSpinner />}>
+              <WebsiteRoute />
+            </Suspense>
           </ErrorBoundary>
         );
 

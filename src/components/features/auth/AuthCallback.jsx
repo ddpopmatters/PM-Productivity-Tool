@@ -1,5 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../ui/Icon';
+import { getAuthCallbackContext } from '../../../utils/auth';
+
+function isRlsError(error) {
+  if (!error) return false;
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return error.code === '42501' || message.includes('row-level security');
+}
+
+function isDuplicateKeyError(error) {
+  if (!error) return false;
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return error.code === '23505' || message.includes('duplicate key value');
+}
+
+function logClaimedAtWarning(Logger, error, context) {
+  if (Logger?.warn) {
+    Logger.warn(context, error);
+    return;
+  }
+
+  if (Logger?.error) {
+    Logger.error(error, context);
+  }
+}
 
 /**
  * AuthCallback - Handles auth callback URLs (email confirmation, password reset, etc.)
@@ -25,6 +49,7 @@ const AuthCallback = ({
   supabase,
   initSupabase,
   Logger,
+  initialError = '',
   config = {}
 }) => {
   const [status, setStatus] = useState('processing'); // 'processing', 'success', 'error', 'reset-password'
@@ -32,52 +57,125 @@ const AuthCallback = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [client, setClient] = useState(supabase || null);
 
   // Store onAuthChange in a ref to avoid stale closures and dependency issues
   const onAuthChangeRef = useRef(onAuthChange);
   onAuthChangeRef.current = onAuthChange;
 
   useEffect(() => {
+    if (supabase) {
+      setClient(supabase);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
     async function handleCallback() {
       try {
-        if (initSupabase) {
-          await initSupabase();
+        const callbackContext = getAuthCallbackContext();
+        const callbackError = initialError || callbackContext?.error || '';
+        const callbackType = type || callbackContext?.type || 'magiclink';
+
+        if (callbackError) {
+          setError(callbackError);
+          setStatus('error');
+          return;
         }
-        if (!supabase) {
+
+        const activeSupabase = supabase || (initSupabase ? await initSupabase() : null);
+
+        if (!activeSupabase) {
           setError('Unable to connect to authentication service.');
           setStatus('error');
           return;
         }
 
+        setClient(activeSupabase);
+
         // Get the session from URL (Supabase handles the token exchange)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await activeSupabase.auth.getSession();
 
         if (sessionError) {
           throw sessionError;
         }
 
-        if (type === 'recovery') {
+        if (callbackType === 'recovery') {
+          if (!session) {
+            setError('This password reset link is invalid or has expired.');
+            setStatus('error');
+            return;
+          }
+
           // Password reset - show password form
           setStatus('reset-password');
-        } else if (session) {
+          return;
+        }
+
+        if (session) {
           // Email confirmed or magic link - user is now signed in
           // Mark user as active by setting claimed_at
-          if (supabase && session.user?.email) {
+          if (session.user?.email) {
+            const email = session.user.email.toLowerCase();
+            const claimedAt = new Date().toISOString();
+
             try {
-              const email = session.user.email.toLowerCase();
-              const { data } = await supabase
+              const { data, error: selectError } = await activeSupabase
                 .from('user_profiles')
-                .select('claimed_at')
+                .select('email, claimed_at')
                 .eq('email', email)
-                .single();
-              if (data && !data.claimed_at) {
-                await supabase
+                .maybeSingle();
+
+              if (selectError) {
+                if (isRlsError(selectError)) {
+                  logClaimedAtWarning(Logger, selectError, `RLS blocked user_profiles lookup during auth callback for ${email}`);
+                } else if (Logger?.error) {
+                  Logger.error(selectError, `Failed to load user profile during auth callback for ${email}`);
+                }
+              } else if (!data) {
+                const { error: insertError } = await activeSupabase
                   .from('user_profiles')
-                  .update({ claimed_at: new Date().toISOString() })
-                  .eq('email', email);
+                  .insert({ email, claimed_at: claimedAt });
+
+                if (insertError) {
+                  if (isDuplicateKeyError(insertError)) {
+                    const { error: updateAfterInsertError } = await activeSupabase
+                      .from('user_profiles')
+                      .update({ claimed_at: claimedAt })
+                      .eq('email', email)
+                      .is('claimed_at', null);
+
+                    if (updateAfterInsertError) {
+                      if (isRlsError(updateAfterInsertError)) {
+                        logClaimedAtWarning(Logger, updateAfterInsertError, `RLS blocked claimed_at update during auth callback for ${email}`);
+                      } else if (Logger?.error) {
+                        Logger.error(updateAfterInsertError, `Failed to set claimed_at during auth callback for ${email}`);
+                      }
+                    }
+                  } else if (isRlsError(insertError)) {
+                    logClaimedAtWarning(Logger, insertError, `RLS blocked user_profiles insert during auth callback for ${email}`);
+                  } else if (Logger?.error) {
+                    Logger.error(insertError, `Failed to create missing user profile during auth callback for ${email}`);
+                  }
+                }
+              } else if (!data.claimed_at) {
+                const { error: updateError } = await activeSupabase
+                  .from('user_profiles')
+                  .update({ claimed_at: claimedAt })
+                  .eq('email', email)
+                  .is('claimed_at', null);
+
+                if (updateError) {
+                  if (isRlsError(updateError)) {
+                    logClaimedAtWarning(Logger, updateError, `RLS blocked claimed_at update during auth callback for ${email}`);
+                  } else if (Logger?.error) {
+                    Logger.error(updateError, `Failed to set claimed_at during auth callback for ${email}`);
+                  }
+                }
               }
             } catch (e) {
-              // Non-critical — don't block callback flow
+              if (Logger?.error) {
+                Logger.error(e, `Unexpected claimed_at handling failure during auth callback for ${email}`);
+              }
             }
           }
           setStatus('success');
@@ -96,7 +194,7 @@ const AuthCallback = ({
     }
 
     handleCallback();
-  }, [type, supabase, initSupabase, Logger]);
+  }, [type, supabase, initSupabase, Logger, initialError]);
 
   const handlePasswordReset = async (e) => {
     e.preventDefault();
@@ -113,7 +211,11 @@ const AuthCallback = ({
     setError('');
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      if (!client) {
+        throw new Error('Unable to connect to authentication service.');
+      }
+
+      const { error } = await client.auth.updateUser({
         password: newPassword
       });
 

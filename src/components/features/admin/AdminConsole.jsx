@@ -9,6 +9,7 @@ const AdminConsole = ({
   currentUserEmail,
   // Dependencies passed as props
   SUPABASE_API,
+  logActivity,
   getSupabase,
   Logger,
   APP_CONFIG,
@@ -115,7 +116,7 @@ const AdminConsole = ({
       }
 
       setInvites(prev => [...prev, { email, sentAt: new Date().toISOString(), status: 'sent' }]);
-      logActivity?.('invite_sent', 'user_profile', email, name, { invited_by: currentUserEmail });
+      await logActivity('invite_sent', 'user_profile', email, name, { invited_by: currentUserEmail });
       setMessage({ type: 'success', text: `Invitation email sent to ${email}!` });
       setInviteEmail('');
       forceUpdate(n => n + 1);
@@ -159,7 +160,7 @@ const AdminConsole = ({
       }
 
       setInvites(prev => [...prev, { email, sentAt: new Date().toISOString(), status: 'sent' }]);
-      logActivity?.('invite_sent', 'user_profile', email, name, { invited_by: currentUserEmail });
+      await logActivity('invite_sent', 'user_profile', email, name, { invited_by: currentUserEmail });
       setMessage({ type: 'success', text: `Invitation email sent to ${name}!` });
 
       const profiles = await SUPABASE_API.fetchUserProfiles();

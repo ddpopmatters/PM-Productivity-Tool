@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { validatePassword, getPasswordRequirements } from '../../../utils/security';
+import { getAuthRedirectUrl } from '../../../utils/auth';
 
 /**
  * LoginScreen - Authentication screen with sign in, sign up, and password reset
@@ -95,6 +96,9 @@ const LoginScreen = ({
       const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: password,
+        options: {
+          emailRedirectTo: getAuthRedirectUrl(),
+        },
       });
 
       if (error) throw error;
@@ -122,7 +126,7 @@ const LoginScreen = ({
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
-        { redirectTo: window.location.origin }
+        { redirectTo: getAuthRedirectUrl() }
       );
 
       if (error) throw error;

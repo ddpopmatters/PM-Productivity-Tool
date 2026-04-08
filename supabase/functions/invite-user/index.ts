@@ -13,6 +13,56 @@ const ALLOWED_ORIGINS = [
   'https://ddpopmatters.github.io',
   APP_URL
 ]
+const VALID_ROLES = ['admin', 'member', 'manager'] as const
+type ValidRole = (typeof VALID_ROLES)[number]
+
+function createAdminClient(supabaseUrl: string, serviceRoleKey: string) {
+  return createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
+function isDuplicateKeyError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) {
+    return false
+  }
+
+  return error.code === '23505'
+    || error.message?.toLowerCase().includes('duplicate key value') === true
+}
+
+function isValidRole(role: unknown): role is ValidRole {
+  return typeof role === 'string' && VALID_ROLES.some((candidate) => candidate === role)
+}
+
+async function findAuthUserByEmail(supabaseAdmin: AdminClient, normalizedEmail: string) {
+  const perPage = 200
+  let page = 1
+
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.error('List users error:', error)
+      return null
+    }
+
+    const users = data?.users ?? []
+    const match = users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail)
+    if (match) {
+      return match
+    }
+
+    if (users.length < perPage) {
+      return null
+    }
+
+    page += 1
+  }
+}
 
 function getCorsHeaders(origin: string | null): Record<string, string> {
   // Use exact origin matching for security (no prefix matching)
@@ -73,11 +123,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const supabaseAdmin = createClient(
-      supabaseUrl,
-      serviceRoleKey,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabaseAdmin = createAdminClient(supabaseUrl, serviceRoleKey)
 
     // Verify the calling user's token and check if they're admin
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
@@ -146,11 +192,18 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (role !== undefined && role !== null && !isValidRole(role)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid role. Must be admin, member, or manager.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const normalizedEmail = email.toLowerCase().trim()
+    const normalizedRole: ValidRole = isValidRole(role) ? role : 'member'
 
     // Check if user already exists in auth
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === normalizedEmail)
+    const existingUser = await findAuthUserByEmail(supabaseAdmin, normalizedEmail)
 
     if (existingUser) {
       // If resending, delete the old user and create a new invite
@@ -179,7 +232,7 @@ Deno.serve(async (req) => {
         data: {
           name: name || normalizedEmail.split('@')[0],
           team: team || '',
-          role: role || 'member'
+          role: normalizedRole
         },
         redirectTo: 'https://ddpopmatters.github.io/PM-Productivity-Tool/'
       }
@@ -193,17 +246,46 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Update or create the user_profiles record
-    await supabaseAdmin
+    // Preserve any admin-edited profile fields when resending an invite.
+    const invitedAt = new Date().toISOString()
+    const profilePayload = {
+      email: normalizedEmail,
+      name: name || normalizedEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase()),
+      team: team || '',
+      role: normalizedRole,
+      invited_at: invitedAt,
+      invited_by: user.email
+    }
+
+    const { error: insertProfileError } = await supabaseAdmin
       .from('user_profiles')
-      .upsert([{
-        email: normalizedEmail,
-        name: name || normalizedEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-        team: team || '',
-        role: role || 'member',
-        invited_at: new Date().toISOString(),
-        invited_by: user.email
-      }], { onConflict: 'email' })
+      .insert(profilePayload)
+
+    if (insertProfileError) {
+      if (!isDuplicateKeyError(insertProfileError)) {
+        console.error('Profile insert error:', insertProfileError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to store invited user profile' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { error: updateProfileError } = await supabaseAdmin
+        .from('user_profiles')
+        .update({
+          invited_at: invitedAt,
+          invited_by: user.email
+        })
+        .eq('email', normalizedEmail)
+
+      if (updateProfileError) {
+        console.error('Profile update error:', updateProfileError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to refresh invited user profile' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
 
     return new Response(
       JSON.stringify({
