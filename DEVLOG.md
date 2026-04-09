@@ -114,3 +114,12 @@ Changes:
 - Rebuilt the app and confirmed the main chunk dropped from 594.85 kB to 481.49 kB and the Vite large chunk warning no longer appears
 - Re-ran `npm run lint`, `npm test`, and `git diff --check`; all passed
 Status: Complete
+
+## 2026-04-09 — CI workflow follow-up
+Tool: Codex
+Branch: codex/release-readiness
+Changes:
+- Updated the Cloudflare Pages preview job to skip cleanly when Cloudflare staging secrets are unavailable in the current workflow context, instead of failing `wrangler pages deploy`
+- Fixed the Claude review workflow to use the supported `prompt` input and added `id-token: write` so the action can obtain its OIDC token
+- Re-ran `git diff --check` after the workflow edits and reviewed the targeted diffs for both workflow files
+Status: Complete
