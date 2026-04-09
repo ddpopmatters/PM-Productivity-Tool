@@ -123,3 +123,12 @@ Changes:
 - Fixed the Claude review workflow to use the supported `prompt` input and added `id-token: write` so the action can obtain its OIDC token
 - Re-ran `git diff --check` after the workflow edits and reviewed the targeted diffs for both workflow files
 Status: Complete
+
+## 2026-04-09 — Claude review token path fix
+Tool: Codex
+Branch: codex/release-readiness
+Changes:
+- Switched the Claude review workflow to pass `github_token: ${{ github.token }}` so the action can use the standard workflow token on PRs
+- Removed the now-unnecessary `id-token: write` permission after the action’s OIDC app-token exchange was blocked by GitHub workflow-validation rules
+- Re-checked the targeted workflow diff before committing the follow-up change
+Status: Complete
