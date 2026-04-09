@@ -132,3 +132,12 @@ Changes:
 - Removed the now-unnecessary `id-token: write` permission after the action’s OIDC app-token exchange was blocked by GitHub workflow-validation rules
 - Re-checked the targeted workflow diff before committing the follow-up change
 Status: Complete
+
+## 2026-04-09 — Claude review credential guard
+Tool: Codex
+Branch: codex/release-readiness
+Changes:
+- Added a preflight guard so the Claude review workflow exits cleanly when neither `CLAUDE_CODE_OAUTH_TOKEN` nor `ANTHROPIC_API_KEY` is configured in repository secrets
+- Wired the workflow to pass either supported Anthropic credential to the action when available, while keeping the standard `github.token` path for GitHub authentication
+- Re-checked the workflow diff after the guard change to keep the fix narrowly scoped to CI behaviour
+Status: Complete
