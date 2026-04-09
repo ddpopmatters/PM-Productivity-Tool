@@ -1,165 +1,143 @@
-## 2026-03-30 — Telegram bot interactive routing
+## 2026-04-08 — Ollama LLM integration: Telegram bot + digest
+Tool: Claude Code (claude-sonnet-4-6)
+Branch: feature/ollama-telegram-llm
+Changes:
+- relay/server.ts: Deno HTTPS proxy (port 8787) — forwards authenticated /chat requests to Ollama
+- supabase/functions/_shared/llm.ts: shared client, gracefully returns null when relay offline
+- telegram-bot: natural language task creation (tryParseTaskIntent), smart brain dump routing (suggestBrainDumpRoute), /summary command, pending_data session column
+- telegram-digest: LLM focus line prepended to morning digest when overdue/high-priority tasks exist
+- Migration 039: adds pending_data JSONB to telegram_sessions
+- ~/Library/LaunchAgents/com.pixeloffice.ollama-relay.plist: auto-starts relay on MacBook login
+- Permanent tunnel: ollama.uncommongrowth.co.uk via pixel-office named tunnel (ingress added)
+- E2E verified: Cloudflare → relay → MacBook Air Ollama (qwen3:4b) → 200 OK
+- All 3 Supabase secrets set; both functions deployed; migration 039 applied
+Status: Complete
 
+## 2026-04-08 — Deploy-readiness: migration state repair and CRON_SECRET rotation
 Tool: Claude Code (claude-sonnet-4-6)
 Branch: main
 Changes:
-- Added `supabase/functions/telegram-bot/index.ts`: Deno edge function with 8-destination inline keyboard routing; two-step workstream task picker; editMessageText confirmation flow
-- Added `supabase/migrations/033_brain_dumps_telegram_context.sql`: telegram_chat_id + telegram_message_id columns on brain_dumps for callback lookup without embedding IDs in button data
-- Applied migration to remote database; deployed edge function with --use-api (Docker bypass); registered webhook at jzalaltexmotkusvqoew.supabase.co/functions/v1/telegram-bot
-- Set TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, OWNER_NAME, OWNER_EMAIL secrets in Supabase project
+- Investigated `032_website_project_v2.sql` / `034_website_project_v2.sql` deletions: version-prefix collision with newer `032_expand_brain_dumps_routed_to_type.sql` / `034_telegram_sessions.sql`; DB already had new ones applied — v2 files correctly removed, deletions were intentional not accidental
+- Replaced hardcoded `CRON_SECRET` (`830a33ff…`) in `035_telegram_digest_cron.sql` with `__CRON_SECRET__` placeholder; old secret was in untracked working-tree file only, never committed to git
+- Rotated `CRON_SECRET` in Supabase secrets via CLI (`supabase secrets set`)
+- Created `038_update_cron_secret.sql` migration; applied to remote DB via `supabase db push --include-all` using patched secret in memory — placeholder restored after push, secret never persisted to repo
+- All validation passed: `git diff --check`, `npm ci --dry-run`, `npm audit` (0 vulns), `npm run lint`, `npm run build`, `deno check` (5 edge functions)
+- Pre-existing test failures (81): `act(...)` not supported in production React builds — NODE_ENV misconfiguration in test setup, unrelated to this session
 Status: Complete
 
-## 2026-03-30 — Invite claim and resend profile fixes
+## 2026-04-02 — Repository review for bugs and stale code
 Tool: Codex
 Branch: main
 Changes:
-- Updated `supabase/functions/invite-user/index.ts` so invite profile writes now insert new rows, but on duplicate email only refresh `invited_at` and `invited_by`, preserving existing `name`, `team`, and `role`
-- Updated `src/components/features/auth/AuthCallback.jsx` so invite claims create a missing `user_profiles` row with `email` and `claimed_at`, and handle duplicate-row races before falling back to a null-only `claimed_at` update
-- Updated `src/utils/logger.js` so `Logger.warn()` always emits, making RLS-denied invite claim writes visible in production logs
-- Ran `npm run build` successfully after implementation
+- Ran `npm test`, `npm run build`, and `npm run lint`; all passed, with a Vite chunk-size warning and one dynamic-import chunking warning
+- Reviewed the current uncommitted changes across deployment workflows, auth/admin invite flows, Telegram edge functions, and Supabase migrations
+- Flagged production and staging coupling in the invite and Telegram cron paths, plus a timezone regression in the Telegram digest callback flow
+- Flagged missing RLS on `telegram_sessions` and schema drift from deleted website-project migrations that are still required by the frontend
 Status: Complete
 
-## 2026-03-29 — Website project management v2 expansion
+## 2026-04-06 — Comprehensive repository audit
 Tool: Codex
 Branch: main
 Changes:
-- Added `supabase/migrations/031_website_project_v2.sql` for website page inventory fields, bespoke templates, page dependencies, decisions, indexes, triggers, and authenticated RLS policies
-- Extended `src/services/websiteProject.js` and `src/hooks/useWebsiteProject.js` with template, dependency, decision, and launch-readiness loading/mutation flows, plus the new website page fields
-- Added `PageInventory.jsx`, `TemplateTracker.jsx`, `DecisionsLog.jsx`, and `LaunchReadiness.jsx` to cover grouped page inventory management, template reuse tracking, decisions logging, and per-section launch progress
-- Updated `WebsiteView.jsx`, `BuildView.jsx`, and `OngoingView.jsx` to surface the new data through build/live tab bars while keeping the existing phase, registry, and change request flows intact
-- Ran `npm run build` successfully after implementation
+- Ran `npm test`, `npm run lint`, `npm run build`, `npm audit --audit-level=high`, and `deno check` across the Supabase edge functions
+- Confirmed the frontend checks pass, but captured build-time warnings for ineffective code-splitting and oversized chunks
+- Flagged a broken password-reset callback flow, auth-admin pagination gaps, and Telegram routing logic that assigns non-owner actions to the owner account
+- Flagged TypeScript check failures in the Deno edge functions and recorded the current high-severity transitive dependency advisories
 Status: Complete
 
-## 2026-03-29 — Website sitemap planner
+## 2026-04-06 — High-priority fix pass
 Tool: Codex
 Branch: main
 Changes:
-- Added `supabase/migrations/033_website_sitemap.sql` for `website_sitemap_nodes`, supporting indexes, the `updated_at` trigger, and authenticated RLS policies
-- Extended `src/services/websiteProject.js` and `src/hooks/useWebsiteProject.js` with sitemap node fetch/create/update/delete/import flows plus sitemap state and reload handlers
-- Added `src/components/features/website/SitemapView.jsx` with a 3-level sitemap tree, inline name and slug editing, linked-page resolution, node detail editing, and import-from-pages support
-- Updated `BuildView.jsx` and `OngoingView.jsx` to add the new Sitemap tab between the existing website planning tabs
-- Ran `npm run build` successfully after implementation
+- Wired Supabase callback handling back into the SPA so signup, invite, magic-link, and password-reset redirects land in the callback UI instead of falling through to the normal login/app shell
+- Updated auth redirect URLs to use the deployed app base path and hardened recovery handling for expired or invalid reset links
+- Fixed Telegram routing to use the registered chat user instead of the global owner account, and restricted workstream-task routing to workstreams the chat user can still access
+- Added paginated auth-user lookup helpers to the invite/delete edge functions and fixed the Deno typing issues so `deno check` now passes for all reviewed Supabase functions
 Status: Complete
 
-## 2026-03-29 — Website project management feature
+## 2026-04-07 — Dependency advisory cleanup
 Tool: Codex
 Branch: main
 Changes:
-- Added `supabase/migrations/030_create_website_project.sql` for website projects, fixed phases, tasks, pages, change requests, indexes, updated_at triggers, and authenticated RLS policies
-- Added `src/services/websiteProject.js` and `src/hooks/useWebsiteProject.js` to load the active website project, seed phases on creation, manage tasks/pages/change requests, and handle launch/archive flows
-- Added `src/components/features/website/` with the build-phase workflow, phase accordions, inline task management, live page registry, and post-launch change request management UI
-- Updated `src/App.jsx`, `src/hooks/useNavigation.js`, `src/hooks/index.js`, and `src/components/features/navigation/Sidebar.jsx` to register the Website route/view and sidebar navigation
-- Ran `npm run build` successfully after implementation
+- Added npm overrides for vulnerable `vite-plugin-pwa` transitives, resolving `lodash` and `serialize-javascript` advisories without removing PWA support
+- Updated Vite from 7.3.1 to 7.3.2 to clear the remaining high-severity Vite advisory
+- Removed the ineffective dynamic import of `workflowItems`, eliminating the related Vite chunking warning
+- Re-ran `npm audit --audit-level=high`, `npm test`, `npm run lint`, `npm run build`, and `deno check`; audit now reports 0 vulnerabilities
 Status: Complete
 
-## 2026-03-28 — Request dashboard HTML draft upload + preview
+## 2026-04-07 — Dependency cleanup follow-up
 Tool: Codex
 Branch: main
 Changes:
-- Added `BuilderDraftCard.jsx` so builders can upload `.html` drafts, see the latest uploaded file, and replace it with a newer version from the dashboard sidebar
-- Added `DraftPreviewPanel.jsx` at the top of the left column to surface the latest uploaded HTML draft and render it inline in a sandboxed 600px iframe on demand
-- Updated `RequestDashboard.jsx` to place the draft preview ahead of the brief and the builder upload card ahead of builder notes
-- Updated `FilesCard.jsx` to refresh when the parent dashboard request state refreshes, so newly uploaded draft files appear in the existing files list without a full reload
-- Ran `npm run build` successfully after the changes
+- Re-ran the full `npm audit` and confirmed 0 vulnerabilities across all severities
+- Updated `@supabase/supabase-js` from 2.100.1 to 2.101.0 within the existing v2 dependency line
+- Confirmed the only remaining `npm outdated` entries are major-version migration candidates rather than in-range security updates
+- Re-ran `npm test`, `npm run lint`, `npm run build`, and `deno check`; all passed, with the existing large bundle warning still present
 Status: Complete
 
-## 2026-03-28 — Request dashboard turn-based workflow
+## 2026-04-07 — Deploy readiness review
 Tool: Codex
 Branch: main
 Changes:
-- Updated `dashboardUtils.js` so `in_progress` now hands off to `first_draft` and added `getTurnInfo(request, pagesRole, feedbackItems)` for feedback-aware turn ownership and CTA metadata
-- Added `src/components/features/pages/dashboard/TurnBanner.jsx` and wired it into `RequestDashboard.jsx` below the health cards with builder/requester/approver/done states
-- Refactored `ActionsBar.jsx` to use turn-aware labels and actions, including requester re-submit on `needs_more_info`, approver review controls on `first_draft`, and feedback-gated revision submit actions
-- Passed `feedbackItems` through the dashboard shell so both the banner and sticky actions respond to revision round feedback state
-- Ran `npm run build` successfully after the changes
-Status: Complete
+- Classified the dirty worktree and separated recent auth/dependency/function changes from unrelated workflow, admin, logging, and local metadata edits
+- Reviewed the production GitHub Pages and staging Cloudflare Pages workflows, including their base-path and secret wiring
+- Flagged deployment blockers in the Supabase migration set: tracked website-project migrations are deleted and the Telegram digest cron migration contains a materialised cron secret
+- Re-ran `npm ci --dry-run`, `git diff --check`, and used the existing green test/lint/build/Deno checks as validation context
+Status: Blocked
 
-## 2026-03-28 — Request dashboard route + full-page view
+## 2026-04-08 — Telegram setup script hardening
 Tool: Codex
 Branch: main
 Changes:
-- Added `/pages/requests/:id` routing in `useNavigation.js` and wired both the main app shell and pages-only shell to render a lazy-loaded `RequestDashboard`
-- Updated `PagesView.jsx` so request clicks navigate to the full-page dashboard while keeping the new-request modal flow intact
-- Added `src/components/features/pages/dashboard/` with the routed dashboard, hero, milestone progress, health cards, brief/activity/files/timeline/contacts cards, sticky actions bar, and builder notes
-- Extended `landingPageRequests.js` with `updatePageUrl` and `appendStatusHistory`, and added migration `023_request_dashboard.sql` for `page_url` and `status_history`
-- Ran `npm run build` successfully after the changes
-Status: Complete
+- Updated `setup-telegram.sh` so it no longer prints `CRON_SECRET` values or writes substituted secrets back into repository migration files
+- Added guardrails that abort setup when the cron migration already contains a materialised secret or no longer has the `__CRON_SECRET__` placeholder
+- Disabled automatic database push from the script unless `SKIP_DB_PUSH=true`, keeping runtime-secret SQL out of normal repo mutation paths
+- Ran `bash -n setup-telegram.sh` and targeted secret-pattern checks after the script change
+Status: Blocked
 
-## 2026-03-28 — Pages Hub attachments + form accessibility
-Tool: Claude Sonnet 4.6
-Branch: main
-Changes:
-- Applied migration 022 — added `document_links jsonb` column to `landing_page_requests`, created `request_files` table with RLS policies (select/insert/delete)
-- Created `pages-hub-files` storage bucket with 3 storage policies (authenticated select/insert/delete)
-- Updated `NewRequestForm.jsx` — added document links section (dynamic URL + label inputs) and file attachments section (multi-file upload, pending list with remove)
-- Updated `landingPageRequests.js` — added `fetchRequestFiles`, `uploadRequestFile`, `getRequestFileUrl`, `deleteRequestFile` service functions
-- Made "New request" button + form available to all roles; builders/approvers retain Kanban board + "Your requests" section below
-Status: Complete — form submission verified end-to-end ✓
-
-## 2026-03-28 — Pages Hub feature integration
-Tool: Claude Sonnet 4.6 + Codex (implementer)
-Branch: main
-Changes:
-- Added `supabase/migrations/021_create_landing_pages.sql` — 3 new tables (landing_page_requests, revision_feedback, amendments) with RLS, enums, indexes, and updated_at trigger
-- Added `src/services/landingPageRequests.js` — 12 service functions for full request lifecycle
-- Added `getPagesRole(email)` to `src/utils/auth.js` — maps admin→builder, manager→approver, else→requester
-- Added `src/hooks/useLandingPageRequests.js` — role-scoped data fetching hook
-- Added `src/components/features/pages/` — full feature module: PagesView, KanbanBoard (7 cols), RequestList, RequestCard, RequestDetail, RequestTimeline, RequestStatusActions, AmendmentQueue, NewRequestForm, RevisionFeedbackForm, StatusBadge, PageTypeBadge
-- Updated `Sidebar.jsx` — added CAMPAIGNS section with Pages nav item
-- Updated `App.jsx` — lazy import PagesView, getPagesRole, added case 'pages' route
-Status: Complete — verified in browser ✓
-
-## 2026-03-28 — Pages Hub bug fixes + env config
-Tool: Claude Sonnet 4.6
-Branch: main
-Changes:
-- Applied `supabase/migrations/021_create_landing_pages.sql` to project `jzalaltexmotkusvqoew` — all 3 tables confirmed created
-- Wrote `.env` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` so app can authenticate
-- Fixed `src/hooks/useNavigation.js` — added `'pages': '/pages'` to `SIMPLE_ROUTES` (missing entry caused navigate('pages') to fall through to '/' and stay on Dashboard)
-- Fixed `src/App.jsx` — wrapped lazy `<PagesView>` in `<Suspense fallback={<LoadingSpinner />}>` (all other lazy views had this; pages case was missing it)
-Status: Complete — Pages Hub renders end-to-end: login → CAMPAIGNS → Pages → Kanban board (empty state, "Nothing here")
-
-## 2026-03-28 — Request dashboard comments + mentions
+## 2026-04-08 — Test environment release gate fix
 Tool: Codex
 Branch: main
 Changes:
-- Added `supabase/migrations/024_request_comments.sql` for the `request_comments` table, request index, RLS enablement, and authenticated access policy
-- Extended `src/services/landingPageRequests.js` with `fetchComments` and `addComment` using the existing `getSupabase()` and `Logger.error()` patterns
-- Added `src/components/features/pages/dashboard/CommentThread.jsx` with comment loading/posting, `@`-mention autocomplete from `SEED_USERS`, stored mention emails, and highlighted mentions in rendered comments
-- Wired `CommentThread` into `RequestDashboard.jsx` below the activity feed in the left column
-- Ran `npm run build` successfully after the changes
+- Updated the npm test scripts to force `NODE_ENV=test` before launching Vitest so inherited production shells do not load React production builds
+- Reproduced the 81 `act(...)` failures with `NODE_ENV=production npm test` before the fix and confirmed the same command passes afterward
+- Re-ran `npm test`, `npm ci --dry-run`, `npm audit --audit-level=high`, `npm run lint`, `npm run build`, and `deno check`; all passed
+- Noted the remaining Vite large chunk warning during production build
 Status: Complete
 
-## 2026-03-28 — Landing page copy brief fields
+## 2026-04-08 — Initial bundle split for website route
 Tool: Codex
 Branch: main
 Changes:
-- Added `supabase/migrations/025_copy_brief_fields.sql` for the new copy brief columns on `landing_page_requests`
-- Extended `NewRequestForm.jsx` with a new Copy brief section, including conditional donate-only price point rows and submit-time serialisation for all five fields
-- Updated `landingPageRequests.js` so `createRequest()` persists the new copy brief payload to Supabase
-- Extended dashboard brief rendering in `dashboardUtils.js` and `BriefPanel.jsx` so populated copy fields appear under a dedicated "Copy brief" subheading
-- Ran `npm run build` successfully after the changes
+- Moved the website project hook/view behind a lazy `WebsiteRoute` boundary so website code is not pulled into the initial app chunk
+- Removed the eager website project load from the app startup path; website data now loads when the website route mounts
+- Rebuilt the app and confirmed the main chunk dropped from 594.85 kB to 481.49 kB and the Vite large chunk warning no longer appears
+- Re-ran `npm run lint`, `npm test`, and `git diff --check`; all passed
 Status: Complete
 
-## 2026-03-29 — Brain Dump Inbox view added to Momentum Hub
-
-Tool: Claude Code (claude-sonnet-4-6)
-Branch: feature/content-hub-style-migration
-
-Changes:
-- Added `BrainDumpInbox.jsx` component — loads pending brain_dumps from Supabase, shows source/age tags, routes to workstream tasks, park, or archive
-- Wired into navigation: `/braindump` route, "Brain Dump Inbox" sidebar item (below Workstreams)
-- Exports added to features index
-
-Status: Complete (runtime tested — routing to workstream confirmed working)
-
-## 2026-03-30 — Invite flow fixes
+## 2026-04-09 — CI workflow follow-up
 Tool: Codex
-Branch: main
+Branch: codex/release-readiness
 Changes:
-- Updated `supabase/functions/invite-user/index.ts` and `supabase/functions/delete-invite/index.ts` to use `listUsers({ perPage: 1000 })` so invite lookups cover the full internal user base
-- Added invite role validation in `supabase/functions/invite-user/index.ts` so invalid role values return a 400 before touching `user_profiles`
-- Added `SUPABASE_API.logActivity()` in `src/App.jsx` to insert invite activity rows into `activity_log`, and passed it into `AdminConsole`
-- Updated `src/components/features/admin/AdminConsole.jsx` to accept `logActivity` and record invite-send actions from both invite entry points
-- Ran `npm run build` successfully after the changes
+- Updated the Cloudflare Pages preview job to skip cleanly when Cloudflare staging secrets are unavailable in the current workflow context, instead of failing `wrangler pages deploy`
+- Fixed the Claude review workflow to use the supported `prompt` input and added `id-token: write` so the action can obtain its OIDC token
+- Re-ran `git diff --check` after the workflow edits and reviewed the targeted diffs for both workflow files
+Status: Complete
+
+## 2026-04-09 — Claude review token path fix
+Tool: Codex
+Branch: codex/release-readiness
+Changes:
+- Switched the Claude review workflow to pass `github_token: ${{ github.token }}` so the action can use the standard workflow token on PRs
+- Removed the now-unnecessary `id-token: write` permission after the action’s OIDC app-token exchange was blocked by GitHub workflow-validation rules
+- Re-checked the targeted workflow diff before committing the follow-up change
+Status: Complete
+
+## 2026-04-09 — Claude review credential guard
+Tool: Codex
+Branch: codex/release-readiness
+Changes:
+- Added a preflight guard so the Claude review workflow exits cleanly when neither `CLAUDE_CODE_OAUTH_TOKEN` nor `ANTHROPIC_API_KEY` is configured in repository secrets
+- Wired the workflow to pass either supported Anthropic credential to the action when available, while keeping the standard `github.token` path for GitHub authentication
+- Re-checked the workflow diff after the guard change to keep the fix narrowly scoped to CI behaviour
 Status: Complete

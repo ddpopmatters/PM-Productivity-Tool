@@ -1,10 +1,13 @@
-# Build and deploy to GitHub Pages
-name: Deploy to GitHub Pages
+# Build and promote GitHub Pages production deployment
+name: Promote GitHub Pages production
 
 on:
-  push:
-    branches: ['main']
   workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'Git ref to promote to production'
+        required: true
+        default: 'main'
 
 permissions:
   contents: read
@@ -12,7 +15,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: 'pages'
+  group: 'momentum-hub-production'
   cancel-in-progress: true
 
 jobs:
@@ -21,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -36,6 +41,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_BASE_PATH: /PM-Productivity-Tool/
 
       - name: Create 404.html for SPA routing
         run: cp dist/index.html dist/404.html

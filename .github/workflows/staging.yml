@@ -1,0 +1,92 @@
+name: Deploy Cloudflare Pages staging
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: momentum-hub-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build preview bundle
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.STAGING_VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.STAGING_VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_BASE_PATH: /
+        run: npm run build
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Prepare branch alias
+        run: echo "DEPLOY_BRANCH=${GITHUB_HEAD_REF//\//-}" >> "$GITHUB_ENV"
+
+      - name: Deploy preview to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_PROJECT: ${{ secrets.CF_PAGES_STAGING_PROJECT }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$CF_PAGES_PROJECT" ]; then
+            echo "Skipping preview deploy because Cloudflare staging secrets are unavailable in this workflow context."
+            exit 0
+          fi
+
+          wrangler pages deploy dist \
+            --project-name "$CF_PAGES_PROJECT" \
+            --branch "$DEPLOY_BRANCH"
+
+  staging:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build staging bundle
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.STAGING_VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.STAGING_VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_BASE_PATH: /
+        run: npm run build
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Deploy staging to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_PROJECT: ${{ secrets.CF_PAGES_STAGING_PROJECT }}
+        run: wrangler pages deploy dist --project-name "$CF_PAGES_PROJECT"

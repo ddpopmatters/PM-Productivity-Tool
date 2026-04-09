@@ -14,6 +14,41 @@ const ALLOWED_ORIGINS = [
   APP_URL
 ]
 
+function createAdminClient(supabaseUrl: string, serviceRoleKey: string) {
+  return createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
+async function findAuthUserByEmail(supabaseAdmin: AdminClient, normalizedEmail: string) {
+  const perPage = 200
+  let page = 1
+
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+    if (error) {
+      console.error('List users error:', error)
+      return null
+    }
+
+    const users = data?.users ?? []
+    const match = users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail)
+    if (match) {
+      return match
+    }
+
+    if (users.length < perPage) {
+      return null
+    }
+
+    page += 1
+  }
+}
+
 function getCorsHeaders(origin: string | null): Record<string, string> {
   // Use exact origin matching for security (no prefix matching)
   const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin)
@@ -72,11 +107,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const supabaseAdmin = createClient(
-      supabaseUrl,
-      serviceRoleKey,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabaseAdmin = createAdminClient(supabaseUrl, serviceRoleKey)
 
     // Verify the calling user's token and check if they're admin
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
@@ -153,8 +184,7 @@ Deno.serve(async (req) => {
     }
 
     // Find user in auth
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const targetUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === normalizedEmail)
+    const targetUser = await findAuthUserByEmail(supabaseAdmin, normalizedEmail)
 
     // Delete from auth.users if exists
     if (targetUser) {
