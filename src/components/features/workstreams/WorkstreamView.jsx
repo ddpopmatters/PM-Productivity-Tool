@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 
-const TaskCard = ({ task, showDeadline, onDragStart, onClick, onToggleStatus, isDragging }) => (
+const TaskCard = ({ task, showDeadline, onDragStart, onDragEnd, onClick, onToggleStatus, isDragging }) => (
   <div
     draggable
     onDragStart={() => onDragStart(task)}
+    onDragEnd={onDragEnd}
     onClick={() => onClick(task.id)}
     className={clsx(
       "bg-white rounded-lg border border-graystone-200 p-3 cursor-pointer hover:shadow-md hover:border-ocean-300 transition group",
@@ -223,12 +224,18 @@ const WorkstreamView = ({
     setDraggedTask(task);
   };
 
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+  };
+
   const handleDragOver = (e) => {
     e.preventDefault();
   };
 
   const handleDropOnPriority = async (targetPriority) => {
     if (!draggedTask) return;
+    const taskToMove = draggedTask;
+    setDraggedTask(null);
 
     const targetList = targetPriority === 'high' ? highPriority
       : targetPriority === 'medium' ? mediumPriority
@@ -240,12 +247,10 @@ const WorkstreamView = ({
       priority: targetPriority,
       sortOrder: newSortOrder,
     };
-    if (draggedTask.deadline) {
+    if (taskToMove.deadline) {
       updates.deadline = null;
     }
-    await onUpdateTask(draggedTask.id, workstream.id, updates);
-
-    setDraggedTask(null);
+    await onUpdateTask(taskToMove.id, workstream.id, updates);
   };
 
   const handleDropOnTimeSensitive = () => {
@@ -279,6 +284,7 @@ const WorkstreamView = ({
       task={task}
       showDeadline={showDeadline}
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={onOpenTask}
       onToggleStatus={handleToggleStatus}
       isDragging={!!draggedTask}

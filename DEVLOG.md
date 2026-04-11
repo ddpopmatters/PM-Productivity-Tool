@@ -160,3 +160,13 @@ Changes:
 - Added regression tests for dashboard scoping, planner navigation, and failed-save recovery in the workstream task detail view
 - Re-ran targeted tests, full `npm test`, `npm run lint`, `npm run build`, and `git diff --check`
 Status: Complete
+
+## 2026-04-11 — Workstream drag fix
+Tool: Codex
+Branch: main
+Changes:
+- Fixed the workstream board drag lifecycle so canceled drags and slow async drops no longer leave the board stuck in dragging mode
+- Cleared drag state on `dragend` and immediately when a priority-drop starts processing
+- Added a regression test covering canceled drags and in-flight drop updates in `WorkstreamView.test.jsx`
+- Re-ran targeted tests, lint, and `git diff --check`
+Status: Complete
