@@ -21,6 +21,7 @@ import Badge from '../../ui/Badge';
  * @param {Array} workstreams - Array of workstream objects
  * @param {string} currentUser - Current user name
  * @param {function} onOpenEntry - Callback to open an entry
+ * @param {function} onOpenWorkstreamTask - Callback to open a workstream task
  */
 const ToDoList = ({
   todos = [],
@@ -31,6 +32,7 @@ const ToDoList = ({
   workstreams = [],
   currentUser,
   onOpenEntry,
+  onOpenWorkstreamTask,
   selectBaseClasses = "px-3 py-2 border border-graystone-300 rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none"
 }) => {
   const [newTodoText, setNewTodoText] = useState('');
@@ -200,8 +202,9 @@ const ToDoList = ({
     } else if (item.itemSource === 'project' || item.itemSource === 'task') {
       // Open entry detail
       if (onOpenEntry) onOpenEntry(item.id);
+    } else if (item.itemSource === 'workstream') {
+      if (onOpenWorkstreamTask) onOpenWorkstreamTask(item.workstream_id, item.id);
     }
-    // Workstream tasks - could add navigation later
   };
 
   const renderDayCell = (day, compact = false) => {

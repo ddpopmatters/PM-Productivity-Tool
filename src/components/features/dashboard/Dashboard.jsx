@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Icon } from '../../ui';
 import DashboardCalendar from './DashboardCalendar';
 import TodaysTasks from './TodaysTasks';
@@ -73,6 +73,13 @@ export default function Dashboard({
     [entries, currentUser]
   );
 
+  const myWorkstreamTasks = useMemo(
+    () => (workstreamTasks || []).filter((task) =>
+      task.assignee === currentUser || task.assignee_email === userEmail
+    ),
+    [workstreamTasks, currentUser, userEmail]
+  );
+
   // Calendar scheduled items lookup
   const getScheduledItems = (dateStr) => {
     const items = [];
@@ -96,7 +103,7 @@ export default function Dashboard({
       if (t.completed) return;
       if (t.date === dateStr) items.push({ type: 'todo', ...t });
     });
-    (workstreamTasks || []).forEach((t) => {
+    myWorkstreamTasks.forEach((t) => {
       if (t.status === 'done') return;
       if (t.deadline && t.deadline.slice(0, 10) === dateStr) items.push({ type: 'workstream', ...t });
     });
@@ -114,8 +121,8 @@ export default function Dashboard({
     [myJobs, today]
   );
   const workstreamTasksForToday = useMemo(
-    () => (workstreamTasks || []).filter((t) => t.status !== 'done' && t.deadline?.slice(0, 10) === today),
-    [workstreamTasks, today]
+    () => myWorkstreamTasks.filter((t) => t.status !== 'done' && t.deadline?.slice(0, 10) === today),
+    [myWorkstreamTasks, today]
   );
   const todaysTasks = useMemo(
     () => [
@@ -181,20 +188,20 @@ export default function Dashboard({
     return new Date(timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   };
 
-  const openTaskList = (type) => {
+  const openTaskList = useCallback((type) => {
     setTaskListType(type);
     if (type === 'projects') setTaskListItems(myProjects);
     else if (type === 'subtasks') setTaskListItems(mySubtasks.map((st) => ({ ...st, isSubtask: true })));
     else if (type === 'jobs') setTaskListItems(myJobs);
-    else if (type === 'workstream') setTaskListItems((workstreamTasks || []).map((t) => ({ ...t, isWorkstreamTask: true })));
+    else if (type === 'workstream') setTaskListItems(myWorkstreamTasks.map((t) => ({ ...t, isWorkstreamTask: true })));
     setShowTaskListModal(true);
-  };
+  }, [myProjects, mySubtasks, myJobs, myWorkstreamTasks]);
 
   const statCards = [
     { type: 'projects', label: 'Projects', count: myProjects.length, icon: 'folder', sub: 'View all' },
     { type: 'subtasks', label: 'Subtasks', count: mySubtasks.length, icon: 'list-checks', sub: 'Assigned to you' },
     { type: 'jobs', label: 'Tasks', count: myJobs.length, icon: 'briefcase', sub: 'View all' },
-    { type: 'workstream', label: 'Workstream Tasks', count: (workstreamTasks || []).filter((t) => t.status !== 'done').length, icon: 'layers', sub: 'Assigned to you' },
+    { type: 'workstream', label: 'Workstream Tasks', count: myWorkstreamTasks.filter((t) => t.status !== 'done').length, icon: 'layers', sub: 'Assigned to you' },
   ];
 
   return (

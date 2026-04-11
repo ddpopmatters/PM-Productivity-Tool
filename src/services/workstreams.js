@@ -22,12 +22,14 @@ export async function fetchWorkstreams(email) {
   return data || [];
 }
 
-export async function fetchWorkstreamTasks() {
+export async function fetchWorkstreamTasks(workstreamIds = []) {
   const supabase = getSupabase();
   if (!supabase) return [];
+  if (!Array.isArray(workstreamIds) || workstreamIds.length === 0) return [];
   const { data, error } = await supabase
     .from('workstream_tasks')
     .select('*')
+    .in('workstream_id', workstreamIds)
     .order('created_at', { ascending: false });
   if (error) {
     if (error.code !== '42P01') {

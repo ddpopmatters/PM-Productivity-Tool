@@ -8,11 +8,16 @@ export function useWorkstreams() {
   const loadWorkstreams = useCallback(async (email) => {
     const data = await service.fetchWorkstreams(email);
     setWorkstreams(data);
+    return data;
   }, []);
 
-  const loadWorkstreamTasks = useCallback(async () => {
-    const data = await service.fetchWorkstreamTasks();
+  const loadWorkstreamTasks = useCallback(async (workstreamListOrIds = []) => {
+    const workstreamIds = workstreamListOrIds.map
+      ? workstreamListOrIds.map((workstream) => typeof workstream === 'string' ? workstream : workstream.id).filter(Boolean)
+      : [];
+    const data = await service.fetchWorkstreamTasks(workstreamIds);
     setWorkstreamTasks(data);
+    return data;
   }, []);
 
   const handleCreateWorkstream = useCallback(async (workstreamData, userEmail) => {

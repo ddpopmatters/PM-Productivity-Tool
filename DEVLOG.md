@@ -141,3 +141,22 @@ Changes:
 - Wired the workflow to pass either supported Anthropic credential to the action when available, while keeping the standard `github.token` path for GitHub authentication
 - Re-checked the workflow diff after the guard change to keep the fix narrowly scoped to CI behaviour
 Status: Complete
+
+## 2026-04-11 — Workstream review pass
+Tool: Codex
+Branch: main
+Changes:
+- Reviewed the workstream hook, service layer, detail view, list view, and app routing integration for remaining defects
+- Identified a task/workstream route mismatch bug, over-broad dashboard/search scoping for workstream tasks, and stale local state after failed task updates
+- Confirmed there are no workstream-focused behaviour tests beyond route parsing in `useNavigation.test.jsx`
+Status: Complete
+
+## 2026-04-11 — Workstream fix pass
+Tool: Codex
+Branch: main
+Changes:
+- Scoped workstream task loading to accessible workstreams, and tightened task-detail routing so a task must belong to the selected workstream
+- Filtered dashboard workstream counts/lists to tasks assigned to the current user and wired planner workstream items to open their task detail
+- Added regression tests for dashboard scoping, planner navigation, and failed-save recovery in the workstream task detail view
+- Re-ran targeted tests, full `npm test`, `npm run lint`, `npm run build`, and `git diff --check`
+Status: Complete

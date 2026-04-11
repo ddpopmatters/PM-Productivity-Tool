@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import clsx from 'clsx';
 import Icon from '../../ui/Icon';
 
@@ -15,7 +15,6 @@ const WorkstreamTaskDetail = ({
   USERS,
   USERS_WITH_EMAILS
 }) => {
-  const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
   const [priority, setPriority] = useState(task.priority);
   const [status, setStatus] = useState(task.status);
@@ -32,11 +31,33 @@ const WorkstreamTaskDetail = ({
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [linkSearch, setLinkSearch] = useState('');
 
+  const syncTaskState = useCallback((nextTask) => {
+    setDescription(nextTask.description || '');
+    setPriority(nextTask.priority);
+    setStatus(nextTask.status);
+    setDeadline(nextTask.deadline || '');
+    setAssignee(nextTask.assignee || '');
+    setRequester(nextTask.requester || '');
+    setTags(nextTask.tags || []);
+    setComments(nextTask.comments || []);
+    setLinkedItems(nextTask.linked_items || []);
+  }, []);
+
+  useEffect(() => {
+    syncTaskState(task);
+  }, [task, syncTaskState]);
+
   const handleSave = async (updates) => {
     try {
-      await onUpdate(task.id, workstream.id, updates);
+      const updated = await onUpdate(task.id, workstream.id, updates);
+      if (!updated) {
+        syncTaskState(task);
+        return false;
+      }
+      return true;
     } catch {
-      // Silent fail — field reverts on next render from parent state
+      syncTaskState(task);
+      return false;
     }
   };
 

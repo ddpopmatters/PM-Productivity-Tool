@@ -182,8 +182,8 @@ export default function App() {
       await items.loadEntries();
       if (userEmail) {
         todosHook.loadTodos(userEmail);
-        ws.loadWorkstreams(userEmail);
-        ws.loadWorkstreamTasks();
+        const accessibleWorkstreams = await ws.loadWorkstreams(userEmail);
+        ws.loadWorkstreamTasks(accessibleWorkstreams);
         ev.loadEvents();
       }
     }
@@ -895,7 +895,7 @@ export default function App() {
       case 'todo':
         return (
           <ErrorBoundary key="todo" message="The to-do list encountered an error.">
-          <ToDoList todos={todosHook.todos} onToggleTodo={todosHook.toggleTodo} onAddTodo={handleAddTodo} onUpdateTodo={todosHook.updateTodo} onDeleteTodo={todosHook.deleteTodo} entries={items.entries} workstreamTasks={ws.workstreamTasks} workstreams={ws.workstreams} currentUser={currentUser} onOpenEntry={nav.openEntry} />
+          <ToDoList todos={todosHook.todos} onToggleTodo={todosHook.toggleTodo} onAddTodo={handleAddTodo} onUpdateTodo={todosHook.updateTodo} onDeleteTodo={todosHook.deleteTodo} entries={items.entries} workstreamTasks={ws.workstreamTasks} workstreams={ws.workstreams} currentUser={currentUser} onOpenEntry={nav.openEntry} onOpenWorkstreamTask={nav.openWorkstreamTask} />
           </ErrorBoundary>
         );
 
@@ -1086,7 +1086,9 @@ export default function App() {
 
       case 'workstream-task-detail': {
         const selectedWorkstream = ws.workstreams.find(w => w.id === nav.selectedWorkstreamId);
-        const selectedTask = ws.workstreamTasks.find(t => t.id === nav.selectedWorkstreamTaskId);
+        const selectedTask = ws.workstreamTasks.find(
+          (t) => t.id === nav.selectedWorkstreamTaskId && t.workstream_id === nav.selectedWorkstreamId
+        );
         if (!selectedWorkstream || !selectedTask) {
           return (
             <div className="text-center py-12">
@@ -1098,7 +1100,7 @@ export default function App() {
         }
         return (
           <ErrorBoundary key={`ws-task-${nav.selectedWorkstreamTaskId}`} message="This task encountered an error.">
-          <WorkstreamTaskDetail task={selectedTask} workstream={selectedWorkstream} currentUser={currentUser} userEmail={userEmail} entries={items.entries} onBack={nav.goBack} onUpdate={async (taskId, _wsId, updates) => { await ws.updateWorkstreamTask(taskId, updates); }} onDelete={async (taskId) => { return await ws.deleteWorkstreamTask(taskId); }} onConvert={(item, type) => modals.openConvertModal(item, type)} USERS={USERS} USERS_WITH_EMAILS={SEED_USERS} />
+          <WorkstreamTaskDetail task={selectedTask} workstream={selectedWorkstream} currentUser={currentUser} userEmail={userEmail} entries={items.entries} onBack={nav.goBack} onUpdate={(taskId, _wsId, updates) => ws.updateWorkstreamTask(taskId, updates)} onDelete={async (taskId) => { return await ws.deleteWorkstreamTask(taskId); }} onConvert={(item, type) => modals.openConvertModal(item, type)} USERS={USERS} USERS_WITH_EMAILS={SEED_USERS} />
           </ErrorBoundary>
         );
       }
