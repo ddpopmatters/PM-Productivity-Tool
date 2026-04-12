@@ -12,6 +12,7 @@ const SIMPLE_ROUTES = {
   'admin': '/admin',
   'manager-hub': '/manager',
   'whiteboards': '/whiteboards',
+  'mindmaps': '/mindmaps',
   'workstreams': '/workstreams',
   'website': '/website',
   'productivity-tools': '/productivity',
@@ -42,6 +43,9 @@ function parseLocation(pathname) {
   if (parts[0] === 'whiteboards' && parts[1]) {
     return { view: 'whiteboard-canvas', params: { whiteboardId: parts[1] } };
   }
+  if (parts[0] === 'mindmaps' && parts[1]) {
+    return { view: 'mindmap-editor', params: { mindmapId: parts[1] } };
+  }
   if (parts[0] === 'pages' && parts[1] === 'requests' && parts[2]) {
     return { view: 'pages-request', params: { requestId: parts[2] } };
   }
@@ -59,6 +63,8 @@ function buildPath(view, params = {}) {
       return `/workstreams/${params.workstreamId || params.wsId}/tasks/${params.taskId}`;
     case 'whiteboard-canvas':
       return `/whiteboards/${params.whiteboardId || params.id}`;
+    case 'mindmap-editor':
+      return `/mindmaps/${params.mindmapId || params.id}`;
     case 'pages-request':
       return `/pages/requests/${params.requestId || params.id}`;
     default:
@@ -83,6 +89,7 @@ export function useNavigation() {
   const selectedWorkstreamId = (currentView === 'workstream-detail' || currentView === 'workstream-task-detail') ? params.workstreamId : null;
   const selectedWorkstreamTaskId = currentView === 'workstream-task-detail' ? params.taskId : null;
   const selectedWhiteboardId = currentView === 'whiteboard-canvas' ? params.whiteboardId : null;
+  const selectedMindmapId = currentView === 'mindmap-editor' ? params.mindmapId : null;
   const selectedRequestId = currentView === 'pages-request' ? params.requestId : null;
 
   const navigate = useCallback((view) => {
@@ -111,6 +118,10 @@ export function useNavigation() {
     routerNavigate(buildPath('whiteboard-canvas', { whiteboardId }));
   }, [routerNavigate]);
 
+  const openMindmap = useCallback((mindmapId) => {
+    routerNavigate(buildPath('mindmap-editor', { mindmapId }));
+  }, [routerNavigate]);
+
   const openRequest = useCallback((id) => {
     routerNavigate(buildPath('pages-request', { requestId: id }));
   }, [routerNavigate]);
@@ -123,6 +134,7 @@ export function useNavigation() {
     selectedWorkstreamId,
     selectedWorkstreamTaskId,
     selectedWhiteboardId,
+    selectedMindmapId,
     selectedRequestId,
     navigate,
     goBack,
@@ -130,6 +142,7 @@ export function useNavigation() {
     openWorkstreamTask,
     openWorkstreamDetail,
     openWhiteboard,
+    openMindmap,
     openRequest,
   };
 }
