@@ -7,6 +7,7 @@ import PageInventory from './PageInventory';
 import SitemapView from './SitemapView';
 import TemplateTracker from './TemplateTracker';
 import DecisionsLog from './DecisionsLog';
+import MindmapList from '../mindmaps/MindmapList';
 
 const PROJECT_STATUS_META = {
   planning: { label: 'Planning', badge: 'neutral' },
@@ -26,6 +27,10 @@ export default function BuildView({
   isAdminUser,
   handlers,
   userEmail,
+  mindmaps = [],
+  setMindmaps,
+  mindmapApi,
+  onOpenMindmap,
 }) {
   const [activeTab, setActiveTab] = useState('phases');
   const allTasks = useMemo(() => Object.values(tasks).flat(), [tasks]);
@@ -41,6 +46,7 @@ export default function BuildView({
     { id: 'sitemap', label: 'Sitemap' },
     { id: 'templates', label: 'Templates' },
     { id: 'decisions', label: 'Decisions' },
+    { id: 'mindmaps', label: 'Mindmaps' },
   ];
 
   const handleLaunch = async () => {
@@ -164,6 +170,16 @@ export default function BuildView({
           isAdminUser={isAdminUser}
           userEmail={userEmail}
           handlers={handlers}
+        />
+      ) : null}
+
+      {activeTab === 'mindmaps' ? (
+        <MindmapList
+          mindmaps={mindmaps}
+          setMindmaps={setMindmaps}
+          onOpenMindmap={onOpenMindmap}
+          userEmail={userEmail}
+          mindmapApi={mindmapApi}
         />
       ) : null}
     </div>

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { Globe, Plus, GitBranch } from 'lucide-react';
+import { Globe, Plus } from 'lucide-react';
 import LoadingSpinner from '../../ui/LoadingSpinner';
 import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
 import BuildView from './BuildView';
 import OngoingView from './OngoingView';
-import MindmapList from '../mindmaps/MindmapList';
 
 const FIELD_CLASSES =
   'w-full rounded-lg border border-graystone-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-aqua-200';
@@ -17,11 +16,6 @@ function createBlankProjectForm() {
     lead_email: '',
   };
 }
-
-const TABS = [
-  { id: 'website', label: 'Website', icon: Globe },
-  { id: 'mindmaps', label: 'Mindmaps', icon: GitBranch },
-];
 
 export default function WebsiteView({ websiteHook, mindmaps = [], setMindmaps, mindmapApi, onOpenMindmap }) {
   const {
@@ -42,47 +36,8 @@ export default function WebsiteView({ websiteHook, mindmaps = [], setMindmaps, m
     ...handlers
   } = websiteHook;
 
-  const [activeTab, setActiveTab] = useState('website');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [projectForm, setProjectForm] = useState(createBlankProjectForm());
-
-  const tabBar = (
-    <div className="flex gap-1 border-b border-graystone-200">
-      {TABS.map((tab) => {
-        const Icon = tab.icon;
-        const active = activeTab === tab.id;
-        return (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              active
-                ? 'border-ocean-600 text-ocean-700'
-                : 'border-transparent text-graystone-500 hover:text-ocean-700'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  if (activeTab === 'mindmaps') {
-    return (
-      <div className="space-y-6">
-        {tabBar}
-        <MindmapList
-          mindmaps={mindmaps}
-          setMindmaps={setMindmaps}
-          onOpenMindmap={onOpenMindmap}
-          userEmail={userEmail}
-          mindmapApi={mindmapApi}
-        />
-      </div>
-    );
-  }
 
   if (loading) {
     return <LoadingSpinner className="py-16" text="Loading website project..." />;
@@ -186,7 +141,6 @@ export default function WebsiteView({ websiteHook, mindmaps = [], setMindmaps, m
 
   return (
     <div className="space-y-6">
-      {tabBar}
       {error ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {error}
@@ -232,6 +186,10 @@ export default function WebsiteView({ websiteHook, mindmaps = [], setMindmaps, m
           isAdminUser={isAdminUser}
           handlers={sharedHandlers}
           userEmail={userEmail}
+          mindmaps={mindmaps}
+          setMindmaps={setMindmaps}
+          mindmapApi={mindmapApi}
+          onOpenMindmap={onOpenMindmap}
         />
       ) : null}
 
