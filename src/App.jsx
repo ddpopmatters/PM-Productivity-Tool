@@ -26,6 +26,7 @@ import {
   useKeyboardShortcuts,
   useNotifications,
 } from './hooks';
+import { useMindmaps } from './hooks/useMindmaps';
 import {
   APP_CONFIG,
   USERS,
@@ -83,6 +84,7 @@ import {
 const GanttView = lazy(() => import('./components/features/views/GanttView'));
 const CalendarScreen = lazy(() => import('./components/features/calendar/CalendarScreen'));
 const WhiteboardCanvas = lazy(() => import('./components/features/whiteboards/WhiteboardCanvas'));
+const MindmapEditor = lazy(() => import('./components/features/mindmaps/MindmapEditor'));
 const AdminConsole = lazy(() => import('./components/features/admin/AdminConsole'));
 const ManagerHub = lazy(() => import('./components/features/manager/ManagerHub'));
 const PagesView = lazy(() => import('./components/features/pages/PagesView'));
@@ -112,6 +114,7 @@ export default function App() {
   const todosHook = useTodos();
   const ws = useWorkstreams();
   const wb = useWhiteboards();
+  const mm = useMindmaps();
   const ev = useEvents();
   const nav = useNavigation();
   const modals = useModals();
@@ -184,6 +187,7 @@ export default function App() {
         todosHook.loadTodos(userEmail);
         const accessibleWorkstreams = await ws.loadWorkstreams(userEmail);
         ws.loadWorkstreamTasks(accessibleWorkstreams);
+        mm.loadMindmaps(userEmail);
         ev.loadEvents();
       }
     }
@@ -983,6 +987,17 @@ export default function App() {
           </ErrorBoundary>
         );
 
+      case 'mindmap-editor': {
+        const currentMindmap = mm.mindmaps.find(m => m.id === nav.selectedMindmapId);
+        return (
+          <ErrorBoundary key={`mindmap-${nav.selectedMindmapId}`} message="The mindmap encountered an error.">
+            <Suspense fallback={<LoadingSpinner />}>
+              <MindmapEditor mindmapId={nav.selectedMindmapId} mindmap={currentMindmap} onBack={nav.goBack} mindmapApi={mm.mindmapApi} userEmail={userEmail} />
+            </Suspense>
+          </ErrorBoundary>
+        );
+      }
+
       case 'whiteboard-canvas': {
         const currentWhiteboard = wb.whiteboards.find(w => w.id === nav.selectedWhiteboardId);
         if (!currentWhiteboard) {
@@ -1021,7 +1036,12 @@ export default function App() {
         return (
           <ErrorBoundary key="website" message="The website project view encountered an error.">
             <Suspense fallback={<LoadingSpinner />}>
-              <WebsiteRoute />
+              <WebsiteRoute
+                mindmaps={mm.mindmaps}
+                setMindmaps={mm.setMindmaps}
+                mindmapApi={mm.mindmapApi}
+                onOpenMindmap={nav.openMindmap}
+              />
             </Suspense>
           </ErrorBoundary>
         );
@@ -1100,7 +1120,7 @@ export default function App() {
         }
         return (
           <ErrorBoundary key={`ws-task-${nav.selectedWorkstreamTaskId}`} message="This task encountered an error.">
-          <WorkstreamTaskDetail task={selectedTask} workstream={selectedWorkstream} currentUser={currentUser} userEmail={userEmail} entries={items.entries} onBack={nav.goBack} onUpdate={(taskId, _wsId, updates) => ws.updateWorkstreamTask(taskId, updates)} onDelete={async (taskId) => { return await ws.deleteWorkstreamTask(taskId); }} onConvert={(item, type) => modals.openConvertModal(item, type)} USERS={USERS} USERS_WITH_EMAILS={SEED_USERS} />
+          <WorkstreamTaskDetail key={`ws-task-${selectedTask.id}-${selectedTask.updated_at || 'draft'}`} task={selectedTask} workstream={selectedWorkstream} currentUser={currentUser} entries={items.entries} onBack={nav.goBack} onUpdate={(taskId, _wsId, updates) => ws.updateWorkstreamTask(taskId, updates)} onDelete={async (taskId) => { return await ws.deleteWorkstreamTask(taskId); }} onConvert={(item, type) => modals.openConvertModal(item, type)} USERS={USERS} USERS_WITH_EMAILS={SEED_USERS} />
           </ErrorBoundary>
         );
       }

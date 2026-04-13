@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
-import { Globe } from 'lucide-react';
+import { Globe, GitBranch } from 'lucide-react';
 import Icon from '../../ui/Icon';
 
 /**
@@ -33,6 +33,7 @@ const Sidebar = ({
 }) => {
   const userIsAdmin = isAdmin ? isAdmin(userEmail) : false;
   const userIsManager = isManager ? isManager(userEmail) : false;
+  const customIcons = { GitBranch };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
@@ -104,7 +105,9 @@ const Sidebar = ({
                   : "text-ocean-200 hover:bg-ocean-700 hover:text-white rounded-xl"
               )}
             >
-              {typeof item.icon === 'string' ? (
+              {typeof item.icon === 'string' && customIcons[item.icon] ? (
+                React.createElement(customIcons[item.icon], { className: 'w-4 h-4 flex-shrink-0' })
+              ) : typeof item.icon === 'string' ? (
                 <Icon name={item.icon} className="w-4 h-4 flex-shrink-0" />
               ) : (
                 <item.icon className="w-4 h-4 flex-shrink-0" />
