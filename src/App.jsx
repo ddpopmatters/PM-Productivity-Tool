@@ -79,7 +79,6 @@ import {
   ShapeElement,
   WhiteboardElement,
 } from './components/features';
-import { MindmapList } from './components/features/mindmaps';
 
 // Lazy-loaded components for code splitting
 const GanttView = lazy(() => import('./components/features/views/GanttView'));
@@ -988,13 +987,6 @@ export default function App() {
           </ErrorBoundary>
         );
 
-      case 'mindmaps':
-        return (
-          <ErrorBoundary key="mindmaps" message="The mindmaps view encountered an error.">
-            <MindmapList mindmaps={mm.mindmaps} setMindmaps={mm.setMindmaps} onOpenMindmap={nav.openMindmap} userEmail={userEmail} mindmapApi={mm.mindmapApi} />
-          </ErrorBoundary>
-        );
-
       case 'mindmap-editor': {
         const currentMindmap = mm.mindmaps.find(m => m.id === nav.selectedMindmapId);
         return (
@@ -1044,7 +1036,12 @@ export default function App() {
         return (
           <ErrorBoundary key="website" message="The website project view encountered an error.">
             <Suspense fallback={<LoadingSpinner />}>
-              <WebsiteRoute />
+              <WebsiteRoute
+                mindmaps={mm.mindmaps}
+                setMindmaps={mm.setMindmaps}
+                mindmapApi={mm.mindmapApi}
+                onOpenMindmap={nav.openMindmap}
+              />
             </Suspense>
           </ErrorBoundary>
         );

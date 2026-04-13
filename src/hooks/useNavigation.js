@@ -12,7 +12,6 @@ const SIMPLE_ROUTES = {
   'admin': '/admin',
   'manager-hub': '/manager',
   'whiteboards': '/whiteboards',
-  'mindmaps': '/mindmaps',
   'workstreams': '/workstreams',
   'website': '/website',
   'productivity-tools': '/productivity',

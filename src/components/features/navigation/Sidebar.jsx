@@ -47,7 +47,6 @@ const Sidebar = ({
     { id: 'pages', label: 'Pages', icon: 'layout' },
     { id: 'events-calendar', label: 'Calendar', icon: 'calendar-days' },
     { id: 'whiteboards', label: 'Whiteboards', icon: 'presentation' },
-    { id: 'mindmaps', label: 'Mindmaps', icon: 'GitBranch' },
     { id: 'productivity-tools', label: 'Productivity Tools', icon: 'wrench' },
   ];
 
