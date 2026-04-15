@@ -50,4 +50,39 @@ describe('WorkstreamTaskDetail failed save handling', () => {
 
     expect(props.onUpdate).toHaveBeenCalledWith('task-1', 'ws-1', { status: 'done' });
   });
+
+  it('stores effort separately from user tags', async () => {
+    const props = renderTaskDetail({
+      task: {
+        id: 'task-1',
+        title: 'Triage issue',
+        description: '',
+        priority: 'medium',
+        status: 'open',
+        deadline: '',
+        assignee: 'Alice Example',
+        assignee_email: 'alice@example.com',
+        requester: '',
+        tags: ['customer', 'effort:medium'],
+        comments: [],
+        linked_items: [],
+        created_at: '2026-04-11T09:00:00Z',
+      },
+      onUpdate: vi.fn().mockResolvedValue({
+        id: 'task-1',
+        tags: ['customer', 'effort:low'],
+      }),
+    });
+
+    fireEvent.change(screen.getByLabelText('Effort'), { target: { value: 'low' } });
+
+    await waitFor(() => {
+      expect(props.onUpdate).toHaveBeenCalledWith('task-1', 'ws-1', {
+        tags: ['customer', 'effort:low'],
+      });
+    });
+
+    expect(screen.getByText('customer')).toBeInTheDocument();
+    expect(screen.queryByText('effort:medium')).not.toBeInTheDocument();
+  });
 });

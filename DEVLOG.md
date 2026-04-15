@@ -170,3 +170,13 @@ Changes:
 - Added a regression test covering canceled drags and in-flight drop updates in `WorkstreamView.test.jsx`
 - Re-ran targeted tests, lint, and `git diff --check`
 Status: Complete
+
+## 2026-04-11 — Workstream effort sorting
+Tool: Codex
+Branch: main
+Changes:
+- Added first-class effort tracking for workstream tasks using structured `effort:*` task tags instead of a schema change
+- Exposed effort selectors in workstream task creation and task detail, surfaced effort badges on task cards, and rebuilt the backlog as a priority-by-effort matrix
+- Preserved click-and-drag by making each matrix cell a drop target that updates both priority and effort
+- Added regression coverage for effort persistence and effort-aware backlog ordering, then re-ran tests, lint, build, and `git diff --check`
+Status: Complete

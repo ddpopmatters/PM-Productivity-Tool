@@ -1,12 +1,17 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import clsx from 'clsx';
 import Icon from '../../ui/Icon';
+import {
+  EFFORT_LABELS,
+  getTaskEffort,
+  getUserTaskTags,
+  setTaskEffort,
+} from '../../../utils/workstreamEffort';
 
 const WorkstreamTaskDetail = ({
   task,
   workstream,
   currentUser,
-  userEmail,
   entries,
   onBack,
   onUpdate,
@@ -17,6 +22,7 @@ const WorkstreamTaskDetail = ({
 }) => {
   const [description, setDescription] = useState(task.description || '');
   const [priority, setPriority] = useState(task.priority);
+  const [effort, setEffort] = useState(getTaskEffort(task) || '');
   const [status, setStatus] = useState(task.status);
   const [deadline, setDeadline] = useState(task.deadline || '');
   const [assignee, setAssignee] = useState(task.assignee || '');
@@ -31,9 +37,10 @@ const WorkstreamTaskDetail = ({
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [linkSearch, setLinkSearch] = useState('');
 
-  const syncTaskState = useCallback((nextTask) => {
+  const syncTaskState = (nextTask) => {
     setDescription(nextTask.description || '');
     setPriority(nextTask.priority);
+    setEffort(getTaskEffort(nextTask) || '');
     setStatus(nextTask.status);
     setDeadline(nextTask.deadline || '');
     setAssignee(nextTask.assignee || '');
@@ -41,11 +48,7 @@ const WorkstreamTaskDetail = ({
     setTags(nextTask.tags || []);
     setComments(nextTask.comments || []);
     setLinkedItems(nextTask.linked_items || []);
-  }, []);
-
-  useEffect(() => {
-    syncTaskState(task);
-  }, [task, syncTaskState]);
+  };
 
   const handleSave = async (updates) => {
     try {
@@ -62,8 +65,10 @@ const WorkstreamTaskDetail = ({
   };
 
   const handleAddTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      const newTags = [...tags, newTag.trim()];
+    const trimmedTag = newTag.trim();
+    const visibleTags = getUserTaskTags(tags);
+    if (trimmedTag && !visibleTags.includes(trimmedTag)) {
+      const newTags = setTaskEffort([...visibleTags, trimmedTag], effort);
       setTags(newTags);
       handleSave({ tags: newTags });
       setNewTag('');
@@ -71,7 +76,10 @@ const WorkstreamTaskDetail = ({
   };
 
   const handleRemoveTag = (tag) => {
-    const newTags = tags.filter(t => t !== tag);
+    const newTags = setTaskEffort(
+      getUserTaskTags(tags).filter(t => t !== tag),
+      effort
+    );
     setTags(newTags);
     handleSave({ tags: newTags });
   };
@@ -108,6 +116,7 @@ const WorkstreamTaskDetail = ({
   const linkableEntries = (entries || [])
     .filter(e => !linkedItems.includes(e.id))
     .filter(e => !linkSearch || e.title.toLowerCase().includes(linkSearch.toLowerCase()));
+  const visibleTags = getUserTaskTags(tags);
 
   const handleDelete = async () => {
     const deleted = await onDelete(task.id, workstream.id);
@@ -270,6 +279,30 @@ const WorkstreamTaskDetail = ({
             </div>
 
             <div>
+              <label className="text-xs text-graystone-500 block mb-1">Effort</label>
+              <select
+                value={effort}
+                onChange={(e) => {
+                  const nextEffort = e.target.value;
+                  const nextTags = setTaskEffort(tags, nextEffort);
+                  setEffort(nextEffort);
+                  setTags(nextTags);
+                  handleSave({ tags: nextTags });
+                }}
+                aria-label="Effort"
+                className="w-full px-3 py-2 border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
+              >
+                <option value="">No effort estimate</option>
+                <option value="low">Low effort</option>
+                <option value="medium">Medium effort</option>
+                <option value="high">High effort</option>
+              </select>
+              {effort && (
+                <p className="mt-1 text-xs text-graystone-500">{EFFORT_LABELS[effort]}</p>
+              )}
+            </div>
+
+            <div>
               <label className="text-xs text-graystone-500 block mb-1">Status</label>
               <select
                 value={status}
@@ -353,7 +386,7 @@ const WorkstreamTaskDetail = ({
           <div className="bg-white rounded-xl border border-graystone-200 p-4">
             <h3 className="text-sm font-semibold text-graystone-500 uppercase mb-2">Tags</h3>
             <div className="flex flex-wrap gap-2 mb-2">
-              {tags.map(tag => (
+              {visibleTags.map(tag => (
                 <span
                   key={tag}
                   className="inline-flex items-center gap-1 px-2 py-1 bg-ocean-100 text-ocean-700 rounded-full text-xs"
@@ -367,6 +400,9 @@ const WorkstreamTaskDetail = ({
                   </button>
                 </span>
               ))}
+              {visibleTags.length === 0 && (
+                <p className="text-sm text-graystone-400">No tags yet</p>
+              )}
             </div>
             <div className="flex gap-2">
               <input
