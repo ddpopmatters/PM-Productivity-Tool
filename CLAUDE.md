@@ -41,3 +41,14 @@ Environment: copy `.env.example` to `.env`. Never commit `.env`.
 - `npm run build` succeeds
 - No console errors
 - Key user flows tested
+
+## AI / LLM Infrastructure — Hermes (Archived)
+
+The Telegram bot and Ollama relay have been archived. The following are no longer active:
+
+- `supabase/functions/_archive/telegram-bot/` — task parsing, brain dump routing, `/summary`, `/ask`, `/draft`
+- `supabase/functions/_archive/telegram-digest/` — daily digest generation
+- `supabase/functions/_archive/llm.ts` — shared Ollama relay client
+- `_archive/relay/` — Deno HTTP relay server (Cloudflare Tunnel → MacBook → Ollama)
+
+The 6 telegram-related migrations (033–039) remain in `supabase/migrations/` as DB history and must not be moved.

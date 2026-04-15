@@ -15,6 +15,22 @@ const LONDON_TIME_ZONE = "Europe/London";
 
 const TG = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
+// ─── PM Organisational Context ────────────────────────────────────────────────
+// Compact context block injected into all LLM system prompts.
+// Keeps the model PM-aware without blowing small-model context windows.
+
+const PM_ORG_CONTEXT =
+  `You are assisting staff at Population Matters, a UK charity advocating for universal access to voluntary family planning and reproductive rights. ` +
+  `Mission: support women's right to decide if, when, and how many children to have. ` +
+  `Framing is ALWAYS rights-based and demand-led — never coercive or numbers-focused. ` +
+  `Use: "reproductive rights", "her choice", "voluntary family planning", "women's autonomy". ` +
+  `Avoid: "population stabilisation", "overpopulation", "family size management", "too many people". ` +
+  `Women are rights-holders, never variables or solutions to environmental problems. ` +
+  `Work areas: Research, Advocacy, Communications, Fundraising, Operations. ` +
+  `Key audiences: UK public donors (warm, story-led), development partners (evidence-based, SDG-aligned), ` +
+  `government/FCDO (policy-anchored), media (hook + data), major donors (insider tone). ` +
+  `Key people: Amy (CEO), Jameen (Head of Advocacy), Dan Davis (digital/comms).`;
+
 function createSupabaseAdminClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -31,6 +47,8 @@ const HELP_TEXT = [
   "/add <title> — Add task to active workstream",
   "/comment <text> — Add comment to active task",
   "/summary [workstream] — 3-sentence AI summary",
+  "/ask <question> — Ask anything about PM (messaging, audiences, strategy)",
+  "/draft <brief> — Draft copy in PM's voice from a one-line brief",
   "/clear — Reset active workstream and task",
   "/help — Show this message",
   "",
@@ -1154,6 +1172,7 @@ async function tryParseTaskIntent(
   text: string,
 ): Promise<LlmTaskParseResult | null> {
   const systemPrompt =
+    `${PM_ORG_CONTEXT} ` +
     `You are a task parser. Extract structured data from natural language. ` +
     `Return JSON only, no explanation: ` +
     `{ "is_task": boolean, "title": string, "priority": "high"|"medium"|"low"|null, ` +
@@ -1190,7 +1209,8 @@ async function suggestBrainDumpRoute(
   workstreamTitles: string[],
 ): Promise<LlmRouteResult | null> {
   const systemPrompt =
-    `Route this brain dump. Available workstreams: ${workstreamTitles.join(", ")}. ` +
+    `${PM_ORG_CONTEXT} ` +
+    `Route this brain dump to the most relevant workstream. Available workstreams: ${workstreamTitles.join(", ")}. ` +
     `Return JSON only: { "destination": "workstream_task"|"todo"|"project"|"park"|"archive", ` +
     `"workstream_name": string|null }`;
 
@@ -2026,7 +2046,7 @@ serve(async (req) => {
 
         const summary = await ollamaChatComplete(
           `Workstream: ${targetWs.title}\nTasks:\n${taskLines}`,
-          "Summarise this workstream in 3 sentences. Focus on blockers, in-progress work, and what's overdue. Be direct and concise.",
+          `${PM_ORG_CONTEXT} Summarise this workstream in 3 sentences. Focus on blockers, in-progress work, and what's overdue. Be direct and concise. Use PM framing where relevant.`,
           10000,
         );
 
@@ -2041,6 +2061,79 @@ serve(async (req) => {
         await tgPost("sendMessage", {
           chat_id: chatId,
           text: `📋 *${targetWs.title}*\n\n${summary}`,
+          parse_mode: "Markdown",
+        });
+        return new Response("ok");
+      }
+
+      if (command === "/ask") {
+        if (!commandArgs.trim()) {
+          await tgPost("sendMessage", {
+            chat_id: chatId,
+            text: "Usage: /ask <question>\n\nExamples:\n• /ask what messaging do we avoid?\n• /ask who are our main audiences?\n• /ask how do we frame reproductive rights?",
+          });
+          return new Response("ok");
+        }
+
+        await tgPost("sendMessage", { chat_id: chatId, text: "🔍 Thinking…" });
+
+        const answer = await ollamaChatComplete(
+          commandArgs.trim(),
+          `${PM_ORG_CONTEXT} Answer questions about Population Matters concisely and accurately. ` +
+            `Draw on your knowledge of PM's mission, audiences, messaging rules, and work areas. ` +
+            `If the question is outside PM context, bring it back to how it relates to PM's work. ` +
+            `Keep answers to 3–5 sentences unless a list is clearly more useful.`,
+          12000,
+        );
+
+        if (!answer) {
+          await tgPost("sendMessage", {
+            chat_id: chatId,
+            text: "Answer unavailable — Ollama relay is offline.",
+          });
+          return new Response("ok");
+        }
+
+        await tgPost("sendMessage", {
+          chat_id: chatId,
+          text: `💬 ${answer}`,
+        });
+        return new Response("ok");
+      }
+
+      if (command === "/draft") {
+        if (!commandArgs.trim()) {
+          await tgPost("sendMessage", {
+            chat_id: chatId,
+            text: "Usage: /draft <brief>\n\nExamples:\n• /draft tweet about new research on family planning access in Niger\n• /draft email subject line for year-end appeal\n• /draft 2-sentence intro for donor update",
+          });
+          return new Response("ok");
+        }
+
+        await tgPost("sendMessage", { chat_id: chatId, text: "✍️ Drafting…" });
+
+        const draft = await ollamaChatComplete(
+          `Brief: ${commandArgs.trim()}`,
+          `${PM_ORG_CONTEXT} You are a copywriter for Population Matters. ` +
+            `Write copy that is warm, rights-centred, and human-led. ` +
+            `Lead with a named individual or specific outcome where possible. ` +
+            `Use reproductive rights framing throughout. Never use population control language. ` +
+            `Match the format requested in the brief (tweet, email, headline, etc.). ` +
+            `Output only the draft copy — no commentary, no alternatives unless asked.`,
+          12000,
+        );
+
+        if (!draft) {
+          await tgPost("sendMessage", {
+            chat_id: chatId,
+            text: "Draft unavailable — Ollama relay is offline.",
+          });
+          return new Response("ok");
+        }
+
+        await tgPost("sendMessage", {
+          chat_id: chatId,
+          text: `✏️ *Draft*\n\n${draft}`,
           parse_mode: "Markdown",
         });
         return new Response("ok");
