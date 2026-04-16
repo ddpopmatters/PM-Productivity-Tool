@@ -1,84 +1,128 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import Icon from '../../ui/Icon';
+import {
+  EFFORT_LABELS,
+  getTaskEffort,
+  setTaskEffort,
+} from '../../../utils/workstreamEffort';
 
-const TaskCard = ({ task, showDeadline, onDragStart, onDragEnd, onClick, onToggleStatus, isDragging }) => (
-  <div
-    draggable
-    onDragStart={() => onDragStart(task)}
-    onDragEnd={onDragEnd}
-    onClick={() => onClick(task.id)}
-    className={clsx(
-      "bg-white rounded-lg border border-graystone-200 p-3 cursor-pointer hover:shadow-md hover:border-ocean-300 transition group",
-      isDragging && "pointer-events-none"
-    )}
+const PRIORITY_COLUMNS = [
+  { key: 'high', label: 'High priority', accent: 'text-red-700 bg-red-50 border-red-200' },
+  { key: 'medium', label: 'Medium priority', accent: 'text-amber-700 bg-amber-50 border-amber-200' },
+  { key: 'low', label: 'Low priority', accent: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+];
+
+const EFFORT_ROWS = [
+  { key: 'low', label: 'Low effort', hint: 'Quick wins' },
+  { key: 'medium', label: 'Medium effort', hint: 'Balanced work' },
+  { key: 'high', label: 'High effort', hint: 'Larger lifts' },
+  { key: '', label: 'No estimate', hint: 'Needs sizing' },
+];
+
+const EffortSelect = ({ value, onChange, ariaLabel = 'New task effort' }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    aria-label={ariaLabel}
+    className="w-full px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
   >
-    <div className="flex items-start gap-2">
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleStatus(task);
-        }}
-        aria-label={task.status === 'done' ? 'Mark incomplete' : 'Mark complete'}
-        className={clsx(
-          "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition",
-          task.status === 'done'
-            ? "bg-ocean-500 border-ocean-500 text-white"
-            : "border-graystone-300 hover:border-ocean-500"
-        )}
-      >
-        {task.status === 'done' && <Icon name="check" className="w-3 h-3" />}
-      </button>
-      <div className="flex-1 min-w-0">
-        <p className={clsx(
-          "text-sm font-medium",
-          task.status === 'done' ? "text-graystone-400 line-through" : "text-graystone-900"
-        )}>
-          {task.title}
-        </p>
-        <div className="flex items-center gap-2 mt-1 text-xs text-graystone-400 flex-wrap">
-          {task.task_type && (
-            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded text-xs">
-              {task.task_type}
-            </span>
-          )}
-          {showDeadline && task.deadline && (
-            <span className={clsx(
-              "flex items-center gap-1",
-              task.deadline < new Date().toISOString().slice(0, 10) ? "text-red-500" : ""
-            )}>
-              <Icon name="calendar" className="w-3 h-3" />
-              {new Date(task.deadline).toLocaleDateString()}
-            </span>
-          )}
-          {task.assignee && (
-            <span className="flex items-center gap-1">
-              <Icon name="user" className="w-3 h-3" />
-              {task.assignee}
-            </span>
-          )}
-        </div>
-      </div>
-      <Icon name="grip-vertical" className="w-4 h-4 text-graystone-300 opacity-0 group-hover:opacity-100 cursor-grab" />
-    </div>
-  </div>
+    <option value="">No effort estimate</option>
+    <option value="low">Low effort</option>
+    <option value="medium">Medium effort</option>
+    <option value="high">High effort</option>
+  </select>
 );
 
-const PrioritySection = ({ priority, tasks: priorityTasks, label, isDragging, onDragOver, onDrop, renderTask }) => (
+const TaskCard = ({ task, showDeadline, onDragStart, onDragEnd, onClick, onToggleStatus, isDragging }) => {
+  const effort = getTaskEffort(task);
+
+  return (
+    <div
+      draggable
+      onDragStart={() => onDragStart(task)}
+      onDragEnd={onDragEnd}
+      onClick={() => onClick(task.id)}
+      className={clsx(
+        "bg-white rounded-lg border border-graystone-200 p-3 cursor-pointer hover:shadow-md hover:border-ocean-300 transition group",
+        isDragging && "pointer-events-none"
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleStatus(task);
+          }}
+          aria-label={task.status === 'done' ? 'Mark incomplete' : 'Mark complete'}
+          className={clsx(
+            "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition",
+            task.status === 'done'
+              ? "bg-ocean-500 border-ocean-500 text-white"
+              : "border-graystone-300 hover:border-ocean-500"
+          )}
+        >
+          {task.status === 'done' && <Icon name="check" className="w-3 h-3" />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className={clsx(
+            "text-sm font-medium",
+            task.status === 'done' ? "text-graystone-400 line-through" : "text-graystone-900"
+          )}>
+            {task.title}
+          </p>
+          <div className="flex items-center gap-2 mt-1 text-xs text-graystone-400 flex-wrap">
+            {task.task_type && (
+              <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded text-xs">
+                {task.task_type}
+              </span>
+            )}
+            {effort && (
+              <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs">
+                {EFFORT_LABELS[effort]}
+              </span>
+            )}
+            {showDeadline && task.deadline && (
+              <span className={clsx(
+                "flex items-center gap-1",
+                task.deadline < new Date().toISOString().slice(0, 10) ? "text-red-500" : ""
+              )}>
+                <Icon name="calendar" className="w-3 h-3" />
+                {new Date(task.deadline).toLocaleDateString()}
+              </span>
+            )}
+            {task.assignee && (
+              <span className="flex items-center gap-1">
+                <Icon name="user" className="w-3 h-3" />
+                {task.assignee}
+              </span>
+            )}
+          </div>
+        </div>
+        <Icon name="grip-vertical" className="w-4 h-4 text-graystone-300 opacity-0 group-hover:opacity-100 cursor-grab" />
+      </div>
+    </div>
+  );
+};
+
+const BacklogMatrixCell = ({ priorityLabel, effortLabel, tasks, isDragging, onDragOver, onDrop, renderTask }) => (
   <div
     onDragOver={onDragOver}
-    onDrop={() => onDrop(priority)}
+    onDrop={onDrop}
+    aria-label={`${priorityLabel}, ${effortLabel}`}
     className={clsx(
-      "border rounded-lg p-3 transition",
-      isDragging ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200"
+      "min-h-[8rem] rounded-xl border p-3 transition",
+      isDragging ? "border-dashed border-ocean-400 bg-ocean-50" : "border-graystone-200 bg-graystone-50/60"
     )}
   >
     <div className="flex items-center justify-between mb-2">
-      <h4 className="text-xs font-semibold text-graystone-500 uppercase">{label} ({priorityTasks.length})</h4>
+      <h4 className="text-[11px] font-semibold text-graystone-500 uppercase tracking-wide">
+        {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+      </h4>
     </div>
     <div className="space-y-2">
-      {priorityTasks.map(task => renderTask(task))}
-      {priorityTasks.length === 0 && isDragging && (
+      {tasks.map(task => renderTask(task))}
+      {tasks.length === 0 && isDragging && (
         <p className="text-xs text-graystone-400 text-center py-2">Drop tasks here</p>
       )}
     </div>
@@ -154,6 +198,7 @@ const WorkstreamView = ({
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDeadline, setNewTaskDeadline] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('medium');
+  const [newTaskEffort, setNewTaskEffort] = useState('');
   const [newTaskType, setNewTaskType] = useState('Issue');
   const [showAddTypeInput, setShowAddTypeInput] = useState(false);
   const [newCustomType, setNewCustomType] = useState('');
@@ -176,13 +221,27 @@ const WorkstreamView = ({
   const backlogTasks = (taskList || [])
     .filter(t => !t.deadline && t.status !== 'done');
 
-  const highPriority = backlogTasks.filter(t => t.priority === 'high').sort((a, b) => a.sort_order - b.sort_order);
-  const mediumPriority = backlogTasks.filter(t => t.priority === 'medium').sort((a, b) => a.sort_order - b.sort_order);
-  const lowPriority = backlogTasks.filter(t => t.priority === 'low').sort((a, b) => a.sort_order - b.sort_order);
-
   const completedTasks = (taskList || [])
     .filter(t => t.status === 'done')
     .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+  const getBacklogCellTasks = (priority, effort) => (
+    backlogTasks
+      .filter((task) => task.priority === priority && (getTaskEffort(task) || '') === effort)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  );
+
+  const backlogGrid = EFFORT_ROWS.map((effortRow) => ({
+    ...effortRow,
+    totalTasks: PRIORITY_COLUMNS.reduce(
+      (count, priorityColumn) => count + getBacklogCellTasks(priorityColumn.key, effortRow.key).length,
+      0
+    ),
+    cells: PRIORITY_COLUMNS.map((priorityColumn) => ({
+      ...priorityColumn,
+      tasks: getBacklogCellTasks(priorityColumn.key, effortRow.key),
+    })),
+  }));
 
   const handleCreateTask = async () => {
     if (!newTaskTitle.trim() || isSubmitting) return;
@@ -194,10 +253,11 @@ const WorkstreamView = ({
       priority: showNewTaskForm === 'deadline' ? 'medium' : newTaskPriority,
       deadline: showNewTaskForm === 'deadline' ? newTaskDeadline : null,
       taskType: newTaskType,
+      tags: setTaskEffort([], newTaskEffort),
       assignee: currentUser,
       assigneeEmail: userEmail,
       sortOrder: showNewTaskForm === 'backlog'
-        ? (newTaskPriority === 'high' ? highPriority.length : newTaskPriority === 'medium' ? mediumPriority.length : lowPriority.length)
+        ? getBacklogCellTasks(newTaskPriority, newTaskEffort).length
         : 0
     };
 
@@ -207,6 +267,7 @@ const WorkstreamView = ({
       setNewTaskTitle('');
       setNewTaskDeadline('');
       setNewTaskPriority('medium');
+      setNewTaskEffort('');
       setNewTaskType('Issue');
       setShowNewTaskForm(null);
     }
@@ -232,20 +293,16 @@ const WorkstreamView = ({
     e.preventDefault();
   };
 
-  const handleDropOnPriority = async (targetPriority) => {
+  const handleDropOnBacklogCell = async (targetPriority, targetEffort) => {
     if (!draggedTask) return;
     const taskToMove = draggedTask;
     setDraggedTask(null);
-
-    const targetList = targetPriority === 'high' ? highPriority
-      : targetPriority === 'medium' ? mediumPriority
-      : lowPriority;
-
-    const newSortOrder = targetList.length;
+    const targetList = getBacklogCellTasks(targetPriority, targetEffort);
 
     const updates = {
       priority: targetPriority,
-      sortOrder: newSortOrder,
+      sortOrder: targetList.length,
+      tags: setTaskEffort(taskToMove.tags || [], targetEffort),
     };
     if (taskToMove.deadline) {
       updates.deadline = null;
@@ -408,6 +465,7 @@ const WorkstreamView = ({
                 onChange={(e) => setNewTaskDeadline(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-graystone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500"
               />
+              <EffortSelect value={newTaskEffort} onChange={setNewTaskEffort} ariaLabel="Time-sensitive task effort" />
               <TaskTypeSelector {...taskTypeProps} />
               <div className="flex gap-2">
                 <button
@@ -418,7 +476,13 @@ const WorkstreamView = ({
                   {isSubmitting ? 'Adding...' : 'Add'}
                 </button>
                 <button
-                  onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); setNewTaskDeadline(''); setNewTaskType('Issue'); }}
+                  onClick={() => {
+                    setShowNewTaskForm(null);
+                    setNewTaskTitle('');
+                    setNewTaskDeadline('');
+                    setNewTaskEffort('');
+                    setNewTaskType('Issue');
+                  }}
                   className="px-3 py-1.5 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
                 >
                   Cancel
@@ -444,14 +508,57 @@ const WorkstreamView = ({
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-ocean-900">Backlog</h3>
             {draggedTask && (
-              <span className="text-xs text-ocean-500 font-medium">Drop into a priority bucket</span>
+              <span className="text-xs text-ocean-500 font-medium">Drop into a priority and effort cell</span>
             )}
           </div>
+          <p className="text-xs text-graystone-500 mb-4">
+            Priority runs left to right. Effort runs top to bottom.
+          </p>
 
-          <div className="space-y-4 mb-4">
-            <PrioritySection priority="high" tasks={highPriority} label="High" isDragging={!!draggedTask} onDragOver={handleDragOver} onDrop={handleDropOnPriority} renderTask={task => renderTask(task)} />
-            <PrioritySection priority="medium" tasks={mediumPriority} label="Medium" isDragging={!!draggedTask} onDragOver={handleDragOver} onDrop={handleDropOnPriority} renderTask={task => renderTask(task)} />
-            <PrioritySection priority="low" tasks={lowPriority} label="Low" isDragging={!!draggedTask} onDragOver={handleDragOver} onDrop={handleDropOnPriority} renderTask={task => renderTask(task)} />
+          <div className="overflow-x-auto mb-4">
+            <div className="min-w-[46rem] grid grid-cols-[8rem_repeat(3,minmax(0,1fr))] gap-3">
+              <div className="rounded-xl border border-graystone-200 bg-graystone-50/80 p-3 flex items-end">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-graystone-500">Effort</p>
+                  <p className="text-xs text-graystone-400">Priority</p>
+                </div>
+              </div>
+              {PRIORITY_COLUMNS.map((priorityColumn) => (
+                <div
+                  key={priorityColumn.key}
+                  className={clsx(
+                    "rounded-xl border p-3",
+                    priorityColumn.accent
+                  )}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide">{priorityColumn.label}</p>
+                </div>
+              ))}
+
+              {backlogGrid.map((effortRow) => (
+                <div key={effortRow.key || 'none'} className="contents">
+                  <div className="rounded-xl border border-graystone-200 bg-white p-3">
+                    <p className="text-sm font-semibold text-ocean-900">{effortRow.label}</p>
+                    <p className="text-xs text-graystone-500">{effortRow.hint}</p>
+                    <p className="mt-2 text-xs text-graystone-400">
+                      {effortRow.totalTasks} {effortRow.totalTasks === 1 ? 'task' : 'tasks'}
+                    </p>
+                  </div>
+                  {effortRow.cells.map((cell) => (
+                    <BacklogMatrixCell
+                      key={`${effortRow.key || 'none'}-${cell.key}`}
+                      priorityLabel={cell.label}
+                      effortLabel={effortRow.label}
+                      tasks={cell.tasks}
+                      isDragging={!!draggedTask}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDropOnBacklogCell(cell.key, effortRow.key)}
+                      renderTask={renderTask}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
 
           {showNewTaskForm === 'backlog' ? (
@@ -473,6 +580,7 @@ const WorkstreamView = ({
                 <option value="medium">Medium Priority</option>
                 <option value="low">Low Priority</option>
               </select>
+              <EffortSelect value={newTaskEffort} onChange={setNewTaskEffort} ariaLabel="Backlog task effort" />
               <TaskTypeSelector {...taskTypeProps} />
               <div className="flex gap-2">
                 <button
@@ -483,7 +591,12 @@ const WorkstreamView = ({
                   {isSubmitting ? 'Adding...' : 'Add'}
                 </button>
                 <button
-                  onClick={() => { setShowNewTaskForm(null); setNewTaskTitle(''); setNewTaskType('Issue'); }}
+                  onClick={() => {
+                    setShowNewTaskForm(null);
+                    setNewTaskTitle('');
+                    setNewTaskEffort('');
+                    setNewTaskType('Issue');
+                  }}
                   className="px-3 py-1.5 text-graystone-600 text-sm hover:bg-graystone-100 rounded-lg transition"
                 >
                   Cancel
