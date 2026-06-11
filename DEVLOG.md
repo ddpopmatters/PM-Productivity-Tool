@@ -1,3 +1,14 @@
+## 2026-06-11 — Architecture cleanup: cockpit hook extraction, brainDumps service, test backfill
+Tool: Claude Code (Fable 5)
+Branch: refactor/service-tests-and-cockpit-hook
+Changes:
+- Extracted cockpit snapshot debounce + 4s action polling from App.jsx into `useCockpitSync` hook (App.jsx down ~75 lines).
+- Added `brainDumps` service; BrainDumpInbox no longer makes direct supabase `.from('brain_dumps')` calls.
+- Backfilled unit tests for all 8 previously untested services (events, todos, mindmaps, whiteboards, workstreams, productivity, landingPageRequests, websiteProject) — 242 new tests including brainDumps.
+Verification:
+- `npm run lint`: clean. `npm run test -- --run`: 706 passed (49 files, up from 464/40). `npm run build`: succeeds.
+Status: Complete
+
 ## 2026-06-11 — Repo repair: commit stranded cockpit work, hardening, and housekeeping
 Tool: Claude Code (Fable 5)
 Branch: chore/commit-stranded-cockpit-and-hardening
