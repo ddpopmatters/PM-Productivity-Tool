@@ -1,3 +1,16 @@
+## 2026-06-11 — Repo repair: commit stranded cockpit work, hardening, and housekeeping
+Tool: Claude Code (Fable 5)
+Branch: chore/commit-stranded-cockpit-and-hardening
+Changes:
+- Committed the previously uncommitted Cockpit live bridge + action poller feature (services, tests, App/Dashboard wiring, a11y fixes).
+- Committed supply-chain hardening: IOC guard workflow, npm/wrangler pinning, `.npmrc` min-release-age, CSP meta in index.html.
+- Added `.nvmrc` (Node 20) to match CI; gitignored `.vercel/`, `.mcp-todos.json`, `.hermes-worktrees/`; untracked `.DS_Store`.
+- Assessment flagged remaining debt: 9 of 13 services untested (worst: websiteProject.js, 1114 lines), App.jsx at 1310 lines with cockpit polling inline, BrainDumpInbox bypassing the service layer with direct `.from('brain_dumps')` calls.
+Verification:
+- Ran `npm run lint`: clean.
+- Ran `npm run test -- --run`: 464 tests passed (40 files).
+Status: Complete
+
 ## 2026-05-11 — PM Productivity intake from cockpit
 Tool: Codex
 Branch: main
