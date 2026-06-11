@@ -12,13 +12,11 @@
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https: blob:;
       font-src 'self';
-      connect-src 'self' https://*.supabase.co wss://*.supabase.co;
-      frame-ancestors 'none';
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com http://127.0.0.1:5177 http://localhost:5177;
       base-uri 'self';
       form-action 'self';
     " />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <link rel="icon" type="image/svg+xml" href="/PM-Productivity-Tool/favicon.svg" />
