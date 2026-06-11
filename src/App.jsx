@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
 import { fetchWorkflowItems as fetchWorkflowItemsService } from './services/workflowItems';
+import { useCockpitSync } from './hooks/useCockpitSync';
 import { Logger } from './utils/logger';
 import {
   isAdmin,
@@ -194,6 +195,18 @@ export default function App() {
 
     loadData();
   }, [authChecked, isAuthenticated, userEmail]);
+
+  // PM Hermes Cockpit bridge — snapshot publishing + action polling
+  useCockpitSync({
+    authChecked,
+    isAuthenticated,
+    userEmail,
+    currentUser,
+    items,
+    ws,
+    todosHook,
+    ev,
+  });
 
   // Build SUPABASE_API object for components that still need it (whiteboard, admin, productivity)
   const SUPABASE_API = useMemo(() => {

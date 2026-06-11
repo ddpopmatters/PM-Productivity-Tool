@@ -96,7 +96,7 @@ export default function TaskListModal({
               };
 
               return (
-                <div key={task.id || idx} className="w-full p-4 rounded-xl border border-graystone-200 hover:border-ocean-300 transition-all group">
+                <div key={`${itemType}:${task.parentId || 'root'}:${task.id || idx}`} className="w-full p-4 rounded-xl border border-graystone-200 hover:border-ocean-300 transition-all group">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div

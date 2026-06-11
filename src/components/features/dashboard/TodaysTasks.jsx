@@ -53,6 +53,7 @@ export default function TodaysTasks({
         <label htmlFor="new-task-input" className="sr-only">New task</label>
         <input
           id="new-task-input"
+          name="new-task"
           type="text"
           value={newTaskText}
           onChange={(e) => setNewTaskText(e.target.value)}
@@ -74,7 +75,7 @@ export default function TodaysTasks({
         {todaysTasks.length > 0 ? (
           todaysTasks.map((task, idx) => (
             <div
-              key={task.id || idx}
+              key={`${task.taskType || 'task'}:${task.id || idx}`}
               className={`p-3 rounded-lg border flex items-start gap-3 ${
                 task.taskType === 'job'
                   ? task.workflowStatus === 'done' ? 'bg-green-100 border-green-300' : 'bg-green-50 border-green-200'

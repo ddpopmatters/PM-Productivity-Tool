@@ -102,7 +102,10 @@ export default function DashboardCalendar({
           <Icon name="calendar" className="w-5 h-5" />
           Calendar
         </h3>
+        <label htmlFor="dashboard-calendar-view" className="sr-only">Calendar view</label>
         <select
+          id="dashboard-calendar-view"
+          name="dashboard-calendar-view"
           value={calendarView}
           onChange={(e) => setCalendarView(e.target.value)}
           className="text-sm border border-ocean-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ocean-500"

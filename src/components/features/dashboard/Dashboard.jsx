@@ -326,9 +326,9 @@ export default function Dashboard({
         </h3>
         <div className="space-y-3">
           {mentionsAndActivity.length > 0 ? (
-            mentionsAndActivity.map((item) => (
+            mentionsAndActivity.map((item, index) => (
               <div
-                key={item.id}
+                key={`${item.type}:${item.entryId}:${item.id || item.timestamp || index}`}
                 onClick={() => {
                   if (item.isWorkstreamTask) onOpenWorkstreamTask?.(item.workstreamId, item.entryId);
                   else onOpenEntry?.(item.entryId);

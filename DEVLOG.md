@@ -1,182 +1,102 @@
-## 2026-04-08 — Ollama LLM integration: Telegram bot + digest
-Tool: Claude Code (claude-sonnet-4-6)
-Branch: feature/ollama-telegram-llm
+## 2026-06-11 — Architecture cleanup: cockpit hook extraction, brainDumps service, test backfill
+Tool: Claude Code (Fable 5)
+Branch: refactor/service-tests-and-cockpit-hook
 Changes:
-- relay/server.ts: Deno HTTPS proxy (port 8787) — forwards authenticated /chat requests to Ollama
-- supabase/functions/_shared/llm.ts: shared client, gracefully returns null when relay offline
-- telegram-bot: natural language task creation (tryParseTaskIntent), smart brain dump routing (suggestBrainDumpRoute), /summary command, pending_data session column
-- telegram-digest: LLM focus line prepended to morning digest when overdue/high-priority tasks exist
-- Migration 039: adds pending_data JSONB to telegram_sessions
-- ~/Library/LaunchAgents/com.pixeloffice.ollama-relay.plist: auto-starts relay on MacBook login
-- Permanent tunnel: ollama.uncommongrowth.co.uk via pixel-office named tunnel (ingress added)
-- E2E verified: Cloudflare → relay → MacBook Air Ollama (qwen3:4b) → 200 OK
-- All 3 Supabase secrets set; both functions deployed; migration 039 applied
+- Extracted cockpit snapshot debounce + 4s action polling from App.jsx into `useCockpitSync` hook (App.jsx down ~75 lines).
+- Added `brainDumps` service; BrainDumpInbox no longer makes direct supabase `.from('brain_dumps')` calls.
+- Backfilled unit tests for all 8 previously untested services (events, todos, mindmaps, whiteboards, workstreams, productivity, landingPageRequests, websiteProject) — 242 new tests including brainDumps.
+Verification:
+- `npm run lint`: clean. `npm run test -- --run`: 706 passed (49 files, up from 464/40). `npm run build`: succeeds.
 Status: Complete
 
-## 2026-04-08 — Deploy-readiness: migration state repair and CRON_SECRET rotation
-Tool: Claude Code (claude-sonnet-4-6)
-Branch: main
+## 2026-06-11 — Repo repair: commit stranded cockpit work, hardening, and housekeeping
+Tool: Claude Code (Fable 5)
+Branch: chore/commit-stranded-cockpit-and-hardening
 Changes:
-- Investigated `032_website_project_v2.sql` / `034_website_project_v2.sql` deletions: version-prefix collision with newer `032_expand_brain_dumps_routed_to_type.sql` / `034_telegram_sessions.sql`; DB already had new ones applied — v2 files correctly removed, deletions were intentional not accidental
-- Replaced hardcoded `CRON_SECRET` (`830a33ff…`) in `035_telegram_digest_cron.sql` with `__CRON_SECRET__` placeholder; old secret was in untracked working-tree file only, never committed to git
-- Rotated `CRON_SECRET` in Supabase secrets via CLI (`supabase secrets set`)
-- Created `038_update_cron_secret.sql` migration; applied to remote DB via `supabase db push --include-all` using patched secret in memory — placeholder restored after push, secret never persisted to repo
-- All validation passed: `git diff --check`, `npm ci --dry-run`, `npm audit` (0 vulns), `npm run lint`, `npm run build`, `deno check` (5 edge functions)
-- Pre-existing test failures (81): `act(...)` not supported in production React builds — NODE_ENV misconfiguration in test setup, unrelated to this session
+- Committed the previously uncommitted Cockpit live bridge + action poller feature (services, tests, App/Dashboard wiring, a11y fixes).
+- Committed supply-chain hardening: IOC guard workflow, npm/wrangler pinning, `.npmrc` min-release-age, CSP meta in index.html.
+- Added `.nvmrc` (Node 20) to match CI; gitignored `.vercel/`, `.mcp-todos.json`, `.hermes-worktrees/`; untracked `.DS_Store`.
+- Assessment flagged remaining debt: 9 of 13 services untested (worst: websiteProject.js, 1114 lines), App.jsx at 1310 lines with cockpit polling inline, BrainDumpInbox bypassing the service layer with direct `.from('brain_dumps')` calls.
+Verification:
+- Ran `npm run lint`: clean.
+- Ran `npm run test -- --run`: 464 tests passed (40 files).
 Status: Complete
 
-## 2026-04-02 — Repository review for bugs and stale code
+## 2026-05-11 — PM Productivity intake from cockpit
 Tool: Codex
 Branch: main
 Changes:
-- Ran `npm test`, `npm run build`, and `npm run lint`; all passed, with a Vite chunk-size warning and one dynamic-import chunking warning
-- Reviewed the current uncommitted changes across deployment workflows, auth/admin invite flows, Telegram edge functions, and Supabase migrations
-- Flagged production and staging coupling in the invite and Telegram cron paths, plus a timezone regression in the Telegram digest callback flow
-- Flagged missing RLS on `telegram_sessions` and schema drift from deleted website-project migrations that are still required by the frontend
+- Extended the cockpit bridge poller to read PM Productivity intake requests from the local cockpit.
+- Added creation handlers for workflow tasks, workflow projects, workstream tasks, and personal to-dos using the existing signed-in PM Productivity Tool methods.
+- Added intake result reporting so synced items leave the cockpit queue and failures are visible.
+- Passed the required item, workstream, and personal to-do creation methods into the cockpit poller from the main app.
+Verification:
+- Ran `npm test -- src/services/cockpitActions.test.js src/services/cockpitSync.test.js`: 6 tests passed.
+- Ran `npm run lint`.
+- Ran `npm run build`.
 Status: Complete
 
-## 2026-04-06 — Comprehensive repository audit
+## 2026-05-11 — PM Hermes Cockpit action bridge refinement
 Tool: Codex
 Branch: main
 Changes:
-- Ran `npm test`, `npm run lint`, `npm run build`, `npm audit --audit-level=high`, and `deno check` across the Supabase edge functions
-- Confirmed the frontend checks pass, but captured build-time warnings for ineffective code-splitting and oversized chunks
-- Flagged a broken password-reset callback flow, auth-admin pagination gaps, and Telegram routing logic that assigns non-owner actions to the owner account
-- Flagged TypeScript check failures in the Deno edge functions and recorded the current high-severity transitive dependency advisories
+- Extended the cockpit quick-action poller to apply approved completion actions for workstream tasks and personal to-dos.
+- Kept workflow item archive actions on the existing authenticated update path.
+- Returned updated personal to-do records from `useTodos.updateTodo` so cockpit action success can be reported accurately.
+- Cleaned dashboard duplicate-key sources and form-field console warnings.
+- Updated the local CSP meta policy so the Lucide CDN source map request is not blocked, and removed ignored meta-only frame directives.
+- Documented the approved PM Hermes Cockpit bridge in `PROJECT.md`.
+Verification:
+- Ran `npm test -- src/services/cockpitActions.test.js src/services/cockpitSync.test.js`: 5 tests passed.
+- Ran `npm run build`.
+- Used the in-app browser to confirm the signed-in PM Productivity Tool dashboard loads and the console is clean apart from normal Vite/React development notices.
 Status: Complete
 
-## 2026-04-06 — High-priority fix pass
+## 2026-05-10 — PM Hermes Cockpit quick actions
 Tool: Codex
 Branch: main
 Changes:
-- Wired Supabase callback handling back into the SPA so signup, invite, magic-link, and password-reset redirects land in the callback UI instead of falling through to the normal login/app shell
-- Updated auth redirect URLs to use the deployed app base path and hardened recovery handling for expired or invalid reset links
-- Fixed Telegram routing to use the registered chat user instead of the global owner account, and restricted workstream-task routing to workstreams the chat user can still access
-- Added paginated auth-user lookup helpers to the invite/delete edge functions and fixed the Deno typing issues so `deno check` now passes for all reviewed Supabase functions
+- Added a cockpit quick-action poller that reads pending trusted PM Productivity actions from the local PM Hermes Cockpit.
+- Wired Archive requests to the existing authenticated workflow item update path, so the PM tool applies the archive using Dan’s signed-in session.
+- Added action-result reporting back to the cockpit so completed or failed actions leave the pending queue.
+- Added regression coverage for applying a cockpit Archive request.
+Verification:
+- Ran `npm run lint`.
+- Ran `npm run test -- --run`: 462 tests passed.
+- Ran `npm run build`.
+- Restarted the local PM Productivity Tool server at `http://127.0.0.1:3000/PM-Productivity-Tool/`.
+- Used the in-app browser to confirm the signed-in PM tool still loads; known pre-existing console warnings remain in the dashboard key/CSP meta areas, but no cockpit action CSP block appeared.
 Status: Complete
 
-## 2026-04-07 — Dependency advisory cleanup
+## 2026-05-10 — PM Hermes Cockpit live bridge
 Tool: Codex
 Branch: main
 Changes:
-- Added npm overrides for vulnerable `vite-plugin-pwa` transitives, resolving `lodash` and `serialize-javascript` advisories without removing PWA support
-- Updated Vite from 7.3.1 to 7.3.2 to clear the remaining high-severity Vite advisory
-- Removed the ineffective dynamic import of `workflowItems`, eliminating the related Vite chunking warning
-- Re-ran `npm audit --audit-level=high`, `npm test`, `npm run lint`, `npm run build`, and `deno check`; audit now reports 0 vulnerabilities
+- Added a browser-side live bridge that publishes authenticated PM Productivity Tool state to the local PM Hermes Cockpit ingest endpoint.
+- Added a snapshot builder for workflow items, workstreams, workstream tasks, personal todos, and calendar events, with field names normalised for the cockpit connector.
+- Debounced cockpit sync from the main app once authenticated work data has loaded, including empty authenticated snapshots so stale cockpit counts can clear.
+- Allowed the local cockpit endpoint through the PM Productivity Tool content security policy.
+- Added regression coverage for the cockpit snapshot payload contract and CSP bridge allowance.
+Verification:
+- Ran `npm run lint`.
+- Ran `npm run test -- --run`: 461 tests passed.
+- Ran `npm run test -- src/services/cockpitSync.test.js --run`: 3 tests passed after the CSP follow-up.
+- Ran `npm run build`.
+- Used the in-app browser after sign-in to confirm the PM Productivity Tool published a live snapshot to the cockpit: 120 workflow items, 11 workstreams, 54 workstream tasks, and 5 personal todos.
+- Confirmed the cockpit now reads `local_snapshot` data and shows `PM WORK 117` and `PM PROJECTS 12`.
 Status: Complete
 
-## 2026-04-07 — Dependency cleanup follow-up
+## 2026-05-12 — PM Productivity intake result links
 Tool: Codex
 Branch: main
 Changes:
-- Re-ran the full `npm audit` and confirmed 0 vulnerabilities across all severities
-- Updated `@supabase/supabase-js` from 2.100.1 to 2.101.0 within the existing v2 dependency line
-- Confirmed the only remaining `npm outdated` entries are major-version migration candidates rather than in-range security updates
-- Re-ran `npm test`, `npm run lint`, `npm run build`, and `deno check`; all passed, with the existing large bundle warning still present
-Status: Complete
-
-## 2026-04-07 — Deploy readiness review
-Tool: Codex
-Branch: main
-Changes:
-- Classified the dirty worktree and separated recent auth/dependency/function changes from unrelated workflow, admin, logging, and local metadata edits
-- Reviewed the production GitHub Pages and staging Cloudflare Pages workflows, including their base-path and secret wiring
-- Flagged deployment blockers in the Supabase migration set: tracked website-project migrations are deleted and the Telegram digest cron migration contains a materialised cron secret
-- Re-ran `npm ci --dry-run`, `git diff --check`, and used the existing green test/lint/build/Deno checks as validation context
-Status: Blocked
-
-## 2026-04-08 — Telegram setup script hardening
-Tool: Codex
-Branch: main
-Changes:
-- Updated `setup-telegram.sh` so it no longer prints `CRON_SECRET` values or writes substituted secrets back into repository migration files
-- Added guardrails that abort setup when the cron migration already contains a materialised secret or no longer has the `__CRON_SECRET__` placeholder
-- Disabled automatic database push from the script unless `SKIP_DB_PUSH=true`, keeping runtime-secret SQL out of normal repo mutation paths
-- Ran `bash -n setup-telegram.sh` and targeted secret-pattern checks after the script change
-Status: Blocked
-
-## 2026-04-08 — Test environment release gate fix
-Tool: Codex
-Branch: main
-Changes:
-- Updated the npm test scripts to force `NODE_ENV=test` before launching Vitest so inherited production shells do not load React production builds
-- Reproduced the 81 `act(...)` failures with `NODE_ENV=production npm test` before the fix and confirmed the same command passes afterward
-- Re-ran `npm test`, `npm ci --dry-run`, `npm audit --audit-level=high`, `npm run lint`, `npm run build`, and `deno check`; all passed
-- Noted the remaining Vite large chunk warning during production build
-Status: Complete
-
-## 2026-04-08 — Initial bundle split for website route
-Tool: Codex
-Branch: main
-Changes:
-- Moved the website project hook/view behind a lazy `WebsiteRoute` boundary so website code is not pulled into the initial app chunk
-- Removed the eager website project load from the app startup path; website data now loads when the website route mounts
-- Rebuilt the app and confirmed the main chunk dropped from 594.85 kB to 481.49 kB and the Vite large chunk warning no longer appears
-- Re-ran `npm run lint`, `npm test`, and `git diff --check`; all passed
-Status: Complete
-
-## 2026-04-09 — CI workflow follow-up
-Tool: Codex
-Branch: codex/release-readiness
-Changes:
-- Updated the Cloudflare Pages preview job to skip cleanly when Cloudflare staging secrets are unavailable in the current workflow context, instead of failing `wrangler pages deploy`
-- Fixed the Claude review workflow to use the supported `prompt` input and added `id-token: write` so the action can obtain its OIDC token
-- Re-ran `git diff --check` after the workflow edits and reviewed the targeted diffs for both workflow files
-Status: Complete
-
-## 2026-04-09 — Claude review token path fix
-Tool: Codex
-Branch: codex/release-readiness
-Changes:
-- Switched the Claude review workflow to pass `github_token: ${{ github.token }}` so the action can use the standard workflow token on PRs
-- Removed the now-unnecessary `id-token: write` permission after the action’s OIDC app-token exchange was blocked by GitHub workflow-validation rules
-- Re-checked the targeted workflow diff before committing the follow-up change
-Status: Complete
-
-## 2026-04-09 — Claude review credential guard
-Tool: Codex
-Branch: codex/release-readiness
-Changes:
-- Added a preflight guard so the Claude review workflow exits cleanly when neither `CLAUDE_CODE_OAUTH_TOKEN` nor `ANTHROPIC_API_KEY` is configured in repository secrets
-- Wired the workflow to pass either supported Anthropic credential to the action when available, while keeping the standard `github.token` path for GitHub authentication
-- Re-checked the workflow diff after the guard change to keep the fix narrowly scoped to CI behaviour
-Status: Complete
-
-## 2026-04-11 — Workstream review pass
-Tool: Codex
-Branch: main
-Changes:
-- Reviewed the workstream hook, service layer, detail view, list view, and app routing integration for remaining defects
-- Identified a task/workstream route mismatch bug, over-broad dashboard/search scoping for workstream tasks, and stale local state after failed task updates
-- Confirmed there are no workstream-focused behaviour tests beyond route parsing in `useNavigation.test.jsx`
-Status: Complete
-
-## 2026-04-11 — Workstream fix pass
-Tool: Codex
-Branch: main
-Changes:
-- Scoped workstream task loading to accessible workstreams, and tightened task-detail routing so a task must belong to the selected workstream
-- Filtered dashboard workstream counts/lists to tasks assigned to the current user and wired planner workstream items to open their task detail
-- Added regression tests for dashboard scoping, planner navigation, and failed-save recovery in the workstream task detail view
-- Re-ran targeted tests, full `npm test`, `npm run lint`, `npm run build`, and `git diff --check`
-Status: Complete
-
-## 2026-04-11 — Workstream drag fix
-Tool: Codex
-Branch: main
-Changes:
-- Fixed the workstream board drag lifecycle so canceled drags and slow async drops no longer leave the board stuck in dragging mode
-- Cleared drag state on `dragend` and immediately when a priority-drop starts processing
-- Added a regression test covering canceled drags and in-flight drop updates in `WorkstreamView.test.jsx`
-- Re-ran targeted tests, lint, and `git diff --check`
-Status: Complete
-
-## 2026-04-11 — Workstream effort sorting
-Tool: Codex
-Branch: main
-Changes:
-- Added first-class effort tracking for workstream tasks using structured `effort:*` task tags instead of a schema change
-- Exposed effort selectors in workstream task creation and task detail, surfaced effort badges on task cards, and rebuilt the backlog as a priority-by-effort matrix
-- Preserved click-and-drag by making each matrix cell a drop target that updates both priority and effort
-- Added regression coverage for effort persistence and effort-aware backlog ordering, then re-ran tests, lint, build, and `git diff --check`
+- Extended cockpit intake creation results with the created PM Productivity Tool target type, id, and URL.
+- Added result metadata for workflow items, workstream tasks, and personal to-dos so the cockpit can show a plain created-item link in intake history.
+- Verified a harmless live bridge request created `Cockpit live bridge test - safe to archive`, reported the item URL back to the cockpit, and was then archived through the cockpit quick-action bridge.
+Verification:
+- Ran `npm test -- src/services/cockpitActions.test.js`: 3 tests passed.
+- Ran `npm test -- src/services/cockpitActions.test.js src/services/cockpitSync.test.js`: 6 tests passed.
+- Ran `npm run lint`.
+- Ran `npm run build`.
+- Used the in-app browser to confirm the signed-in PM Productivity Tool consumed the cockpit intake queue and reported completion back to the cockpit.
 Status: Complete
