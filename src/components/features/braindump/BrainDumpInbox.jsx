@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getSupabase } from '../../../api/supabase';
+import { fetchPendingBrainDumps, markBrainDumpRouted } from '../../../services/brainDumps';
 import { saveItem } from '../../../services/workflowItems';
 import { createWhiteboard } from '../../../services/whiteboards';
 import { savePersonalTodo } from '../../../services/todos';
@@ -30,14 +30,8 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const supabase = getSupabase();
-    const { data } = await supabase
-      .from('brain_dumps')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-      .limit(50);
-    setItems(data || []);
+    const data = await fetchPendingBrainDumps();
+    setItems(data);
     setLoading(false);
   }
 
@@ -118,18 +112,7 @@ export default function BrainDumpInbox({ workstreams = [], currentUser = '', use
         routedToId = created?.id || null;
       }
 
-      const supabase = getSupabase();
-      const { error: updateError } = await supabase
-        .from('brain_dumps')
-        .update({
-          status: destination === 'archive' ? 'archived' : 'routed',
-          routed_to_type: destination,
-          routed_to_id: routedToId,
-          routed_at: new Date().toISOString(),
-        })
-        .eq('id', item.id);
-
-      if (updateError) throw updateError;
+      await markBrainDumpRouted(item.id, destination, routedToId);
 
       setItems(prev => prev.filter(i => i.id !== item.id));
 

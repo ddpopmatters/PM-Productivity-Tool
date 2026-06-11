@@ -3,8 +3,7 @@ import clsx from 'clsx';
 import { useApp } from './contexts';
 import { initSupabase, getSupabase } from './api/supabase';
 import { fetchWorkflowItems as fetchWorkflowItemsService } from './services/workflowItems';
-import { applyCockpitProductivityActions } from './services/cockpitActions';
-import { syncCockpitSnapshot } from './services/cockpitSync';
+import { useCockpitSync } from './hooks/useCockpitSync';
 import { Logger } from './utils/logger';
 import {
   isAdmin,
@@ -113,7 +112,6 @@ export default function App() {
 
   // Domain hooks
   const items = useWorkflowItems();
-  const cockpitActionPollActive = useRef(false);
   const todosHook = useTodos();
   const ws = useWorkstreams();
   const wb = useWhiteboards();
@@ -198,86 +196,17 @@ export default function App() {
     loadData();
   }, [authChecked, isAuthenticated, userEmail]);
 
-  useEffect(() => {
-    if (!authChecked) return;
-    if (APP_CONFIG.AUTH_ENABLED && !isAuthenticated) return;
-    if (!userEmail || items.loading) return;
-
-    const timer = window.setTimeout(() => {
-      syncCockpitSnapshot({
-        entries: items.entries,
-        workstreams: ws.workstreams,
-        workstreamTasks: ws.workstreamTasks,
-        todos: todosHook.todos,
-        events: ev.events,
-        userEmail,
-      }).then((result) => {
-        if (result.ok || result.skipped) return;
-        Logger.debug('PM Hermes Cockpit sync unavailable');
-      });
-    }, 900);
-
-    return () => window.clearTimeout(timer);
-  }, [
+  // PM Hermes Cockpit bridge — snapshot publishing + action polling
+  useCockpitSync({
     authChecked,
     isAuthenticated,
     userEmail,
-    items.loading,
-    items.entries,
-    ws.workstreams,
-    ws.workstreamTasks,
-    todosHook.todos,
-    ev.events,
-  ]);
-
-  useEffect(() => {
-    if (!authChecked) return;
-    if (APP_CONFIG.AUTH_ENABLED && !isAuthenticated) return;
-    if (!userEmail || items.loading) return;
-
-    let cancelled = false;
-
-    const pollCockpitActions = async () => {
-      if (cockpitActionPollActive.current || cancelled) return;
-      cockpitActionPollActive.current = true;
-      try {
-        await applyCockpitProductivityActions({
-          addItem: items.addItem,
-          createWorkstreamTask: ws.createWorkstreamTask,
-          addTodo: todosHook.addTodo,
-          updateEntry: items.updateEntry,
-          updateWorkstreamTask: ws.updateWorkstreamTask,
-          updateTodo: todosHook.updateTodo,
-          currentUser,
-          userEmail,
-        });
-      } catch {
-        Logger.debug('PM Hermes Cockpit action sync unavailable');
-      } finally {
-        cockpitActionPollActive.current = false;
-      }
-    };
-
-    pollCockpitActions();
-    const timer = window.setInterval(pollCockpitActions, 4000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [
-    authChecked,
-    isAuthenticated,
-    userEmail,
-    items.loading,
-    items.addItem,
-    items.updateEntry,
-    ws.createWorkstreamTask,
-    ws.updateWorkstreamTask,
-    todosHook.addTodo,
-    todosHook.updateTodo,
     currentUser,
-  ]);
+    items,
+    ws,
+    todosHook,
+    ev,
+  });
 
   // Build SUPABASE_API object for components that still need it (whiteboard, admin, productivity)
   const SUPABASE_API = useMemo(() => {
