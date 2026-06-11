@@ -31,6 +31,7 @@ export function useTodos() {
     if (updated) {
       setTodos(prev => prev.map(t => t.id === todoId ? updated : t));
     }
+    return updated;
   }, []);
 
   const deleteTodo = useCallback(async (todoId) => {
