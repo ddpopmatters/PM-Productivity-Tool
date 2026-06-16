@@ -590,7 +590,7 @@ export default function App() {
       case 'start-of-day':
         return (
           <ErrorBoundary key="start-of-day" message="The start of day packet encountered an error.">
-            <StartOfDayView userEmail={userEmail} />
+            <StartOfDayView userEmail={userEmail} authUserId={authUser?.id} />
           </ErrorBoundary>
         );
 

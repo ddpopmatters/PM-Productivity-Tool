@@ -1,3 +1,17 @@
+## 2026-06-16 — Start Of Day item action buttons
+Tool: Codex
+Branch: codex/start-of-day-actions
+Changes:
+- Added `Assign Hermes` buttons to Start Of Day forgotten/in-motion items, backed by the existing `agent-control` `ai_ops` run creation path.
+- Added `Open File` buttons to Start Of Day file items, calling the local PM Hermes Cockpit bridge with a clipboard fallback when the bridge is not running.
+- Passed the authenticated Supabase user id into the Start Of Day view so assignment requests create real agent runs.
+Verification:
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run test -- src/services/startOfDayActions.test.js src/services/startOfDay.test.js`: 10 tests passed.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run lint`: clean.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run build`: succeeds with the existing large chunk warning.
+- Opened `http://127.0.0.1:5180/PM-Productivity-Tool/start-of-day` in the in-app browser; local browser context reached sign-in with no console errors.
+Status: Complete
+
 ## 2026-06-16 — Telegram Mini App production URL
 Tool: Codex
 Branch: main

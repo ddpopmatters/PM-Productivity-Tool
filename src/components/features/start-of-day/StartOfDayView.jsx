@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { Button, Icon, LoadingSpinner } from '../../ui';
 import {
+  createStartOfDayAgentRun,
   fetchLatestStartOfDayPacket,
   groupStartOfDayItems,
+  openStartOfDayLocalFile,
   updateStartOfDayPacketStatus,
 } from '../../../services/startOfDay';
 import {
@@ -51,6 +53,8 @@ const STATUS_COPY = {
   snoozed: 'Snoozed',
   done: 'Done',
 };
+
+const ASSIGNABLE_ITEM_TYPES = new Set(['forgotten_work', 'already_started']);
 
 function formatDate(value) {
   if (!value) return 'No date';
@@ -107,7 +111,40 @@ function FocusBlock({ label, value, icon, strong = false }) {
   );
 }
 
-function ItemRow({ item }) {
+function isBridgeUnavailable(error) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return error instanceof TypeError
+    || message.includes('Failed to fetch')
+    || message.includes('NetworkError')
+    || message.includes('Load failed');
+}
+
+async function copyTextToClipboard(text) {
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
+
+  await navigator.clipboard.writeText(text);
+  return true;
+}
+
+function ActionMessage({ message }) {
+  if (!message) return null;
+
+  return (
+    <div className={clsx(
+      'rounded-xl border px-4 py-3 text-sm font-medium',
+      message.type === 'success' && 'border-emerald-200 bg-emerald-50 text-emerald-800',
+      message.type === 'warning' && 'border-amber-200 bg-amber-50 text-amber-800',
+      message.type === 'error' && 'border-rose-200 bg-rose-50 text-rose-800'
+    )}>
+      {message.text}
+    </div>
+  );
+}
+
+function ItemRow({ item, onAssignHermes, onOpenFile, activeAction }) {
+  const canAssignHermes = ASSIGNABLE_ITEM_TYPES.has(item.itemType);
+  const canOpenFile = item.itemType === 'created_file' && Boolean(item.localPath);
+
   return (
     <li className="border-t border-graystone-100 first:border-t-0">
       <div className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(180px,240px)]">
@@ -134,6 +171,30 @@ function ItemRow({ item }) {
           )}
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <StatusBadge status={item.status} />
+            {canAssignHermes && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="px-3 py-1 text-xs"
+                disabled={Boolean(activeAction)}
+                onClick={() => onAssignHermes(item)}
+              >
+                <Icon name={activeAction === 'assign' ? 'loader-circle' : 'bot'} className="h-3 w-3" />
+                {activeAction === 'assign' ? 'Assigning...' : 'Assign Hermes'}
+              </Button>
+            )}
+            {canOpenFile && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="px-3 py-1 text-xs"
+                disabled={Boolean(activeAction)}
+                onClick={() => onOpenFile(item)}
+              >
+                <Icon name={activeAction === 'open' ? 'loader-circle' : 'folder-open'} className="h-3 w-3" />
+                {activeAction === 'open' ? 'Opening...' : 'Open File'}
+              </Button>
+            )}
             {item.sourceUrl && (
               <a
                 href={item.sourceUrl}
@@ -152,7 +213,7 @@ function ItemRow({ item }) {
   );
 }
 
-function PacketSection({ config, items }) {
+function PacketSection({ config, items, onAssignHermes, onOpenFile, itemActions }) {
   return (
     <section className="rounded-xl border border-graystone-200 bg-white shadow-sm">
       <header className="flex items-center justify-between gap-3 border-b border-graystone-100 px-4 py-3">
@@ -166,7 +227,15 @@ function PacketSection({ config, items }) {
       </header>
       {items.length > 0 ? (
         <ul>
-          {items.map((item) => <ItemRow key={item.id} item={item} />)}
+          {items.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              onAssignHermes={onAssignHermes}
+              onOpenFile={onOpenFile}
+              activeAction={itemActions[item.id] || ''}
+            />
+          ))}
         </ul>
       ) : (
         <p className="px-4 py-5 text-sm text-graystone-500">{config.empty}</p>
@@ -175,11 +244,13 @@ function PacketSection({ config, items }) {
   );
 }
 
-export default function StartOfDayView({ userEmail }) {
+export default function StartOfDayView({ userEmail, authUserId }) {
   const [packet, setPacket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState('');
   const [isTelegram, setIsTelegram] = useState(false);
+  const [itemActions, setItemActions] = useState({});
+  const [actionMessage, setActionMessage] = useState(null);
 
   const loadPacket = useCallback(async () => {
     setLoading(true);
@@ -208,6 +279,78 @@ export default function StartOfDayView({ userEmail }) {
     const updated = await updateStartOfDayPacketStatus(packet.id, status);
     if (updated) setPacket(updated);
     setSavingStatus('');
+  };
+
+  const setItemAction = (itemId, action) => {
+    setItemActions((previous) => {
+      const next = { ...previous };
+      if (action) next[itemId] = action;
+      else delete next[itemId];
+      return next;
+    });
+  };
+
+  const assignHermes = async (item) => {
+    if (!authUserId) {
+      setActionMessage({
+        type: 'error',
+        text: 'Sign in again before assigning Hermes from this packet.',
+      });
+      return;
+    }
+
+    setItemAction(item.id, 'assign');
+    setActionMessage(null);
+    try {
+      const run = await createStartOfDayAgentRun({ item, userId: authUserId });
+      setActionMessage({
+        type: 'success',
+        text: `Hermes run ${run?.id || 'queued'} has been assigned to "${item.title}".`,
+      });
+    } catch (error) {
+      setActionMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Hermes could not be assigned to this task.',
+      });
+    } finally {
+      setItemAction(item.id, '');
+    }
+  };
+
+  const openFile = async (item) => {
+    setItemAction(item.id, 'open');
+    setActionMessage(null);
+    try {
+      await openStartOfDayLocalFile({ item });
+      setActionMessage({
+        type: 'success',
+        text: `Opened "${item.title}" on the Mac.`,
+      });
+    } catch (error) {
+      if (isBridgeUnavailable(error)) {
+        try {
+          const copied = await copyTextToClipboard(item.localPath);
+          setActionMessage({
+            type: 'warning',
+            text: copied
+              ? 'The local Mac bridge is not running, so the file path was copied instead.'
+              : 'The local Mac bridge is not running. Start PM Hermes Cockpit to open files directly.',
+          });
+        } catch {
+          setActionMessage({
+            type: 'warning',
+            text: 'The local Mac bridge is not running. Start PM Hermes Cockpit to open files directly.',
+          });
+        }
+      } else {
+        setActionMessage({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'This file could not be opened.',
+        });
+      }
+    } finally {
+      setItemAction(item.id, '');
+    }
   };
 
   if (loading) {
@@ -309,16 +452,20 @@ export default function StartOfDayView({ userEmail }) {
         <FocusBlock label="Re-entry Prompt" value={packet.reEntryPrompt} icon="repeat-2" />
       </div>
 
+      <ActionMessage message={actionMessage} />
+
       <div className="grid gap-4 xl:grid-cols-2">
         {SECTION_CONFIG.map((config) => (
           <PacketSection
             key={config.key}
             config={config}
             items={groupedItems[config.key] || []}
+            onAssignHermes={assignHermes}
+            onOpenFile={openFile}
+            itemActions={itemActions}
           />
         ))}
       </div>
     </div>
   );
 }
-
