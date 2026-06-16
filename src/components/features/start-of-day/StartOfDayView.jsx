@@ -54,7 +54,7 @@ const STATUS_COPY = {
   done: 'Done',
 };
 
-const ASSIGNABLE_ITEM_TYPES = new Set(['forgotten_work', 'already_started']);
+const ASSIGNABLE_ITEM_TYPES = new Set(['forgotten_work', 'already_started', 'agent_can_do']);
 
 function formatDate(value) {
   if (!value) return 'No date';
