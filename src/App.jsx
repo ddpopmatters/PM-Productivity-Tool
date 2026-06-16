@@ -54,6 +54,7 @@ import {
   LoginScreen,
   AuthCallback,
   Dashboard,
+  StartOfDayView,
   ItemDashboard,
   ToDoList,
   AddItemForm,
@@ -583,6 +584,13 @@ export default function App() {
             Badge={Badge}
             events={ev.events}
           />
+          </ErrorBoundary>
+        );
+
+      case 'start-of-day':
+        return (
+          <ErrorBoundary key="start-of-day" message="The start of day packet encountered an error.">
+            <StartOfDayView userEmail={userEmail} />
           </ErrorBoundary>
         );
 

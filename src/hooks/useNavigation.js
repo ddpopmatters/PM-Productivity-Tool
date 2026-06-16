@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const SIMPLE_ROUTES = {
   'dashboard': '/',
+  'start-of-day': '/start-of-day',
   'personal': '/personal',
   'jobs': '/jobs',
   'todo': '/todo',
@@ -82,6 +83,14 @@ export function useNavigation() {
 
   const [viewMode, setViewMode] = useState('table');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const search = new URLSearchParams(location.search);
+    const requestedView = search.get('start') || search.get('view') || search.get('tgWebAppStartParam');
+    if (requestedView && SIMPLE_ROUTES[requestedView] && currentView !== requestedView) {
+      routerNavigate(buildPath(requestedView), { replace: true });
+    }
+  }, [currentView, location.search, routerNavigate]);
 
   // IDs derived from URL params
   const selectedItemId = currentView === 'item-dashboard' ? params.itemId : null;
