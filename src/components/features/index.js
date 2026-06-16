@@ -17,3 +17,4 @@ export * from './manager';
 export * from './dashboard';
 export * from './item-dashboard';
 export * from './braindump';
+export * from './start-of-day';

@@ -37,6 +37,7 @@ const Sidebar = ({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+    { id: 'start-of-day', label: 'Start Of Day', icon: 'sunrise' },
     { id: 'personal', label: 'Your Projects', icon: 'folder' },
     { id: 'jobs', label: 'Tasks', icon: 'clipboard-list' },
     { id: 'workstreams', label: 'Workstreams', icon: 'layers' },
