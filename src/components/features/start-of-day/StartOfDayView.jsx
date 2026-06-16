@@ -6,6 +6,7 @@ import {
   fetchLatestStartOfDayPacket,
   groupStartOfDayItems,
   openStartOfDayLocalFile,
+  openStartOfDayStoredFile,
   updateStartOfDayPacketStatus,
 } from '../../../services/startOfDay';
 import {
@@ -143,7 +144,7 @@ function ActionMessage({ message }) {
 
 function ItemRow({ item, onAssignHermes, onOpenFile, activeAction }) {
   const canAssignHermes = ASSIGNABLE_ITEM_TYPES.has(item.itemType);
-  const canOpenFile = item.itemType === 'created_file' && Boolean(item.localPath);
+  const canOpenFile = item.itemType === 'created_file' && Boolean(item.storagePath || item.localPath);
 
   return (
     <li className="border-t border-graystone-100 first:border-t-0">
@@ -162,6 +163,11 @@ function ItemRow({ item, onAssignHermes, onOpenFile, activeAction }) {
           {item.localPath && (
             <p className="mt-2 break-all rounded-lg bg-graystone-50 px-2 py-1 font-mono text-[11px] text-graystone-700">
               {item.localPath}
+            </p>
+          )}
+          {item.storagePath && (
+            <p className="mt-2 break-all rounded-lg bg-ocean-50 px-2 py-1 font-mono text-[11px] text-ocean-800">
+              {item.storageBucket || 'start-of-day-files'}/{item.storagePath}
             </p>
           )}
         </div>
@@ -321,12 +327,49 @@ export default function StartOfDayView({ userEmail, authUserId }) {
     setItemAction(item.id, 'open');
     setActionMessage(null);
     try {
+      if (item.storagePath) {
+        const targetWindow = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+        await openStartOfDayStoredFile({ item, targetWindow });
+        setActionMessage({
+          type: 'success',
+          text: `Opened "${item.title}" from Supabase.`,
+        });
+        return;
+      }
+
       await openStartOfDayLocalFile({ item });
       setActionMessage({
         type: 'success',
         text: `Opened "${item.title}" on the Mac.`,
       });
     } catch (error) {
+      if (item.storagePath && item.localPath) {
+        try {
+          await openStartOfDayLocalFile({ item });
+          setActionMessage({
+            type: 'warning',
+            text: `The Supabase copy could not be opened, so "${item.title}" was opened on the Mac instead.`,
+          });
+          return;
+        } catch (localError) {
+          if (!isBridgeUnavailable(localError)) {
+            setActionMessage({
+              type: 'error',
+              text: localError instanceof Error ? localError.message : 'This file could not be opened.',
+            });
+            return;
+          }
+        }
+      }
+
+      if (item.storagePath) {
+        setActionMessage({
+          type: 'error',
+          text: error instanceof Error ? error.message : 'The stored Supabase file could not be opened.',
+        });
+        return;
+      }
+
       if (isBridgeUnavailable(error)) {
         try {
           const copied = await copyTextToClipboard(item.localPath);

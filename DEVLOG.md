@@ -1,3 +1,22 @@
+## 2026-06-16 — Start Of Day managed Supabase file storage
+Tool: Codex
+Branch: codex/start-of-day-supabase-files
+Changes:
+- Added a private `start-of-day-files` Supabase Storage bucket for Start Of Day created-file documents.
+- Added storage metadata columns to `start_of_day_items` so Momentum Hub can open stored files through signed URLs.
+- Updated the Start Of Day screen to prefer the stored Supabase file and fall back to the local Mac bridge when needed.
+- Updated the Hermes packet generator to clear `current/<safe-user-email>/` before each packet and re-upload that packet's human-facing files, preventing daily file copies from accumulating.
+- Updated the Start Of Day feature contract and tests for the managed storage behaviour.
+Verification:
+- Applied the live PM Supabase migration via the project-scoped Supabase MCP.
+- Ran the generator twice: first uploaded 5 files, second removed 5 and uploaded 5, confirming replacement instead of accumulation.
+- Verified the live packet has 5 `created_file` items and all 5 have storage metadata.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run lint`: clean.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run build`: succeeds with the existing large chunk warning.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm test`: 722 tests passed.
+- Ran `/Users/dan/.hermes/hermes-agent/.venv/bin/python -m pytest /Users/dan/.hermes/tests/test_start_of_day_packet.py`: 7 tests passed.
+Status: Complete
+
 ## 2026-06-16 — Start Of Day action visibility fix
 Tool: Codex
 Branch: codex/start-of-day-action-visibility

@@ -4,6 +4,7 @@ import {
   createStartOfDayAgentRun,
   fetchLatestStartOfDayPacket,
   openStartOfDayLocalFile,
+  openStartOfDayStoredFile,
   updateStartOfDayPacketStatus,
 } from '../../../services/startOfDay';
 
@@ -22,6 +23,7 @@ vi.mock('../../../services/startOfDay', () => ({
     return groups;
   }),
   openStartOfDayLocalFile: vi.fn(),
+  openStartOfDayStoredFile: vi.fn(),
   updateStartOfDayPacketStatus: vi.fn(),
 }));
 
@@ -64,7 +66,8 @@ describe('StartOfDayView action buttons', () => {
         itemType: 'created_file',
         title: 'Trustee briefing',
         status: 'open',
-        localPath: '/Users/dan/dev/population_matters/reports/trustee-brief.md',
+        storageBucket: 'start-of-day-files',
+        storagePath: 'current/dan_example.org/trustee-brief.md',
       },
       {
         id: 'waiting-item',
@@ -89,6 +92,7 @@ describe('StartOfDayView action buttons', () => {
     await waitFor(() => expect(fetchLatestStartOfDayPacket).toHaveBeenCalledWith('dan@example.org'));
     expect(createStartOfDayAgentRun).not.toHaveBeenCalled();
     expect(openStartOfDayLocalFile).not.toHaveBeenCalled();
+    expect(openStartOfDayStoredFile).not.toHaveBeenCalled();
     expect(updateStartOfDayPacketStatus).not.toHaveBeenCalled();
   });
 });
