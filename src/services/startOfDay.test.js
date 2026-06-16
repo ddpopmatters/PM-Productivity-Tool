@@ -2,8 +2,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as supabaseModule from '../api/supabase';
 import {
   fetchLatestStartOfDayPacket,
+  getStartOfDayStoredFileUrl,
   groupStartOfDayItems,
   normalizeStartOfDayPacket,
+  openStartOfDayStoredFile,
   updateStartOfDayPacketStatus,
 } from './startOfDay';
 
@@ -35,7 +37,17 @@ describe('normalizeStartOfDayPacket', () => {
       re_entry_prompt: 'Return to the appeal review',
       ack_status: 'unseen',
       start_of_day_items: [
-        { id: 'i-2', item_type: 'agent_can_do', title: 'Draft summary', sort_order: 2 },
+        {
+          id: 'i-2',
+          item_type: 'agent_can_do',
+          title: 'Draft summary',
+          sort_order: 2,
+          storage_bucket: 'start-of-day-files',
+          storage_path: 'current/dan_pm.org/brief.md',
+          storage_mime_type: 'text/markdown',
+          storage_file_size: 1200,
+          storage_uploaded_at: '2026-06-16T08:00:00Z',
+        },
         { id: 'i-1', item_type: 'forgotten_work', title: 'Appeal review', sort_order: 1 },
       ],
     });
@@ -43,6 +55,13 @@ describe('normalizeStartOfDayPacket', () => {
     expect(packet.userEmail).toBe('dan@pm.org');
     expect(packet.primaryTask).toBe('Open the appeal review');
     expect(packet.items.map((item) => item.id)).toEqual(['i-1', 'i-2']);
+    expect(packet.items[1]).toMatchObject({
+      storageBucket: 'start-of-day-files',
+      storagePath: 'current/dan_pm.org/brief.md',
+      storageMimeType: 'text/markdown',
+      storageFileSize: 1200,
+      storageUploadedAt: '2026-06-16T08:00:00Z',
+    });
   });
 });
 
@@ -113,3 +132,79 @@ describe('updateStartOfDayPacketStatus', () => {
   });
 });
 
+describe('getStartOfDayStoredFileUrl', () => {
+  it('creates a signed URL for a stored Start of Day file', async () => {
+    const createSignedUrl = vi.fn().mockResolvedValue({
+      data: { signedUrl: 'https://example.supabase.co/signed/brief.md' },
+      error: null,
+    });
+    const fromStorage = vi.fn(() => ({ createSignedUrl }));
+    vi.spyOn(supabaseModule, 'getSupabase').mockReturnValue({
+      storage: { from: fromStorage },
+    });
+
+    const result = await getStartOfDayStoredFileUrl({
+      title: 'Trustee brief',
+      storageBucket: 'start-of-day-files',
+      storagePath: 'current/dan_pm.org/brief.md',
+    });
+
+    expect(fromStorage).toHaveBeenCalledWith('start-of-day-files');
+    expect(createSignedUrl).toHaveBeenCalledWith(
+      'current/dan_pm.org/brief.md',
+      3600,
+      { download: 'Trustee brief' }
+    );
+    expect(result).toBe('https://example.supabase.co/signed/brief.md');
+  });
+
+  it('opens a stored file URL through the supplied opener', async () => {
+    const createSignedUrl = vi.fn().mockResolvedValue({
+      data: { signedUrl: 'https://example.supabase.co/signed/brief.md' },
+      error: null,
+    });
+    vi.spyOn(supabaseModule, 'getSupabase').mockReturnValue({
+      storage: { from: () => ({ createSignedUrl }) },
+    });
+    const opener = vi.fn();
+
+    const result = await openStartOfDayStoredFile({
+      item: { storagePath: 'current/dan_pm.org/brief.md' },
+      opener,
+    });
+
+    expect(opener).toHaveBeenCalledWith(
+      'https://example.supabase.co/signed/brief.md',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    expect(result.url).toBe('https://example.supabase.co/signed/brief.md');
+  });
+
+  it('navigates a pre-opened tab when supplied', async () => {
+    const createSignedUrl = vi.fn().mockResolvedValue({
+      data: { signedUrl: 'https://example.supabase.co/signed/brief.md' },
+      error: null,
+    });
+    vi.spyOn(supabaseModule, 'getSupabase').mockReturnValue({
+      storage: { from: () => ({ createSignedUrl }) },
+    });
+    const targetWindow = {
+      closed: false,
+      opener: {},
+      location: { assign: vi.fn() },
+    };
+    const opener = vi.fn();
+
+    const result = await openStartOfDayStoredFile({
+      item: { storagePath: 'current/dan_pm.org/brief.md' },
+      opener,
+      targetWindow,
+    });
+
+    expect(targetWindow.opener).toBeNull();
+    expect(targetWindow.location.assign).toHaveBeenCalledWith('https://example.supabase.co/signed/brief.md');
+    expect(opener).not.toHaveBeenCalled();
+    expect(result.url).toBe('https://example.supabase.co/signed/brief.md');
+  });
+});

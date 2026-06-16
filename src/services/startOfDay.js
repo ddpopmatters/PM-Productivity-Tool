@@ -4,6 +4,8 @@ import { createAgentRun } from './agentControl';
 
 const ACK_STATUSES = new Set(['unseen', 'seen', 'started', 'snoozed', 'done']);
 const OPEN_FILE_URL = 'http://127.0.0.1:5177/api/open-file';
+const START_OF_DAY_FILE_BUCKET = 'start-of-day-files';
+const SIGNED_FILE_URL_EXPIRES_SECONDS = 60 * 60;
 
 const ITEM_TYPES = [
   'forgotten_work',
@@ -35,6 +37,11 @@ export function normalizeStartOfDayItem(row) {
     status: row.status || 'open',
     sourceUrl: row.source_url || row.sourceUrl || '',
     localPath: row.local_path || row.localPath || '',
+    storageBucket: row.storage_bucket || row.storageBucket || '',
+    storagePath: row.storage_path || row.storagePath || '',
+    storageMimeType: row.storage_mime_type || row.storageMimeType || '',
+    storageFileSize: Number(row.storage_file_size ?? row.storageFileSize ?? 0),
+    storageUploadedAt: row.storage_uploaded_at || row.storageUploadedAt || '',
     sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
     createdAt: row.created_at || row.createdAt || '',
     updatedAt: row.updated_at || row.updatedAt || '',
@@ -87,6 +94,7 @@ export function buildStartOfDayAgentObjective(item) {
     item.nextAction && `Next action: ${item.nextAction}`,
     item.confidence && `Confidence: ${item.confidence}`,
     item.localPath && `Local file: ${item.localPath}`,
+    item.storagePath && `Supabase file: ${item.storageBucket || START_OF_DAY_FILE_BUCKET}/${item.storagePath}`,
     item.sourceUrl && `Source: ${item.sourceUrl}`,
     'Work autonomously where safe. Return the result, files changed or created, and any decisions Dan must make.',
   ].filter(Boolean).join('\n');
@@ -114,9 +122,51 @@ export async function createStartOfDayAgentRun({ item, userId }) {
       nextAction: item.nextAction || '',
       confidence: item.confidence || '',
       localPath: item.localPath || '',
+      storageBucket: item.storageBucket || '',
+      storagePath: item.storagePath || '',
       sourceUrl: item.sourceUrl || '',
     },
   });
+}
+
+export async function getStartOfDayStoredFileUrl(item) {
+  const supabase = getSupabase();
+  const storagePath = item?.storagePath;
+  if (!supabase || !storagePath) return null;
+
+  const bucket = item.storageBucket || START_OF_DAY_FILE_BUCKET;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(storagePath, SIGNED_FILE_URL_EXPIRES_SECONDS, {
+      download: item.title || true,
+    });
+
+  if (error) {
+    Logger.error(error, 'Start of Day stored file URL error');
+    return null;
+  }
+
+  return data?.signedUrl || null;
+}
+
+export async function openStartOfDayStoredFile({ item, opener, targetWindow } = {}) {
+  const signedUrl = await getStartOfDayStoredFileUrl(item);
+  if (!signedUrl) {
+    targetWindow?.close?.();
+    throw new Error('No Supabase file URL is available for this item');
+  }
+
+  if (targetWindow && !targetWindow.closed) {
+    targetWindow.opener = null;
+    targetWindow.location.assign(signedUrl);
+    return { url: signedUrl };
+  }
+
+  const openWindow = opener || (typeof window !== 'undefined' ? window.open : null);
+  if (!openWindow) return { url: signedUrl };
+
+  openWindow(signedUrl, '_blank', 'noopener,noreferrer');
+  return { url: signedUrl };
 }
 
 export async function openStartOfDayLocalFile({ item, fetcher = fetch }) {
