@@ -1,3 +1,33 @@
+## 2026-06-16 — Start Of Day action visibility fix
+Tool: Codex
+Branch: codex/start-of-day-action-visibility
+Changes:
+- Fixed the Start Of Day action visibility rule so `Hermes Can Do Without You` (`agent_can_do`) items now show the `Assign Hermes` button.
+- Kept `Waiting On You` items unassignable so decisions, approvals, and credentials stay human-gated.
+- Added rendered component coverage proving `Assign Hermes` appears for autonomous items and `Open File` appears for file rows with local paths.
+Verification:
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run test -- src/components/features/start-of-day/StartOfDayView.test.jsx src/services/startOfDayActions.test.js src/services/startOfDay.test.js`: 11 tests passed.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run lint`: clean.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run build`: succeeds with the existing large chunk warning.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm test`: 719 tests passed.
+- Opened `http://127.0.0.1:3000/PM-Productivity-Tool/start-of-day` in the in-app browser; unauthenticated local context reached sign-in with no console errors.
+Status: Complete
+
+## 2026-06-16 — Promoted current main to GitHub Pages
+Tool: Codex
+Branch: main
+Changes:
+- Confirmed GitHub Pages is configured for `ddpopmatters/PM-Productivity-Tool` with workflow-based deployment at `https://ddpopmatters.github.io/PM-Productivity-Tool/`.
+- Confirmed the previous live Pages run was on `525d2be`, then dispatched `Promote GitHub Pages production` for current `main` at `da13071`.
+- Verified the production workflow created the SPA `404.html` fallback and deployed successfully.
+Verification:
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run lint`: clean.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run build`: succeeds with the existing large chunk warning.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm test`: 718 tests passed.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm audit --audit-level=critical`: no critical findings; existing moderate/high advisory debt remains.
+- Verified the live root URL returns `200 OK` and the `/start-of-day` deep link returns the app fallback content.
+Status: Complete
+
 ## 2026-06-16 — Start Of Day item action buttons
 Tool: Codex
 Branch: codex/start-of-day-actions
