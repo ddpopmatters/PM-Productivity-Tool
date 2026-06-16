@@ -1,3 +1,42 @@
+## 2026-06-16 — Telegram Mini App production URL
+Tool: Codex
+Branch: main
+Changes:
+- Pointed Hermes' Telegram Mini App URL at `https://ddpopmatters.github.io/PM-Productivity-Tool/?start=start-of-day` because the branded WordPress `/workstream-tool/` page is currently an iframe wrapper that does not pass parent query parameters into the embedded app.
+- Made the React router basename use Vite's configured base path instead of the old hardcoded `/PM-Productivity-Tool/` path.
+- Added query/start-parameter routing so the production base URL can open Start Of Day without relying on server-side SPA fallback for `/start-of-day`.
+Verification:
+- Confirmed `https://populationmatters.org/workstream-tool/` returns `200 OK`.
+- Confirmed `https://populationmatters.org/workstream-tool/start-of-day` currently returns `404`, so the query-param launch route is necessary.
+- Confirmed the WordPress `/workstream-tool/` page embeds `https://ddpopmatters.github.io/PM-Productivity-Tool/` in an iframe; WordPress credentials are still needed to update the wrapper if the branded URL should deep-link Start Of Day.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run test -- src/services/startOfDay.test.js src/utils/telegramMiniApp.test.js`: 9 tests passed.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run lint`: clean.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run build`: succeeds.
+- Ran `CODEX_ALLOW_HOME_WORK=1 VITE_APP_BASE_PATH=/workstream-tool/ npm run build`: succeeds.
+Status: Complete
+
+## 2026-06-15 — Start Of Day packet and Telegram Mini App route
+Tool: Codex
+Branch: main
+Changes:
+- Added a first-class Start Of Day route and sidebar entry for Hermes' daily packet.
+- Added a Supabase service and data contract for packets, packet items, and acknowledgement status.
+- Added Telegram Mini App bootstrapping and allowed Telegram's official web app script through the CSP.
+- Documented the project plan, Mini App rollout plan, and Supabase schema contract.
+- Applied the additive PM Supabase migration for `start_of_day_packets` and `start_of_day_items` with RLS enabled.
+- Added the Hermes `generate-start-of-day-packet.py` writer and wired it into the existing morning brief generator.
+Verification:
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run test -- src/services/startOfDay.test.js src/utils/telegramMiniApp.test.js`: 9 tests passed.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run build`: succeeds.
+- Ran `CODEX_ALLOW_HOME_WORK=1 npm run lint`: clean.
+- Ran `python3 -m py_compile` against the updated Hermes morning scripts.
+- Ran `python3 /Users/dan/.hermes/scripts/generate-start-of-day-packet.py`: created the 2026-06-15 packet with 20 items.
+- Directly called `generate_start_of_day_packet_status()` from the morning generator: returned the existing packet JSON successfully.
+- Confirmed `http://127.0.0.1:3000/PM-Productivity-Tool/start-of-day` returns `200 OK`.
+- Confirmed PM Supabase lists `public.start_of_day_packets` and `public.start_of_day_items`.
+- Confirmed PM Supabase has one 2026-06-15 packet for Dan with 20 items.
+Status: Complete
+
 ## 2026-06-11 — Architecture cleanup: cockpit hook extraction, brainDumps service, test backfill
 Tool: Claude Code (Fable 5)
 Branch: refactor/service-tests-and-cockpit-hook
@@ -20,83 +59,4 @@ Changes:
 Verification:
 - Ran `npm run lint`: clean.
 - Ran `npm run test -- --run`: 464 tests passed (40 files).
-Status: Complete
-
-## 2026-05-11 — PM Productivity intake from cockpit
-Tool: Codex
-Branch: main
-Changes:
-- Extended the cockpit bridge poller to read PM Productivity intake requests from the local cockpit.
-- Added creation handlers for workflow tasks, workflow projects, workstream tasks, and personal to-dos using the existing signed-in PM Productivity Tool methods.
-- Added intake result reporting so synced items leave the cockpit queue and failures are visible.
-- Passed the required item, workstream, and personal to-do creation methods into the cockpit poller from the main app.
-Verification:
-- Ran `npm test -- src/services/cockpitActions.test.js src/services/cockpitSync.test.js`: 6 tests passed.
-- Ran `npm run lint`.
-- Ran `npm run build`.
-Status: Complete
-
-## 2026-05-11 — PM Hermes Cockpit action bridge refinement
-Tool: Codex
-Branch: main
-Changes:
-- Extended the cockpit quick-action poller to apply approved completion actions for workstream tasks and personal to-dos.
-- Kept workflow item archive actions on the existing authenticated update path.
-- Returned updated personal to-do records from `useTodos.updateTodo` so cockpit action success can be reported accurately.
-- Cleaned dashboard duplicate-key sources and form-field console warnings.
-- Updated the local CSP meta policy so the Lucide CDN source map request is not blocked, and removed ignored meta-only frame directives.
-- Documented the approved PM Hermes Cockpit bridge in `PROJECT.md`.
-Verification:
-- Ran `npm test -- src/services/cockpitActions.test.js src/services/cockpitSync.test.js`: 5 tests passed.
-- Ran `npm run build`.
-- Used the in-app browser to confirm the signed-in PM Productivity Tool dashboard loads and the console is clean apart from normal Vite/React development notices.
-Status: Complete
-
-## 2026-05-10 — PM Hermes Cockpit quick actions
-Tool: Codex
-Branch: main
-Changes:
-- Added a cockpit quick-action poller that reads pending trusted PM Productivity actions from the local PM Hermes Cockpit.
-- Wired Archive requests to the existing authenticated workflow item update path, so the PM tool applies the archive using Dan’s signed-in session.
-- Added action-result reporting back to the cockpit so completed or failed actions leave the pending queue.
-- Added regression coverage for applying a cockpit Archive request.
-Verification:
-- Ran `npm run lint`.
-- Ran `npm run test -- --run`: 462 tests passed.
-- Ran `npm run build`.
-- Restarted the local PM Productivity Tool server at `http://127.0.0.1:3000/PM-Productivity-Tool/`.
-- Used the in-app browser to confirm the signed-in PM tool still loads; known pre-existing console warnings remain in the dashboard key/CSP meta areas, but no cockpit action CSP block appeared.
-Status: Complete
-
-## 2026-05-10 — PM Hermes Cockpit live bridge
-Tool: Codex
-Branch: main
-Changes:
-- Added a browser-side live bridge that publishes authenticated PM Productivity Tool state to the local PM Hermes Cockpit ingest endpoint.
-- Added a snapshot builder for workflow items, workstreams, workstream tasks, personal todos, and calendar events, with field names normalised for the cockpit connector.
-- Debounced cockpit sync from the main app once authenticated work data has loaded, including empty authenticated snapshots so stale cockpit counts can clear.
-- Allowed the local cockpit endpoint through the PM Productivity Tool content security policy.
-- Added regression coverage for the cockpit snapshot payload contract and CSP bridge allowance.
-Verification:
-- Ran `npm run lint`.
-- Ran `npm run test -- --run`: 461 tests passed.
-- Ran `npm run test -- src/services/cockpitSync.test.js --run`: 3 tests passed after the CSP follow-up.
-- Ran `npm run build`.
-- Used the in-app browser after sign-in to confirm the PM Productivity Tool published a live snapshot to the cockpit: 120 workflow items, 11 workstreams, 54 workstream tasks, and 5 personal todos.
-- Confirmed the cockpit now reads `local_snapshot` data and shows `PM WORK 117` and `PM PROJECTS 12`.
-Status: Complete
-
-## 2026-05-12 — PM Productivity intake result links
-Tool: Codex
-Branch: main
-Changes:
-- Extended cockpit intake creation results with the created PM Productivity Tool target type, id, and URL.
-- Added result metadata for workflow items, workstream tasks, and personal to-dos so the cockpit can show a plain created-item link in intake history.
-- Verified a harmless live bridge request created `Cockpit live bridge test - safe to archive`, reported the item URL back to the cockpit, and was then archived through the cockpit quick-action bridge.
-Verification:
-- Ran `npm test -- src/services/cockpitActions.test.js`: 3 tests passed.
-- Ran `npm test -- src/services/cockpitActions.test.js src/services/cockpitSync.test.js`: 6 tests passed.
-- Ran `npm run lint`.
-- Ran `npm run build`.
-- Used the in-app browser to confirm the signed-in PM Productivity Tool consumed the cockpit intake queue and reported completion back to the cockpit.
 Status: Complete

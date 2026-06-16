@@ -8,7 +8,7 @@
     <!-- Security Headers -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
-      script-src 'self' https://unpkg.com;
+      script-src 'self' https://unpkg.com https://telegram.org;
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https: blob:;
       font-src 'self';
@@ -22,6 +22,7 @@
     <link rel="icon" type="image/svg+xml" href="/PM-Productivity-Tool/favicon.svg" />
     <!-- Lucide Icons (pinned version for security) -->
     <script src="https://unpkg.com/lucide@0.294.0"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
     <div id="root"></div>
