@@ -8,10 +8,10 @@ const RATE_LIMIT_CONFIG = {
 }
 
 // Security: Restrict CORS to only allowed origins
-const APP_URL = Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
+const APP_URL = Deno.env.get('MOMENTUM_APP_URL') || Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
 const ALLOWED_ORIGINS = [
   'https://ddpopmatters.github.io',
-  APP_URL
+  new URL(APP_URL).origin
 ]
 
 function createAdminClient(supabaseUrl: string, serviceRoleKey: string) {
