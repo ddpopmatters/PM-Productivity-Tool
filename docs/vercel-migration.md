@@ -1,6 +1,6 @@
 # Momentum Hub migration to Vercel
 
-Updated 21 October 2026. Status: Vercel production deployed; Supabase URLs and five backend functions updated. Signed-in application checks remain pending. Earlier preparation notes below retain the checks and blockers observed before release; the release record supersedes their deployment status.
+Updated 21 October 2026. Status: Vercel production deployed; Supabase URLs and five backend functions updated. Signed-in smoke checks passed for the dashboard, project data, Start Of Day refresh/session persistence and Admin Console. Earlier preparation notes below retain the checks and blockers observed before release; the release record supersedes their deployment status.
 
 ## Production release record
 
@@ -13,7 +13,7 @@ Updated 21 October 2026. Status: Vercel production deployed; Supabase URLs and f
 - All five functions allow both production and GitHub Pages origins, exclude the tested lookalike origin, and return HTTP 401 to unauthenticated POST requests. These checks do not send invitations, notifications or delete requests with valid credentials.
 - GitHub Pages still returns HTTP 200 and its deployment workflow was not changed or dispatched.
 - A remaining hard-coded favicon link was found during production checks; the release follow-up changes it to Vite's `%BASE_URL%` placeholder for both hosting paths.
-- Signed-in read/write flows, invitation acceptance, password-reset delivery and outbound notifications are not yet verified. Existing dependency advisories remain documented below.
+- Signed-in dashboard, project data, Start Of Day refresh/session persistence and Admin Console were verified in Dan's production session. Browser logs showed no errors, with Telegram compatibility warnings only. Write/delete operations, invitation acceptance, password-reset delivery and outbound notifications were not exercised. Existing dependency advisories remain documented below.
 - Local release evidence, exact rollback function sources, candidate bundles and HTTP check results are under `.vercel/migration-2026-10-21/` (ignored by Git).
 
 ## Verified existing Vercel project
