@@ -11,4 +11,7 @@ Verification:
 - Verified signed-in Vercel project ownership, Git connection, production revision/domain and required variable names without revealing values.
 - Confirmed the existing deployment renders blank with GitHub Pages asset paths.
 - Local dependency installation failed with ENOSPC; removed the partial install. Build, lint and tests require remote CI verification.
-Status: Release preparation in progress; no production changes.
+- PR #14 passed remote lint, root-hosted build and all 493 tests; Vercel created a successful protected preview.
+- Security CI passed its critical threshold, but audit reports 24 existing advisories including 18 high.
+- Verified both production hosts use the same active Workstream Tool backend; its invitation endpoint currently rejects the Vercel origin via CORS.
+Status: PR prepared and checks passed; staff cutover blocked by backend configuration and pending authenticated smoke tests. No production changes.

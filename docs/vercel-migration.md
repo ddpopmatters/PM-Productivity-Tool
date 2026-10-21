@@ -46,3 +46,11 @@ Keep the existing GitHub Pages site available throughout cutover. Record its cur
 The Vercel browser is authenticated; the CLI has no authenticated session. A local dependency installation failed with `ENOSPC` and its partial `node_modules` directory was removed. Local build, lint and tests could not run. CI now includes a root-hosted production build alongside existing lint and tests. Provider variable presence and existing Vercel deployment state were verified above; live migration verification remains pending. Local configuration is not a release-ready verdict.
 
 Provider reference: [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite).
+
+## Follow-up verification on 21 October
+
+- Both public production bundles (GitHub Pages and Vercel) point to `https://jzalaltexmotkusvqoew.supabase.co`. The Supabase CLI identifies this linked project as **Workstream Tool**, `ACTIVE_HEALTHY`. The older Content Hub project referenced in PROJECT.md is `INACTIVE`; do not migrate or configure it for this cutover.
+- An OPTIONS request to the active backend's `invite-user` endpoint with `Origin: https://pm-productivity-tool.vercel.app` returned `Access-Control-Allow-Origin: https://ddpopmatters.github.io`. This blocks the invitation browser flow from Vercel and must be corrected before staff cutover.
+- PR #14 passed CI: 493 tests across 34 files, lint and root-hosted build. The security job passed its critical threshold but reported 24 existing advisories, including 18 high; a green job does not mean a clean dependency audit. Dependency remediation was not included in this hosting change.
+- Vercel built preview deployment `41T68hsN62NHVyqcK2oZQdmATdXH` successfully. Its URL is `https://pm-productivity-tool-git-code-556c94-danieldavis-4160s-projects.vercel.app`; HTTP access redirects to Vercel SSO. Browser smoke testing is pending because the authenticated browser connection became unavailable.
+- Production remains unchanged. Release preflight is BLOCKED pending backend origin/redirect fixes, authenticated smoke tests, dependency-risk review and approval of the concrete production release.
