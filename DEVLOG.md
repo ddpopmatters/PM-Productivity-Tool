@@ -15,3 +15,16 @@ Verification:
 - Security CI passed its critical threshold, but audit reports 24 existing advisories including 18 high.
 - Verified both production hosts use the same active Workstream Tool backend; its invitation endpoint currently rejects the Vercel origin via CORS.
 Status: PR prepared and checks passed; staff cutover blocked by backend configuration and pending authenticated smoke tests. No production changes.
+
+## 2026-10-21 — Prepare reversible Supabase URL cutover
+Tool: Codex
+Changes:
+- Prepared a dedicated MOMENTUM_APP_URL override for five edge functions, exact-origin CORS and configuration-based invitation redirects.
+- Downloaded deployed function sources for rollback and prepared minimal release candidates that preserve existing live account logic.
+- Documented current Supabase auth URLs, scoped configuration rollback and remaining release gates.
+Verification:
+- Local lint, root-hosted build and all 722 local tests passed after disk space became available.
+- Five release-candidate handlers passed 120 offline CORS assertions without network calls or email sends.
+- Vercel preview renders the login screen on a direct /start-of-day request; preview auth remains unconfigured.
+- Reviewed the diff for preserved authentication, role checks, rate limits and JWT settings.
+Status: Prepared for production approval; no production settings, functions or deployments changed.

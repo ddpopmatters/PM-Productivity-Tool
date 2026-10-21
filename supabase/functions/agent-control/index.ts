@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const APP_URL = Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
-const ALLOWED_ORIGINS = ['https://ddpopmatters.github.io', APP_URL]
+const APP_URL = Deno.env.get('MOMENTUM_APP_URL') || Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
+const ALLOWED_ORIGINS = ['https://ddpopmatters.github.io', new URL(APP_URL).origin]
 
 const VALID_MODES = new Set(['social', 'website', 'ai_ops'])
 const BUILD_REQUIRED_MODES = new Set(['website', 'ai_ops'])

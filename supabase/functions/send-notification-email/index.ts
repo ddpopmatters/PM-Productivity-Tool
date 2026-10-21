@@ -12,14 +12,14 @@ const RATE_LIMIT_CONFIG = {
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'noreply@populationmatters.org'
 const APP_NAME = Deno.env.get('APP_NAME') || 'Momentum Hub'
-const APP_URL = Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
+const APP_URL = Deno.env.get('MOMENTUM_APP_URL') || Deno.env.get('APP_URL') || 'https://ddpopmatters.github.io/PM-Productivity-Tool'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 // Restrict CORS to only the app's domain (security fix)
 const ALLOWED_ORIGINS = [
   'https://ddpopmatters.github.io',
-  APP_URL
+  new URL(APP_URL).origin
 ]
 
 function getCorsHeaders(origin: string | null): Record<string, string> {
