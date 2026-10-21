@@ -20,7 +20,8 @@ stack:
   - Tailwind CSS
   - Supabase
 deploy_targets:
-  - GitHub Pages
+  - Vercel
+  - GitHub Pages (rollback)
   - Static hosting
 data_stores:
   - Supabase Postgres
@@ -86,4 +87,7 @@ Live / maintaining.
 - Is this the right long-term home for non-content productivity features, or should they migrate to Unity Hub?
 
 ## Dependencies
-- Supabase project: "Content Hub" (dvhjvtxtkmtsqlnurhfg)
+- Production frontend: https://pm-productivity-tool.vercel.app
+- Supabase project: "Workstream Tool" (jzalaltexmotkusvqoew), verified against both live frontend bundles and the Supabase CLI on 21 October 2026.
+- GitHub Pages remains available for rollback at https://ddpopmatters.github.io/PM-Productivity-Tool/.
+- Release and rollback details: `docs/vercel-migration.md`.

@@ -28,3 +28,18 @@ Verification:
 - Vercel preview renders the login screen on a direct /start-of-day request; preview auth remains unconfigured.
 - Reviewed the diff for preserved authentication, role checks, rate limits and JWT settings.
 Status: Prepared for production approval; no production settings, functions or deployments changed.
+
+## 2026-10-21 — Release Momentum Hub on Vercel
+Tool: Codex
+Changes:
+- Merged approved PR #14 and deployed the existing Vercel project at https://pm-productivity-tool.vercel.app.
+- Updated the Supabase Site URL, retained the GitHub Pages redirect and added the Vercel redirect.
+- Added the dedicated application URL override and deployed five minimal backend URL patches, preserving live account logic and JWT settings.
+- Corrected the favicon link to follow Vite's base path and updated the project/deployment documentation.
+Verification:
+- Production root, /start-of-day, JavaScript asset, PWA manifest, favicon asset and health endpoint return HTTP 200.
+- Five functions accept the Vercel and GitHub Pages origins, exclude a lookalike domain and reject unauthenticated POSTs with HTTP 401.
+- GitHub Pages remains reachable for rollback. Deployed function source backups are retained locally.
+- Root-hosted follow-up build passes with the corrected favicon link.
+- Workspace inventory sync was attempted after updating PROJECT.md; it is blocked by an unrelated broken reference in operations/audits/website-chart-motion/2026-10-19/README.md.
+Status: Production deployed; signed-in application checks pending.
