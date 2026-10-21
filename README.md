@@ -1,5 +1,7 @@
 # PM Productivity Tool
 
+Production: [Momentum Hub on Vercel](https://pm-productivity-tool.vercel.app). Code remains in GitHub; accounts and data remain in Supabase. See the [current deployment and rollback runbook](docs/vercel-migration.md) for the Vite hosting configuration. GitHub Pages is retained for rollback. The legacy setup notes below predate the Vite migration.
+
 A project management and productivity tracking tool for teams, built with React and Supabase.
 
 ## Features

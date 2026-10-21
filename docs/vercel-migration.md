@@ -1,6 +1,20 @@
 # Momentum Hub migration to Vercel
 
-Prepared 21 October 2026. Status: migration configuration prepared; release and staff cutover pending.
+Updated 21 October 2026. Status: Vercel production deployed; Supabase URLs and five backend functions updated. Signed-in smoke checks passed for the dashboard, project data, Start Of Day refresh/session persistence and Admin Console. Earlier preparation notes below retain the checks and blockers observed before release; the release record supersedes their deployment status.
+
+## Production release record
+
+- Dan explicitly approved merging PR #14, deploying to the existing Vercel project, updating Supabase URLs/functions and running production checks while retaining GitHub Pages.
+- PR #14 merged as `e60bd6602d57a795eb6f9c73896f202a766d95c2`. Vercel production deployment `DdpF6Fz6wEubzdwjovdnrJvYYyB2` completed successfully at `https://pm-productivity-tool.vercel.app`.
+- Supabase Site URL is now `https://pm-productivity-tool.vercel.app`. The exact redirect `https://pm-productivity-tool.vercel.app/` was added alongside the existing GitHub Pages redirect.
+- Added `MOMENTUM_APP_URL=https://pm-productivity-tool.vercel.app`; the existing `APP_URL` was not changed.
+- Released the minimal live-source patches for `invite-user`, `delete-invite`, `delete-user`, `send-notification-email`, and `agent-control`. Function versions after the configuration update and deployment are 21, 18, 17, 22 and 10 respectively. Existing JWT verification settings were preserved.
+- Production HTTP checks passed for `/`, `/start-of-day`, the main JavaScript bundle, `/manifest.webmanifest`, `/favicon.svg` and `/healthz.json`. PWA scope/start URL are `/`. The bundle uses the same active Workstream Tool backend as GitHub Pages.
+- All five functions allow both production and GitHub Pages origins, exclude the tested lookalike origin, and return HTTP 401 to unauthenticated POST requests. These checks do not send invitations, notifications or delete requests with valid credentials.
+- GitHub Pages still returns HTTP 200 and its deployment workflow was not changed or dispatched.
+- A remaining hard-coded favicon link was found during production checks; the release follow-up changes it to Vite's `%BASE_URL%` placeholder for both hosting paths.
+- Signed-in dashboard, project data, Start Of Day refresh/session persistence and Admin Console were verified in Dan's production session. Browser logs showed no errors, with Telegram compatibility warnings only. Write/delete operations, invitation acceptance, password-reset delivery and outbound notifications were not exercised. Existing dependency advisories remain documented below.
+- Local release evidence, exact rollback function sources, candidate bundles and HTTP check results are under `.vercel/migration-2026-10-21/` (ignored by Git).
 
 ## Verified existing Vercel project
 
